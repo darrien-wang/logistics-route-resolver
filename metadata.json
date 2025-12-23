@@ -1,0 +1,5 @@
+{
+  "name": "Logistics Route Resolver",
+  "description": "A sophisticated order routing dashboard that processes Order IDs through a middleware pipeline to resolve zip codes and route configurations, featuring a data-rich big-screen visualization and extensible export system.",
+  "requestFramePermissions": []
+}
