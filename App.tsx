@@ -602,7 +602,7 @@ const App: React.FC = () => {
           <input
             ref={scannerInputRef}
             type="text"
-            placeholder="SCAN OR PASTE ORDERS (USE SPACE TO BATCH)..."
+            placeholder="USE SPACE TO BATCH"
             value={orderId}
             onChange={(e) => setOrderId(e.target.value)}
             className="w-full bg-slate-900/60 border-[10px] border-white/5 rounded-[56px] py-14 px-14 text-5xl font-black text-center text-white focus:outline-none focus:border-sky-500 focus:ring-20 focus:ring-sky-500/5 transition-all placeholder:text-slate-500 uppercase tracking-widest shadow-2xl"
