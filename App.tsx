@@ -124,8 +124,15 @@ const App: React.FC = () => {
 
   const clearHistory = () => {
     if (confirm("Clear all activity history?")) {
+      // Clear all state to match first-launch state
       setOperationLog({});
       setHistory([]);
+      setCurrentResult(null);
+      setError(null);
+      setBatchMode({ active: false, ids: [] });
+      setSelectedEventTypes([]);
+      setOrderId('');
+      setLoading(false);
     }
   };
 
@@ -870,10 +877,10 @@ const App: React.FC = () => {
         {view === 'operator' && (
           <button
             onClick={() => setView('dashboard')}
-            className="fixed top-14 right-14 bg-slate-800/95 backdrop-blur-2xl border-2 border-sky-500/30 px-10 py-5 rounded-[30px] flex items-center gap-5 text-slate-200 hover:text-white hover:border-sky-500/50 transition-all hover:scale-105 z-[200] shadow-2xl shadow-sky-500/10 group"
+            className="fixed top-10 right-10 bg-slate-800/95 backdrop-blur-2xl border-2 border-sky-500/30 px-6 py-3 rounded-[20px] flex items-center gap-3 text-slate-200 hover:text-white hover:border-sky-500/50 transition-all hover:scale-105 z-[200] shadow-xl shadow-sky-500/10 group"
           >
-            <Minimize2 className="w-7 h-7 group-hover:rotate-12 transition-transform" />
-            <span className="font-black text-lg uppercase tracking-widest">Exit Station</span>
+            <Minimize2 className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+            <span className="font-black text-sm uppercase tracking-widest">Exit Station</span>
           </button>
         )}
 
