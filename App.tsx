@@ -605,11 +605,11 @@ const App: React.FC = () => {
             placeholder="SCAN OR PASTE ORDERS (USE SPACE TO BATCH)..."
             value={orderId}
             onChange={(e) => setOrderId(e.target.value)}
-            className="w-full bg-slate-900/60 border-[10px] border-white/5 rounded-[56px] py-14 px-14 text-5xl font-black text-center text-white focus:outline-none focus:border-sky-500 focus:ring-20 focus:ring-sky-500/5 transition-all placeholder:text-slate-800 uppercase tracking-widest shadow-2xl"
+            className="w-full bg-slate-900/60 border-[10px] border-white/5 rounded-[56px] py-14 px-14 text-5xl font-black text-center text-white focus:outline-none focus:border-sky-500 focus:ring-20 focus:ring-sky-500/5 transition-all placeholder:text-slate-500 uppercase tracking-widest shadow-2xl"
           />
           {loading && <RefreshCcw className="absolute right-16 top-1/2 -translate-y-1/2 w-16 h-16 text-sky-400 animate-spin" />}
           <div className="absolute left-16 top-1/2 -translate-y-1/2 flex items-center gap-6 pointer-events-none opacity-20 group-focus-within:opacity-100 transition-opacity">
-            <ScanBarcode className="w-16 h-16 text-slate-600" />
+            <ScanBarcode className="w-16 h-16 text-slate-400" />
           </div>
         </form>
 
@@ -870,7 +870,7 @@ const App: React.FC = () => {
         {view === 'operator' && (
           <button
             onClick={() => setView('dashboard')}
-            className="fixed top-14 right-14 bg-slate-900/90 backdrop-blur-2xl border-2 border-white/10 px-10 py-5 rounded-[30px] flex items-center gap-5 text-slate-400 hover:text-white transition-all hover:scale-105 z-[200] shadow-2xl group"
+            className="fixed top-14 right-14 bg-slate-800/95 backdrop-blur-2xl border-2 border-sky-500/30 px-10 py-5 rounded-[30px] flex items-center gap-5 text-slate-200 hover:text-white hover:border-sky-500/50 transition-all hover:scale-105 z-[200] shadow-2xl shadow-sky-500/10 group"
           >
             <Minimize2 className="w-7 h-7 group-hover:rotate-12 transition-transform" />
             <span className="font-black text-lg uppercase tracking-widest">Exit Station</span>
