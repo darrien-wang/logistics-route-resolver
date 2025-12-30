@@ -58,6 +58,7 @@ export interface ResolvedRouteInfo extends OrderData {
   route?: ZipRouteRecord;
   resolvedAt: string;
   activeEvents?: OrderEventStatus[];
+  exceptionReason?: string; // Reason for being in exception pool
 }
 
 // Middleware interface for data processing
@@ -71,4 +72,21 @@ export interface IRouteDataSource {
 // Export Provider Interface
 export interface IExportService {
   export(data: ResolvedRouteInfo[]): Promise<void>;
+}
+
+// Route Stack Management
+export interface RouteStack {
+  routeName: string;
+  baseRouteName: string;  // Original route name (e.g., "SD-007")
+  stackNumber: number;    // Stack index (1, 2, 3...)
+  displayName: string;    // Full display name (e.g., "SD-007-001")
+  capacity: number;
+  orders: ResolvedRouteInfo[];
+  isFull: boolean;
+}
+
+export interface RouteStackState {
+  stacks: Map<string, RouteStack>;
+  exceptionPool: ResolvedRouteInfo[];
+  defaultCapacity: number;
 }

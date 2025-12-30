@@ -56,9 +56,9 @@ export const createRemoteLookupMiddleware = (settings: ApiSettings): ProcessingM
         const orderRow = result.rows[0];
         const deliveryAddress = orderRow.deliveryAddress || "";
 
-        // Extract Zip Code using regex from address (e.g., ...CA，92037-2332)
-        const zipMatch = deliveryAddress.match(/\b\d{5}(-\d{4})?\b/);
-        const extractedZip = zipMatch ? zipMatch[0].split('-')[0] : context.zipCode;
+        // Extract Zip Code - pick the LAST match to avoid picking up street numbers (e.g. 10319) at the start
+        const allMatches = deliveryAddress.match(/\b\d{5}(-\d{4})?\b/g);
+        const extractedZip = allMatches ? allMatches[allMatches.length - 1] : context.zipCode;
 
         return {
           ...context,
@@ -90,11 +90,12 @@ export const createPersistenceMiddleware = (onProcessStart: (orderId: string) =>
  */
 export const createOrderLookupMiddleware = (): ProcessingMiddleware => {
   return async (context) => {
-    // If remote already found a zip, don't overwrite with local logic
-    if (context.zipCode && context.zipCode.length === 5) return context;
+    // If we already have a reasonably formatted zip code (5 to 10 chars), don't overwrite
+    if (context.zipCode && context.zipCode.length >= 5 && context.zipCode.length <= 10) return context;
 
-    const zipMatch = context.address.match(/\b\d{5}\b/);
-    const zip = zipMatch ? zipMatch[0] : "92101";
+    // Match 5-digit or 9-digit (xxxxx-xxxx) zip code - pick the LAST match
+    const allMatches = context.address.match(/\b\d{5}(-\d{4})?\b/g);
+    const zip = allMatches ? allMatches[allMatches.length - 1] : undefined;
 
     return {
       ...context,
@@ -176,7 +177,7 @@ export const createPickupScanMiddleware = (
     }
 
     try {
-      const response = await fetch("/api-pda/api/wpglb-dms-pda-service/mobile/pickupTask/pickupScan", {
+      const response = await fetch("https://pda.wpglb.com/api/wpglb-dms-pda-service/mobile/pickupTask/pickupScan", {
         method: "POST",
         headers: {
           "accept": "application/json, text/plain, */*",
@@ -214,7 +215,26 @@ export const createPickupScanMiddleware = (
 
 /**
  * Middleware factory for Unload Scan Request
+ * 
+ * Three-step unload flow:
+ * 1. getTruckLoadingListByTrackingNumberAndCode → get loadingListId
+ * 2. getUnloadingData → get pending unload items (cache them)
+ * 3. unloadPiece → actually unload the piece
  */
+
+// Cache for unload data: loadingListId → pending tracking numbers
+interface UnloadCacheEntry {
+  loadingListId: string;
+  loadingListCode: string;
+  pendingItems: Map<string, { detailId: string; deliverySiteCode: string }>;
+}
+
+// Global cache for unload data
+const unloadCache = new Map<string, UnloadCacheEntry>();
+
+// Lookup cache: trackingNumber → loadingListId
+const trackingToLoadingListCache = new Map<string, string>();
+
 export const createUnloadScanMiddleware = (
   settings: ApiSettings,
   onEventFinished: EventFinishedHandler
@@ -226,31 +246,143 @@ export const createUnloadScanMiddleware = (
       return context;
     }
 
+    const trackingNumber = context.orderId;
+
     try {
-      // GET request as specified in the user's fetch example
-      const response = await fetch(`/api-pda/api/wpglb-dms-pda-service/truckLoading/getTruckLoadingListByTrackingNumberAndCode?truckLoadinCode=${context.orderId}`, {
-        method: "GET",
-        headers: {
-          "accept": "application/json, text/plain, */*",
-          "accept-language": "zh-CN",
-          "authorization": settings.authorization,
-          "wpglb-auth": settings.wpglbAuth,
-          "wpglb-requested-with": "WpglbHttpRequest",
-          "Referer": "https://pda.wpglb.com/unloadingScanNew"
+      // Check if we already have this tracking number cached
+      let loadingListId = trackingToLoadingListCache.get(trackingNumber);
+      let cacheEntry = loadingListId ? unloadCache.get(loadingListId) : undefined;
+
+      // Step 1: If not cached, get loadingListId from tracking number
+      if (!loadingListId) {
+        console.log(`[Unload] Step 1: Getting loadingListId for ${trackingNumber}`);
+
+        const step1Response = await fetch(
+          `https://pda.wpglb.com/api/wpglb-dms-pda-service/truckLoading/getTruckLoadingListByTrackingNumberAndCode?truckLoadinCode=${trackingNumber}`,
+          {
+            method: "GET",
+            headers: {
+              "accept": "application/json, text/plain, */*",
+              "accept-language": "zh-CN",
+              "authorization": settings.authorization,
+              "wpglb-auth": settings.wpglbAuth,
+              "wpglb-requested-with": "WpglbHttpRequest",
+              "Referer": "https://pda.wpglb.com/unloadingScanNew"
+            }
+          }
+        );
+
+        const step1Result = await step1Response.json();
+        console.log(`[Unload] Step 1 Response:`, step1Result);
+
+        if (!step1Result.success || !step1Result.data?.loadingListId) {
+          onEventFinished(context.orderId, 'UNLOAD', false, step1Result.message || 'Failed to get loadingListId');
+          return context;
         }
-      });
 
-      const result = await response.json();
+        loadingListId = String(step1Result.data.loadingListId);
+        const loadingListCode = step1Result.data.loadingListCode || '';
 
-      // Update the event status based on API response
-      const isSuccess = response.ok && (result.success !== false);
-      const message = result.message || (isSuccess ? "Unload Scan Success" : "Unload Scan Failed");
+        // Cache the mapping
+        trackingToLoadingListCache.set(trackingNumber, loadingListId);
+
+        // Step 2: Get pending unload items for this loadingListId
+        console.log(`[Unload] Step 2: Getting unload data for loadingListId ${loadingListId}`);
+
+        const step2Response = await fetch(
+          `https://pda.wpglb.com/api/wpglb-dms-pda-service/truckLoading/getUnloadingData?loadingListId=${loadingListId}`,
+          {
+            method: "GET",
+            headers: {
+              "accept": "application/json, text/plain, */*",
+              "accept-language": "zh-CN",
+              "authorization": settings.authorization,
+              "wpglb-auth": settings.wpglbAuth,
+              "wpglb-requested-with": "WpglbHttpRequest",
+              "Referer": "https://pda.wpglb.com/unloadingScanNew"
+            }
+          }
+        );
+
+        const step2Result = await step2Response.json();
+        console.log(`[Unload] Step 2 Response:`, step2Result);
+
+        if (!step2Result.success) {
+          onEventFinished(context.orderId, 'UNLOAD', false, step2Result.message || 'Failed to get unload data');
+          return context;
+        }
+
+        // Cache pending items
+        const pendingItems = new Map<string, { detailId: string; deliverySiteCode: string }>();
+        const unloadedList = step2Result.data?.unUnloadeddetailVOList || [];
+
+        for (const item of unloadedList) {
+          pendingItems.set(item.trackingNumber, {
+            detailId: item.detailId,
+            deliverySiteCode: item.deliverySiteCode || ''
+          });
+          // Also cache tracking number → loadingListId for all items
+          trackingToLoadingListCache.set(item.trackingNumber, loadingListId);
+        }
+
+        cacheEntry = {
+          loadingListId,
+          loadingListCode,
+          pendingItems
+        };
+        unloadCache.set(loadingListId, cacheEntry);
+
+        console.log(`[Unload] Cached ${pendingItems.size} pending items for loadingListId ${loadingListId}`);
+      }
+
+      // Step 3: Check if this tracking number is in pending items and unload it
+      if (!cacheEntry) {
+        onEventFinished(context.orderId, 'UNLOAD', false, 'Cache entry not found');
+        return context;
+      }
+
+      const pendingItem = cacheEntry.pendingItems.get(trackingNumber);
+      if (!pendingItem) {
+        onEventFinished(context.orderId, 'UNLOAD', false, `Tracking ${trackingNumber} not found in pending unload list`);
+        return context;
+      }
+
+      console.log(`[Unload] Step 3: Unloading piece ${trackingNumber}`);
+
+      const step3Response = await fetch(
+        `https://pda.wpglb.com/api/wpglb-dms-pda-service/truckLoading/unloadPiece`,
+        {
+          method: "POST",
+          headers: {
+            "accept": "application/json, text/plain, */*",
+            "accept-language": "zh-CN",
+            "authorization": settings.authorization,
+            "content-type": "application/json",
+            "wpglb-auth": settings.wpglbAuth,
+            "wpglb-requested-with": "WpglbHttpRequest",
+            "Referer": "https://pda.wpglb.com/unloadingScanNew"
+          },
+          body: JSON.stringify({
+            truckNo: trackingNumber,
+            loadingListId: cacheEntry.loadingListId,
+            trackingNumber: trackingNumber,
+            type: 2
+          })
+        }
+      );
+
+      const step3Result = await step3Response.json();
+      console.log(`[Unload] Step 3 Response:`, step3Result);
+
+      const isSuccess = step3Result.success === true;
+      const message = step3Result.message || (isSuccess ? 'Unload Success' : 'Unload Failed');
+
+      // Remove from pending items on success
+      if (isSuccess) {
+        cacheEntry.pendingItems.delete(trackingNumber);
+      }
 
       onEventFinished(context.orderId, 'UNLOAD', isSuccess, message);
-
-      if (!isSuccess) {
-        console.warn(`Unload scan failed: ${message}`);
-      }
 
     } catch (error) {
       console.error("Unload scan request failed", error);

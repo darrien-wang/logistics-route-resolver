@@ -11,8 +11,18 @@ export class FlexibleDataSource implements IRouteDataSource {
   private sourceName: string = "Default Table";
 
   async getRouteByZip(zip: string): Promise<ZipRouteRecord | null> {
-    // Standard matching logic - could be fuzzy matching in the future
-    const record = this.records.find(r => r.zip.toString() === zip.toString());
+    // Standard matching logic - try exact match first
+    let record = this.records.find(r => r.zip.toString() === zip.toString());
+
+    // If no exact match and zip has 9 digits (xxxxx-xxxx), try 5-digit prefix
+    if (!record && zip.includes('-')) {
+      const fiveDigitZip = zip.split('-')[0];
+      record = this.records.find(r => r.zip.toString() === fiveDigitZip);
+      if (record) {
+        console.log(`[RouteService] Fallback: ${zip} matched to 5-digit ${fiveDigitZip}`);
+      }
+    }
+
     return record || null;
   }
 

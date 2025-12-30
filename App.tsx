@@ -36,11 +36,13 @@ import {
   createPersistenceMiddleware,
   createRemoteLookupMiddleware,
   createPickupScanMiddleware,
-  createUnloadScanMiddleware
 } from './services/MiddlewareChain';
+import { executeUnload } from './services/UnloadService';
+import { batchSearchOrders, getCachedOrder } from './services/BatchOrderService';
 import { FlexibleDataSource } from './services/RouteService';
 import { ExcelExportService } from './services/ExportService';
 import StatCard from './components/StatCard';
+import RouteStackManager from './components/RouteStackManager';
 
 const STORAGE_KEY = 'LOGISTICS_ACTIVITY_STREAM';
 const API_CONFIG_KEY = 'LOGISTICS_API_CONFIG';
@@ -51,7 +53,7 @@ const MOCK_ORDERS: Record<string, OrderData> = {
 };
 
 const App: React.FC = () => {
-  const [view, setView] = useState<'dashboard' | 'operator' | 'rules'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'operator' | 'rules' | 'stacks'>('dashboard');
   const [orderId, setOrderId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -149,20 +151,51 @@ const App: React.FC = () => {
         // [x] Refine Event Selection Logic [x]
         //     [x] Change Event Triggers to single-select [x]
         //     [x] Fix DashboardView type safety [x]
+        // Batch search all orders first (handles chunking and caching)
+        const allIds = ids.map(id => id.toUpperCase());
+        const orderDataMap = await batchSearchOrders(allIds, apiSettings);
+        console.log(`[Batch] Got ${orderDataMap.size} orders from search`);
+
         for (const id of ids) {
           const uppercaseId = id.toUpperCase();
-          const initialData: OrderData = MOCK_ORDERS[uppercaseId] || { orderId: uppercaseId, address: "", date: new Date().toLocaleDateString() };
+          const cachedOrder = orderDataMap.get(uppercaseId);
 
-          const chain = new MiddlewareChain();
-          chain
-            .use(createRemoteLookupMiddleware(apiSettings))
-            .use(createOrderLookupMiddleware())
-            .use(createRouteResolverMiddleware(dataSource))
-            .use(createEventTriggerMiddleware(selectedEventTypes, handleEventInitiated, handleEventFinished))
-            .use(createPickupScanMiddleware(apiSettings, handleEventFinished))
-            .use(createUnloadScanMiddleware(apiSettings, handleEventFinished));
+          // Build initial data from cache
+          const initialData: OrderData = {
+            orderId: uppercaseId,
+            address: cachedOrder?.deliveryAddress || "",
+            date: new Date().toLocaleDateString(),
+            zipCode: cachedOrder?.zipCode || "",
+            weight: cachedOrder?.weight || 0,
+          };
 
-          await chain.run(initialData);
+          // Check if UNLOAD is selected - use separate flow
+          if (selectedEventTypes.includes('UNLOAD')) {
+            // Run route resolution with cached data (skip remote lookup)
+            const chain = new MiddlewareChain();
+            chain
+              .use(createOrderLookupMiddleware())
+              .use(createRouteResolverMiddleware(dataSource))
+              .use(createEnrichmentMiddleware());
+
+            const result = await chain.run(initialData);
+            setHistory(prev => [result, ...prev.filter(h => h.orderId !== result.orderId)].slice(0, 500));
+
+            // Execute unload separately
+            handleEventInitiated(uppercaseId, [{ type: 'UNLOAD', status: 'PENDING', timestamp: new Date().toISOString() }]);
+            await executeUnload(uppercaseId, apiSettings, handleEventFinished);
+          } else {
+            // Use middleware chain for non-UNLOAD events (skip remote lookup, use cached data)
+            const chain = new MiddlewareChain();
+            chain
+              .use(createOrderLookupMiddleware())
+              .use(createRouteResolverMiddleware(dataSource))
+              .use(createEventTriggerMiddleware(selectedEventTypes, handleEventInitiated, handleEventFinished))
+              .use(createPickupScanMiddleware(apiSettings, handleEventFinished));
+
+            const result = await chain.run(initialData);
+            setHistory(prev => [result, ...prev.filter(h => h.orderId !== result.orderId)].slice(0, 500));
+          }
         }
 
         setCurrentResult(null);
@@ -170,23 +203,46 @@ const App: React.FC = () => {
       } else {
         setBatchMode({ active: false, ids: [] });
         const targetId = ids[0].toUpperCase();
-        const initialOrder = MOCK_ORDERS[targetId] || { orderId: targetId, address: "", date: new Date().toLocaleDateString() };
 
-        const chain = new MiddlewareChain();
-        chain
-          .use(createPersistenceMiddleware((id) => console.log(`Processing ${id}...`)))
-          .use(createRemoteLookupMiddleware(apiSettings))
-          .use(createOrderLookupMiddleware())
-          .use(createRouteResolverMiddleware(dataSource))
-          .use(createEventTriggerMiddleware(selectedEventTypes, handleEventInitiated, handleEventFinished))
-          .use(createPickupScanMiddleware(apiSettings, handleEventFinished))
-          .use(createUnloadScanMiddleware(apiSettings, handleEventFinished))
-          .use(createEnrichmentMiddleware());
+        // Check if UNLOAD is selected - use separate flow for unload, but still resolve route
+        if (selectedEventTypes.includes('UNLOAD')) {
+          // Run route resolution without ordersSearch
+          const initialOrder = MOCK_ORDERS[targetId] || { orderId: targetId, address: "", date: new Date().toLocaleDateString() };
 
-        const result = await chain.run(initialOrder);
-        setCurrentResult(result);
-        setHistory(prev => [result, ...prev.filter(h => h.orderId !== result.orderId)].slice(0, 50));
-        setOrderId('');
+          const chain = new MiddlewareChain();
+          chain
+            .use(createRemoteLookupMiddleware(apiSettings)) // Need ordersSearch to get address/zip
+            .use(createOrderLookupMiddleware())
+            .use(createRouteResolverMiddleware(dataSource))
+            .use(createEnrichmentMiddleware());
+
+          const result = await chain.run(initialOrder);
+          setCurrentResult(result);
+          setHistory(prev => [result, ...prev.filter(h => h.orderId !== result.orderId)].slice(0, 50));
+
+          // Execute unload separately
+          handleEventInitiated(targetId, [{ type: 'UNLOAD', status: 'PENDING', timestamp: new Date().toISOString() }]);
+          await executeUnload(targetId, apiSettings, handleEventFinished);
+          setOrderId('');
+        } else {
+          // Use middleware chain for non-UNLOAD events
+          const initialOrder = MOCK_ORDERS[targetId] || { orderId: targetId, address: "", date: new Date().toLocaleDateString() };
+
+          const chain = new MiddlewareChain();
+          chain
+            .use(createPersistenceMiddleware((id) => console.log(`Processing ${id}...`)))
+            .use(createRemoteLookupMiddleware(apiSettings))
+            .use(createOrderLookupMiddleware())
+            .use(createRouteResolverMiddleware(dataSource))
+            .use(createEventTriggerMiddleware(selectedEventTypes, handleEventInitiated, handleEventFinished))
+            .use(createPickupScanMiddleware(apiSettings, handleEventFinished))
+            .use(createEnrichmentMiddleware());
+
+          const result = await chain.run(initialOrder);
+          setCurrentResult(result);
+          setHistory(prev => [result, ...prev.filter(h => h.orderId !== result.orderId)].slice(0, 50));
+          setOrderId('');
+        }
       }
     } catch (err: any) {
       setError(err.message || "RESOLUTION ERROR");
@@ -197,6 +253,14 @@ const App: React.FC = () => {
       if (view === 'operator') setTimeout(() => scannerInputRef.current?.focus(), 50);
     }
   }, [dataSource, view, selectedEventTypes, handleEventInitiated, handleEventFinished, apiSettings]);
+
+  const handleAddTestData = useCallback((testOrders: ResolvedRouteInfo[]) => {
+    setHistory(prev => {
+      const existingIds = new Set(prev.map(o => o.orderId));
+      const newOrders = testOrders.filter(o => !existingIds.has(o.orderId));
+      return [...newOrders, ...prev];
+    });
+  }, []);
 
   const toggleEventType = (type: EventType) => {
     setSelectedEventTypes(prev =>
@@ -481,18 +545,18 @@ const App: React.FC = () => {
               <Download className="w-4 h-4" />
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar max-h-[400px]">
             {Object.entries(operationLog).reverse().map(([id, events]) => (
               <div key={id} className="p-5 bg-slate-900/60 rounded-[24px] border border-white/5 hover:border-sky-500/20 transition-all group">
                 <div className="flex justify-between items-center mb-4">
                   <div className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(56,189,248,0.5)] ${events.every(e => e.status === 'SUCCESS') ? 'bg-emerald-400 shadow-emerald-400/50' : 'bg-sky-400'}`}></div>
+                    <div className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(56,189,248,0.5)] ${(events as OrderEventStatus[]).every(e => e.status === 'SUCCESS') ? 'bg-emerald-400 shadow-emerald-400/50' : 'bg-sky-400'}`}></div>
                     <span className="font-mono text-sm text-sky-400 font-black tracking-widest uppercase">{id}</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-slate-800 group-hover:translate-x-1 transition-transform" />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  {events.map((e, idx) => (
+                  {(events as OrderEventStatus[]).map((e, idx) => (
                     <div key={idx} className="flex flex-col space-y-1">
                       <div className={`flex items-center justify-between p-2 rounded-xl border whitespace-nowrap ${e.status === 'SUCCESS' ? 'bg-emerald-500/5 border-emerald-500/10' : e.status === 'FAILED' ? 'bg-red-500/5 border-red-500/10' : 'bg-amber-500/5 border-amber-500/10'}`}>
                         <span className="text-[9px] uppercase font-bold text-slate-600 mr-2">{e.type}</span>
@@ -782,6 +846,9 @@ const App: React.FC = () => {
           <button onClick={() => setView('rules')} className={`p-4 rounded-2xl transition-all ${view === 'rules' ? 'bg-sky-500/20 text-sky-400 shadow-lg shadow-sky-500/10' : 'text-slate-600 hover:text-slate-400'}`}>
             <ClipboardList className="w-7 h-7" />
           </button>
+          <button onClick={() => setView('stacks')} className={`p-4 rounded-2xl transition-all ${view === 'stacks' ? 'bg-sky-500/20 text-sky-400 shadow-lg shadow-sky-500/10' : 'text-slate-600 hover:text-slate-400'}`}>
+            <Layers className="w-7 h-7" />
+          </button>
         </div>
         <button onClick={() => setShowApiConfig(true)} className="mt-auto p-4 text-slate-600 hover:text-sky-400 transition-colors">
           <Settings className="w-7 h-7" />
@@ -789,7 +856,7 @@ const App: React.FC = () => {
       </div>
 
       <main className="flex-1 ml-24 p-10 lg:p-14 relative overflow-y-auto">
-        {view === 'dashboard' ? <DashboardView /> : view === 'operator' ? <OperatorView /> : <RulesManagementView />}
+        {view === 'dashboard' ? <DashboardView /> : view === 'operator' ? <OperatorView /> : view === 'stacks' ? <RouteStackManager history={history} onAddTestData={handleAddTestData} /> : <RulesManagementView />}
 
         {view === 'operator' && (
           <button
