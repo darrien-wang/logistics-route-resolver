@@ -250,9 +250,9 @@ const App: React.FC = () => {
       setBatchMode({ active: false, ids: [] });
     } finally {
       setLoading(false);
-      if (view === 'operator') setTimeout(() => scannerInputRef.current?.focus(), 50);
+      if (view === 'operator' && !showApiConfig) setTimeout(() => scannerInputRef.current?.focus(), 50);
     }
-  }, [dataSource, view, selectedEventTypes, handleEventInitiated, handleEventFinished, apiSettings]);
+  }, [dataSource, view, selectedEventTypes, handleEventInitiated, handleEventFinished, apiSettings, showApiConfig]);
 
   const handleAddTestData = useCallback((testOrders: ResolvedRouteInfo[]) => {
     setHistory(prev => {
@@ -294,13 +294,22 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    const handleGlobalFocus = () => { if (view === 'operator') scannerInputRef.current?.focus(); };
-    if (view === 'operator') {
+    const handleGlobalFocus = (e: MouseEvent) => {
+      if (view === 'operator' && !showApiConfig) {
+        // Avoid stealing focus if user clicked an input/textarea
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+        scannerInputRef.current?.focus();
+      }
+    };
+
+    if (view === 'operator' && !showApiConfig) {
       scannerInputRef.current?.focus();
-      window.addEventListener('click', handleGlobalFocus);
     }
+
+    window.addEventListener('click', handleGlobalFocus);
     return () => window.removeEventListener('click', handleGlobalFocus);
-  }, [view]);
+  }, [view, showApiConfig]);
 
   // Dashboard View
   const DashboardView = () => (
@@ -589,7 +598,7 @@ const App: React.FC = () => {
 
       {/* Main Column */}
       <div className="col-span-9 flex flex-col space-y-10">
-        <form onSubmit={(e) => { e.preventDefault(); handleSearch(orderId); }} className="relative">
+        <form onSubmit={(e) => { e.preventDefault(); handleSearch(orderId); }} className="relative group">
           <input
             ref={scannerInputRef}
             type="text"
