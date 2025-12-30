@@ -696,9 +696,13 @@ const App: React.FC = () => {
               </div>
             );
           })() : (
-            <div className="flex flex-col items-center text-slate-800 space-y-6 opacity-20">
-              <Truck className="w-40 h-40" />
-              <div className="text-5xl font-black uppercase tracking-[0.6em]">Awaiting Input</div>
+            <div className="flex flex-col items-center space-y-6 opacity-20">
+              <img
+                src="/app_logo_fixed.png"
+                className="w-80 h-80"
+                alt="Logo"
+              />
+              <div className="text-5xl font-black uppercase tracking-[0.6em] text-slate-800">Awaiting Input</div>
             </div>
           )}
         </div>
@@ -850,8 +854,12 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-sky-500/30">
       {/* Sidebar Navigation */}
       <div className="fixed left-0 top-0 bottom-0 w-24 bg-slate-900 border-r border-white/5 flex flex-col items-center py-10 z-[200]">
-        <div className="w-14 h-14 bg-sky-500 rounded-3xl flex items-center justify-center mb-14 shadow-2xl shadow-sky-500/20">
-          <Truck className="w-8 h-8 text-slate-950" />
+        <div className="w-14 h-14 bg-white/5 backdrop-blur-xl rounded-3xl flex items-center justify-center mb-14 shadow-2xl overflow-hidden border border-white/10 group">
+          <img
+            src="/app_logo_fixed.png"
+            className="w-14 h-14 object-contain p-1 group-hover:scale-110 transition-transform"
+            alt="Logo"
+          />
         </div>
         <div className="flex flex-col gap-8">
           <button onClick={() => setView('dashboard')} className={`p-4 rounded-2xl transition-all ${view === 'dashboard' ? 'bg-sky-500/20 text-sky-400 shadow-lg shadow-sky-500/10' : 'text-slate-600 hover:text-slate-400'}`}>
