@@ -1,6 +1,7 @@
 import { app, BrowserWindow, session } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { setupAutoUpdater } from './updater'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -69,4 +70,12 @@ app.on('activate', () => {
     }
 })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+    createWindow()
+
+    // Only enable auto-updater in packaged app
+    if (app.isPackaged && win) {
+        setupAutoUpdater(win)
+    }
+})
+

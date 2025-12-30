@@ -1,7 +1,10 @@
 {
   "name": "logistics-route-resolver",
+  "productName": "Logistics Route Resolver",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "author": "Darrien Wang",
+  "description": "基于聚类算法的集包路线解析工具",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -9,9 +12,11 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "electron:dev": "vite",
-    "electron:build": "tsc && vite build && electron-builder"
+    "electron:build": "tsc && vite build && electron-builder",
+    "release": "tsc && vite build && electron-builder --publish always"
   },
   "dependencies": {
+    "electron-updater": "^6.3.9",
     "lucide-react": "^0.562.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
@@ -23,9 +28,39 @@
     "@vitejs/plugin-react": "^5.0.0",
     "electron": "^39.2.7",
     "electron-builder": "^26.0.12",
+    "electron-log": "^5.2.4",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
     "vite-plugin-electron": "^0.29.0",
     "vite-plugin-electron-renderer": "^0.14.6"
+  },
+  "build": {
+    "appId": "com.darriengroup.logistics-route-resolver",
+    "productName": "Logistics Route Resolver",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "public/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Logistics Route Resolver"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "darrien-wang",
+      "repo": "logistics-route-resolver"
+    }
   }
 }

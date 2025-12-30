@@ -22,3 +22,18 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     // You can expose other apts you need here.
     // ...
 })
+
+// --------- Expose Update API ---------
+contextBridge.exposeInMainWorld('electronAPI', {
+    updater: {
+        checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+        downloadUpdate: () => ipcRenderer.invoke('download-update'),
+        installUpdate: () => ipcRenderer.invoke('install-update'),
+        getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+        onUpdateStatus: (callback: (status: any) => void) => {
+            const handler = (_event: any, data: any) => callback(data);
+            ipcRenderer.on('update-status', handler);
+            return () => ipcRenderer.removeListener('update-status', handler);
+        }
+    }
+})

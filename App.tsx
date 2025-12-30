@@ -43,6 +43,7 @@ import { FlexibleDataSource } from './services/RouteService';
 import { ExcelExportService } from './services/ExportService';
 import StatCard from './components/StatCard';
 import RouteStackManager from './components/RouteStackManager';
+import UpdateNotification from './components/UpdateNotification';
 
 const STORAGE_KEY = 'LOGISTICS_ACTIVITY_STREAM';
 const API_CONFIG_KEY = 'LOGISTICS_API_CONFIG';
@@ -885,6 +886,9 @@ const App: React.FC = () => {
         )}
 
         {showApiConfig && <ApiConfigModal />}
+
+        {/* Update Notification */}
+        <UpdateNotification />
       </main>
     </div>
   );
