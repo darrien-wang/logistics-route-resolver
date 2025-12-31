@@ -82,13 +82,13 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : {
       wpglbAuth: '',
       authorization: '',
-      enabled: false,
+      enabled: true,
       pickupEnabled: false,
       taskCode: '',
       ptId: 0,
       pickupSite: 0,
       voiceEnabled: true,
-      autoPrintLabelEnabled: false,
+      autoPrintLabelEnabled: true,
       stackCapacity: 40
     };
   });
@@ -107,14 +107,14 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem(API_CONFIG_KEY, JSON.stringify(apiSettings));
     voiceService.setEnabled(apiSettings.voiceEnabled ?? true);
-    labelPrintService.setEnabled(apiSettings.autoPrintLabelEnabled ?? false);
+    labelPrintService.setEnabled(apiSettings.autoPrintLabelEnabled ?? true);
     routeStackService.setCapacity(apiSettings.stackCapacity ?? 40);
   }, [apiSettings]);
 
   // Initialize services on mount
   useEffect(() => {
     voiceService.setEnabled(apiSettings.voiceEnabled ?? true);
-    labelPrintService.setEnabled(apiSettings.autoPrintLabelEnabled ?? false);
+    labelPrintService.setEnabled(apiSettings.autoPrintLabelEnabled ?? true);
     routeStackService.setCapacity(apiSettings.stackCapacity ?? 40);
   }, []);
 
