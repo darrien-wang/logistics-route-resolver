@@ -916,7 +916,7 @@ const App: React.FC = () => {
             ) : (
               <div className="flex flex-col items-center justify-center h-full space-y-6 opacity-20">
                 <img
-                  src="/app_logo_fixed.png"
+                  src="app_logo_fixed.png"
                   className="w-80 h-80"
                   alt="Logo"
                 />
@@ -1075,7 +1075,7 @@ const App: React.FC = () => {
       <div className="fixed left-0 top-0 bottom-0 w-24 bg-slate-900 border-r border-white/5 flex flex-col items-center py-10 z-[200]">
         <div className="w-14 h-14 bg-white/5 backdrop-blur-xl rounded-3xl flex items-center justify-center mb-14 shadow-2xl overflow-hidden border border-white/10 group">
           <img
-            src="/app_logo_fixed.png"
+            src="app_logo_fixed.png"
             className="w-14 h-14 object-contain p-1 group-hover:scale-110 transition-transform"
             alt="Logo"
           />
