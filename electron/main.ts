@@ -70,8 +70,8 @@ app.on('activate', () => {
     }
 })
 
-// Handle print-html IPC for silent label printing
-ipcMain.handle('print-html', async (_event, html: string, options: any = {}) => {
+// Handle print-image IPC for silent label printing
+ipcMain.handle('print-image', async (_event, imageDataUrl: string, options: any = {}) => {
     if (!win) {
         throw new Error('No window available for printing');
     }
@@ -80,32 +80,51 @@ ipcMain.handle('print-html', async (_event, html: string, options: any = {}) => 
         // Create a hidden window for printing
         const printWindow = new BrowserWindow({
             show: false,
+            width: 378,  // 10cm at 96 DPI
+            height: 567, // 15cm at 96 DPI
             webPreferences: {
                 nodeIntegration: false,
                 contextIsolation: true,
             },
         });
 
+        // Create simple HTML with just the image
+        const html = `<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @page { margin: 0; size: 10cm 15cm; }
+  * { margin: 0; padding: 0; }
+  body { width: 10cm; height: 15cm; }
+  img { width: 100%; height: 100%; object-fit: contain; }
+</style>
+</head>
+<body><img src="${imageDataUrl}" /></body>
+</html>`;
+
         // Load the HTML content
         await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
 
-        // Wait for content to load
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Wait for image to load
+        await new Promise(resolve => setTimeout(resolve, 300));
 
-        // Print silently
-        await printWindow.webContents.print({
-            silent: options.silent !== false,  // Default to silent
-            printBackground: options.printBackground !== false,
-            margins: { marginType: 'none' },
-            pageSize: options.pageSize || { width: 100000, height: 150000 }, // 10cm x 15cm in microns
+        // Print silently using callback pattern
+        return new Promise((resolve, reject) => {
+            printWindow.webContents.print({
+                silent: options.silent !== false,
+                printBackground: true,
+                margins: { marginType: 'none' },
+                pageSize: { width: 100000, height: 150000 },
+            }, (success, failureReason) => {
+                printWindow.close();
+                if (success) {
+                    resolve({ success: true });
+                } else {
+                    reject(new Error(failureReason || 'Print failed'));
+                }
+            });
         });
-
-        // Close the print window
-        printWindow.close();
-
-        return { success: true };
     } catch (error) {
-        console.error('[Electron] Print failed:', error);
         throw error;
     }
 });

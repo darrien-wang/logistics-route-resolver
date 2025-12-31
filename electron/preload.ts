@@ -36,5 +36,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
             return () => ipcRenderer.removeListener('update-status', handler);
         }
     },
-    printHTML: (html: string, options?: any) => ipcRenderer.invoke('print-html', html, options),
+    printImage: (imageDataUrl: string, options?: any) => ipcRenderer.invoke('print-image', imageDataUrl, options),
 })

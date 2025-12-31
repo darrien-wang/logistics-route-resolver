@@ -103,11 +103,6 @@ class LabelPrintService {
      * Queue a print job (non-blocking)
      */
     queuePrint(baseRouteName: string, stackNumber: number): string {
-        if (!this.enabled) {
-            console.log('[LabelPrintService] Auto-print disabled, skipping');
-            return '';
-        }
-
         const jobId = `print-${++this.jobIdCounter}-${Date.now()}`;
         const job: PrintJob = {
             id: jobId,
@@ -118,9 +113,6 @@ class LabelPrintService {
         };
 
         this.printQueue.push(job);
-        console.log(`[LabelPrintService] Queued print job: ${baseRouteName} #${stackNumber}`);
-
-        // Start processing queue if not already running
         this.processQueue();
 
         return jobId;
@@ -143,10 +135,8 @@ class LabelPrintService {
             try {
                 await this.executePrint(job);
                 job.status = 'done';
-                console.log(`[LabelPrintService] Print completed: ${job.baseRouteName} #${job.stackNumber}`);
-            } catch (error) {
+            } catch {
                 job.status = 'failed';
-                console.error(`[LabelPrintService] Print failed:`, error);
             }
         }
 
@@ -154,45 +144,18 @@ class LabelPrintService {
     }
 
     /**
-   * Execute silent print using Electron API or iframe fallback
+   * Execute silent print using Electron API
    */
     private async executePrint(job: PrintJob): Promise<void> {
         return new Promise((resolve, reject) => {
             try {
                 const dataUrl = this.generateLabelImage(job.baseRouteName, job.stackNumber);
+                const electronAPI = typeof window !== 'undefined' && (window as any).electronAPI;
 
-                // Check if Electron API is available
-                const isElectron = typeof window !== 'undefined' && (window as any).electronAPI;
-
-                if (isElectron) {
-                    // Use Electron's silent print API
-                    const htmlContent = `
-            <html>
-            <head>
-              <title>Print Label</title>
-              <style>
-                @page { margin: 0; size: 10cm 15cm; }
-                body { margin: 0; padding: 0; }
-                img { width: 10cm; height: 15cm; display: block; }
-              </style>
-            </head>
-            <body>
-              <img src="${dataUrl}" />
-            </body>
-            </html>
-          `;
-
-                    // Call Electron print API (silent print)
-                    (window as any).electronAPI.printHTML(htmlContent, {
-                        silent: true,
-                        printBackground: true,
-                        pageSize: { width: 100000, height: 150000 }, // 10cm x 15cm in microns
-                    }).then(() => {
-                        resolve();
-                    }).catch((error: Error) => {
-                        console.error('[LabelPrintService] Electron print failed:', error);
-                        reject(error);
-                    });
+                if (electronAPI?.printImage) {
+                    electronAPI.printImage(dataUrl, { silent: true })
+                        .then(() => resolve())
+                        .catch((error: Error) => reject(error));
                 } else {
                     // Fallback to browser print dialog (not truly silent)
                     const iframe = document.createElement('iframe');

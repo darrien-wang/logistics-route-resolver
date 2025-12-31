@@ -105,11 +105,17 @@ const App: React.FC = () => {
 
   useEffect(() => {
     localStorage.setItem(API_CONFIG_KEY, JSON.stringify(apiSettings));
-    // Sync service configurations
-    voiceService.setEnabled(apiSettings.voiceEnabled);
-    labelPrintService.setEnabled(apiSettings.autoPrintLabelEnabled);
-    routeStackService.setCapacity(apiSettings.stackCapacity);
+    voiceService.setEnabled(apiSettings.voiceEnabled ?? true);
+    labelPrintService.setEnabled(apiSettings.autoPrintLabelEnabled ?? false);
+    routeStackService.setCapacity(apiSettings.stackCapacity ?? 40);
   }, [apiSettings]);
+
+  // Initialize services on mount
+  useEffect(() => {
+    voiceService.setEnabled(apiSettings.voiceEnabled ?? true);
+    labelPrintService.setEnabled(apiSettings.autoPrintLabelEnabled ?? false);
+    routeStackService.setCapacity(apiSettings.stackCapacity ?? 40);
+  }, []);
 
   const isBatchComplete = useMemo(() => {
     if (!batchMode.active || batchMode.ids.length === 0) return false;
@@ -145,6 +151,10 @@ const App: React.FC = () => {
       setSelectedEventTypes([]);
       setOrderId('');
       setLoading(false);
+      // Also reset stack tracking
+      routeStackService.reset();
+      // Refocus input after clear
+      setTimeout(() => scannerInputRef.current?.focus(), 100);
     }
   };
 
@@ -217,8 +227,8 @@ const App: React.FC = () => {
                 }
               }
 
-              // Auto-print label for new stacks
-              if (apiSettings.autoPrintLabelEnabled && stackInfo.isNewStack) {
+              // Auto-print label on every scan
+              if (apiSettings.autoPrintLabelEnabled) {
                 labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber);
               }
             }
@@ -257,8 +267,8 @@ const App: React.FC = () => {
                 }
               }
 
-              // Auto-print label for new stacks
-              if (apiSettings.autoPrintLabelEnabled && stackInfo.isNewStack) {
+              // Auto-print label on every scan (not just new stacks)
+              if (apiSettings.autoPrintLabelEnabled) {
                 labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber);
               }
             }
@@ -305,8 +315,8 @@ const App: React.FC = () => {
               }
             }
 
-            // Auto-print label for new stacks
-            if (apiSettings.autoPrintLabelEnabled && stackInfo.isNewStack) {
+            // Auto-print label on every scan (not just new stacks)
+            if (apiSettings.autoPrintLabelEnabled) {
               labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber);
             }
           }
@@ -354,8 +364,8 @@ const App: React.FC = () => {
               }
             }
 
-            // Auto-print label for new stacks
-            if (apiSettings.autoPrintLabelEnabled && stackInfo.isNewStack) {
+            // Auto-print label on every scan (not just new stacks)
+            if (apiSettings.autoPrintLabelEnabled) {
               labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber);
             }
           }

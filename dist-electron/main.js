@@ -14920,32 +14920,52 @@ app.on("activate", () => {
     createWindow();
   }
 });
-ipcMain.handle("print-html", async (_event, html, options = {}) => {
+ipcMain.handle("print-image", async (_event, imageDataUrl, options = {}) => {
   if (!win) {
     throw new Error("No window available for printing");
   }
   try {
     const printWindow = new BrowserWindow({
       show: false,
+      width: 378,
+      // 10cm at 96 DPI
+      height: 567,
+      // 15cm at 96 DPI
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true
       }
     });
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<style>
+  @page { margin: 0; size: 10cm 15cm; }
+  * { margin: 0; padding: 0; }
+  body { width: 10cm; height: 15cm; }
+  img { width: 100%; height: 100%; object-fit: contain; }
+</style>
+</head>
+<body><img src="${imageDataUrl}" /></body>
+</html>`;
     await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    await printWindow.webContents.print({
-      silent: options.silent !== false,
-      // Default to silent
-      printBackground: options.printBackground !== false,
-      margins: { marginType: "none" },
-      pageSize: options.pageSize || { width: 1e5, height: 15e4 }
-      // 10cm x 15cm in microns
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    return new Promise((resolve, reject) => {
+      printWindow.webContents.print({
+        silent: options.silent !== false,
+        printBackground: true,
+        margins: { marginType: "none" },
+        pageSize: { width: 1e5, height: 15e4 }
+      }, (success, failureReason) => {
+        printWindow.close();
+        if (success) {
+          resolve({ success: true });
+        } else {
+          reject(new Error(failureReason || "Print failed"));
+        }
+      });
     });
-    printWindow.close();
-    return { success: true };
   } catch (error2) {
-    console.error("[Electron] Print failed:", error2);
     throw error2;
   }
 });
