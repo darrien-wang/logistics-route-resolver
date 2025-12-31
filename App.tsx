@@ -1117,6 +1117,7 @@ const App: React.FC = () => {
         {/* Update Notification */}
         <UpdateNotification />
       </main>
+      <UpdateNotification />
     </div>
   );
 };
