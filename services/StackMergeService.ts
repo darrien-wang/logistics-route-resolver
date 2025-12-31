@@ -14,12 +14,13 @@ export class StateHistoryService<T> {
 
     pushState(newState: T) {
         if (this.currentState) {
-            this.history.push(this.currentState);
+            // Store a deep copy to prevent reference issues
+            this.history.push(JSON.parse(JSON.stringify(this.currentState)));
             if (this.history.length > this.maxHistory) {
                 this.history.shift();
             }
         }
-        this.currentState = newState;
+        this.currentState = JSON.parse(JSON.stringify(newState));
         this.future = []; // Clear redo
     }
 
