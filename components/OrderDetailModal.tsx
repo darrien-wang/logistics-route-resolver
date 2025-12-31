@@ -34,6 +34,10 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ isOpen, onClose, ti
             'Email': order.email || '',
             'Phone': order.phone || '',
             'Notifications': order.notifications || '',
+            // Overflow source tracking columns
+            'Source Route': order.overflowSource?.route || '',
+            'Source Stack #': order.overflowSource?.stackNumber ?? '',
+            'Overflow Date': order.overflowSource?.movedAt ? new Date(order.overflowSource.movedAt).toLocaleString() : '',
         }));
 
         const ws = XLSX.utils.json_to_sheet(exportData);

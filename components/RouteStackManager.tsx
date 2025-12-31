@@ -1,10 +1,14 @@
-import React, { useState, useMemo } from 'react';
-import { Settings, Layers, Database, Filter, Search, X } from 'lucide-react';
-import { RouteStack, ResolvedRouteInfo, StackCapacityConfig, DEFAULT_CAPACITY_CONFIG, ApiSettings } from '../types';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { Settings, Layers, Upload, Download, Archive, RotateCcw, RotateCw } from 'lucide-react';
+import { RouteStack, ResolvedRouteInfo, StackCapacityConfig, DEFAULT_CAPACITY_CONFIG, ApiSettings, StackStatus, StackType } from '../types';
 import RouteStackCard from './RouteStackCard';
+import MergedStackCard from './MergedStackCard';
 import ExceptionPool from './ExceptionPool';
 import OrderDetailModal from './OrderDetailModal';
 import CapacityRuleEditor from './CapacityRuleEditor';
+import SpilloverModal from './SpilloverModal';
+import { stackMergeService, historyService } from '../services/StackMergeService';
+import { stackExportService } from '../services/StackExportService';
 
 interface RouteStackManagerProps {
     history: ResolvedRouteInfo[];
@@ -13,7 +17,20 @@ interface RouteStackManagerProps {
     onAddTestData?: (testOrders: ResolvedRouteInfo[]) => void;
 }
 
-type FilterMode = 'all' | 'full' | 'notFull';
+type FilterMode = 'all' | 'full' | 'notFull' | 'overflow' | 'merged';
+
+interface StackDefinition {
+    id: string;
+    type: StackType;
+    status: StackStatus;
+    routes: string[];
+    mergeInfo?: RouteStack['mergeInfo'];
+    isOverflow?: boolean;
+    overflowCount?: number;
+    importedAt?: string;
+    sourceNote?: string;
+    manualOrders?: ResolvedRouteInfo[];
+}
 
 const RouteStackManager: React.FC<RouteStackManagerProps> = ({
     history,
@@ -21,396 +38,482 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
     onSettingsChange,
     onAddTestData
 }) => {
-    const [selectedStack, setSelectedStack] = useState<{ title: string; orders: ResolvedRouteInfo[] } | null>(null);
+    // --- State ---
+    const [stackDefs, setStackDefs] = useState<StackDefinition[]>([]);
+    const [selectedStackIds, setSelectedStackIds] = useState<Set<string>>(new Set());
+    const [selectedDetailStack, setSelectedDetailStack] = useState<{ title: string; orders: ResolvedRouteInfo[] } | null>(null);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
+    const [spilloverStack, setSpilloverStack] = useState<RouteStack | null>(null);
     const [filterMode, setFilterMode] = useState<FilterMode>('all');
-    const [searchQuery, setSearchQuery] = useState('');
-    const [searchResult, setSearchResult] = useState<{ found: boolean; stackName?: string; isException?: boolean } | null>(null);
 
-    // Get capacity from config
+    // Ref for file input
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Initializer used to setup history
+    useEffect(() => {
+        historyService.initialize([]);
+    }, []);
+
+    // Capacity Config
     const capacityConfig = apiSettings.stackCapacityConfig || DEFAULT_CAPACITY_CONFIG;
     const countRule = capacityConfig.rules.find(r => r.type === 'count');
     const capacity = countRule?.value || 40;
 
-    // Build stacks from history - creating multiple stacks per route when capacity exceeded
-    const { stacks, exceptionPool } = useMemo(() => {
+    // --- Synchronization Logic (History -> Stacks) ---
+    const { renderableStacks, exceptionPool } = useMemo(() => {
+        const resultStacks: RouteStack[] = [];
         const routeOrdersMap = new Map<string, ResolvedRouteInfo[]>();
         const exceptions: ResolvedRouteInfo[] = [];
         const processedOrderIds = new Set<string>();
 
-        // Group orders by route
         history.forEach(order => {
             if (processedOrderIds.has(order.orderId)) return;
             processedOrderIds.add(order.orderId);
 
-            const routeName = order.route?.routeConfiguration;
-            if (routeName) {
-                if (!routeOrdersMap.has(routeName)) {
-                    routeOrdersMap.set(routeName, []);
-                }
-                routeOrdersMap.get(routeName)!.push(order);
+            const route = order.route?.routeConfiguration;
+            if (route) {
+                if (!routeOrdersMap.has(route)) routeOrdersMap.set(route, []);
+                routeOrdersMap.get(route)!.push(order);
             } else {
-                // Set exception reason
                 let reason = 'Unknown';
-                if (!order.zipCode || order.zipCode.length === 0) {
-                    reason = 'No zip code found';
-                } else if (!order.address || order.address.length === 0) {
-                    reason = 'No address found';
-                } else {
-                    reason = `No route for zip: ${order.zipCode}`;
-                }
+                if (!order.zipCode) reason = 'No zip code';
+                else if (!order.address) reason = 'No address';
+                else reason = `No route for zip: ${order.zipCode}`;
                 exceptions.push({ ...order, exceptionReason: reason });
             }
         });
 
-        // Create multiple stacks per route when capacity exceeded
-        const allStacks: RouteStack[] = [];
+        const handledRoutes = new Set<string>();
 
-        routeOrdersMap.forEach((orders, baseRouteName) => {
-            const stackCount = Math.ceil(orders.length / capacity);
+        const tempStacks: RouteStack[] = stackDefs.map(def => {
+            let stackOrders: ResolvedRouteInfo[] = [];
 
-            for (let i = 0; i < stackCount; i++) {
-                const stackOrders = orders.slice(i * capacity, (i + 1) * capacity);
-                const stackNumber = i + 1;
-                const displayName = `${baseRouteName}-${String(stackNumber).padStart(3, '0')}`;
+            if (def.manualOrders) {
+                stackOrders = [...def.manualOrders];
+            }
 
-                allStacks.push({
-                    routeName: displayName,
-                    baseRouteName,
-                    stackNumber,
-                    displayName,
-                    capacity,
-                    orders: stackOrders,
-                    isFull: stackOrders.length >= capacity,
+            def.routes.forEach(route => {
+                handledRoutes.add(route);
+                const liveOrders = routeOrdersMap.get(route) || [];
+                const existingIds = new Set(stackOrders.map(o => o.orderId));
+                liveOrders.forEach(o => {
+                    if (!existingIds.has(o.orderId)) {
+                        stackOrders.push(o);
+                    }
+                });
+            });
+
+            // For merged stacks, mark component routes as handled so originals don't show
+            if (def.type === 'merged' && def.mergeInfo?.components) {
+                def.mergeInfo.components.forEach(comp => {
+                    handledRoutes.add(comp.route);
                 });
             }
+
+            // Derive route display name - for merged stacks use mergeInfo
+            let routeDisplayName = def.routes.join(' & ');
+            if (def.type === 'merged' && def.mergeInfo?.components) {
+                routeDisplayName = def.mergeInfo.components.map(c => c.route).join(' & ');
+            }
+
+            return {
+                id: def.id,
+                route: routeDisplayName || 'Merged Pool',
+                stackNumber: 1,
+                capacity: capacity,
+                orders: stackOrders,
+                status: def.status,
+                type: def.type,
+                mergeInfo: def.mergeInfo,
+                isOverflow: def.isOverflow,
+                overflowCount: def.overflowCount || Math.max(0, stackOrders.length - capacity),
+                overflowFromStackId: undefined,
+                importedAt: def.importedAt,
+                sourceNote: def.sourceNote,
+                isFull: stackOrders.length >= capacity
+            };
         });
+
+        const newImplicitStacks: RouteStack[] = [];
+        routeOrdersMap.forEach((orders, route) => {
+            if (!handledRoutes.has(route)) {
+                const stackCount = Math.ceil(orders.length / capacity);
+                for (let i = 0; i < stackCount; i++) {
+                    const stackSlice = orders.slice(i * capacity, (i + 1) * capacity);
+                    const implicitId = `IMPLICIT-${route}-${i + 1}`;
+                    newImplicitStacks.push({
+                        id: implicitId,
+                        route: route,
+                        stackNumber: i + 1,
+                        capacity: capacity,
+                        orders: stackSlice,
+                        status: 'open',
+                        type: 'normal',
+                        isOverflow: false,
+                        overflowCount: 0,
+                        isFull: stackSlice.length >= capacity
+                    });
+                }
+            }
+        });
+
+        resultStacks.push(...tempStacks, ...newImplicitStacks);
 
         return {
-            stacks: allStacks.sort((a, b) => a.displayName.localeCompare(b.displayName)),
-            exceptionPool: exceptions,
+            renderableStacks: resultStacks.sort((a, b) => a.route.localeCompare(b.route)),
+            exceptionPool: exceptions
         };
-    }, [history, capacity]);
 
-    // Filter stacks based on filterMode
-    const filteredStacks = useMemo(() => {
-        switch (filterMode) {
-            case 'full':
-                return stacks.filter(s => s.isFull);
-            case 'notFull':
-                return stacks.filter(s => !s.isFull);
-            default:
-                return stacks;
-        }
-    }, [stacks, filterMode]);
+    }, [history, stackDefs, capacity]);
 
-    const fullStackCount = stacks.filter(s => s.isFull).length;
-    const notFullStackCount = stacks.filter(s => !s.isFull).length;
+    // --- Interaction Handlers ---
 
     const handleStackClick = (stack: RouteStack) => {
-        setSelectedStack({
-            ...stack,
-            orders: stack.orders,
-        });
-    };
-
-    const handleExceptionClick = () => {
-        setSelectedStack({
-            routeName: 'Exception Pool',
-            baseRouteName: 'Exception',
-            stackNumber: 0,
-            displayName: 'Exception Pool',
-            capacity: 9999,
-            orders: exceptionPool,
-            isFull: false,
-        });
-    };
-
-    const handleReasonClick = (reason: string) => {
-        const filteredOrders = exceptionPool.filter(o => o.exceptionReason === reason);
-        setSelectedStack({
-            routeName: `Exceptions: ${reason}`,
-            baseRouteName: 'Exception',
-            stackNumber: 0,
-            displayName: reason,
-            capacity: 9999,
-            orders: filteredOrders,
-            isFull: false,
-        });
-    };
-
-    const handleSearch = () => {
-        if (!searchQuery.trim()) {
-            setSearchResult(null);
+        if (stack.type === 'merged' || stack.isOverflow) {
+            setSelectedDetailStack({ title: stack.route, orders: stack.orders });
             return;
         }
 
-        const query = searchQuery.trim().toUpperCase();
-
-        // Search in stacks
-        for (const stack of stacks) {
-            const found = stack.orders.some(o => o.orderId.toUpperCase().includes(query));
-            if (found) {
-                setSearchResult({ found: true, stackName: stack.displayName });
-                return;
+        const newSet = new Set(selectedStackIds);
+        if (newSet.has(stack.id)) {
+            newSet.delete(stack.id);
+        } else {
+            if (newSet.size < 2) {
+                newSet.add(stack.id);
             }
         }
+        setSelectedStackIds(newSet);
+    };
 
-        // Search in exception pool
-        const foundInException = exceptionPool.some(o => o.orderId.toUpperCase().includes(query));
-        if (foundInException) {
-            setSearchResult({ found: true, isException: true });
-            return;
+    const handleMergeSelected = () => {
+        if (selectedStackIds.size < 2) return;
+        const ids = Array.from(selectedStackIds);
+        const s1 = renderableStacks.find(s => s.id === ids[0]);
+        const s2 = renderableStacks.find(s => s.id === ids[1]);
+        if (!s1 || !s2) return;
+
+        historyService.pushState(stackDefs);
+
+        // Snapshot orders at merge time
+        const mergedOrders = [...s1.orders, ...s2.orders];
+
+        const newDef: StackDefinition = {
+            id: `MERGED-${Date.now()}`,
+            type: 'merged',
+            status: 'active',
+            routes: [],
+            manualOrders: mergedOrders,
+            mergeInfo: {
+                primaryStackId: s1.id,
+                components: [
+                    { stackId: s1.id, route: s1.route, stackNumber: s1.stackNumber, orders: s1.orders, overflowCount: s1.overflowCount },
+                    { stackId: s2.id, route: s2.route, stackNumber: s2.stackNumber, orders: s2.orders, overflowCount: s2.overflowCount }
+                ],
+                mergedAt: new Date().toISOString()
+            }
+        };
+
+        setStackDefs(prev => [...prev.filter(d => d.id !== s1.id && d.id !== s2.id), newDef]);
+        setSelectedStackIds(new Set());
+    };
+
+    const handleSplitStack = (stack: RouteStack) => {
+        historyService.pushState(stackDefs);
+        setStackDefs(prev => prev.filter(d => d.id !== stack.id));
+    };
+
+    const handleResolveOverflow = (stack: RouteStack) => {
+        setSpilloverStack(stack);
+    };
+
+    const handleConfirmSpillover = (sourceStackId: string, orderIds: string[]) => {
+        const sourceStack = renderableStacks.find(s => s.id === sourceStackId);
+        if (!sourceStack) return;
+
+        historyService.pushState(stackDefs);
+
+        const movedAt = new Date().toISOString();
+
+        // Build a route-to-stackNumber lookup from mergeInfo for merged stacks
+        const routeStackLookup = new Map<string, number>();
+        if (sourceStack.type === 'merged' && sourceStack.mergeInfo?.components) {
+            sourceStack.mergeInfo.components.forEach(comp => {
+                routeStackLookup.set(comp.route, comp.stackNumber);
+            });
         }
 
-        setSearchResult({ found: false });
+        // Stamp each order with its ORIGINAL route and stack number
+        const overflowOrders = sourceStack.orders
+            .filter(o => orderIds.includes(o.orderId))
+            .map(o => {
+                const orderRoute = o.route?.routeConfiguration || sourceStack.route;
+                // Look up stack number from mergeInfo, fallback to sourceStack.stackNumber
+                const stackNum = routeStackLookup.get(orderRoute) || sourceStack.stackNumber;
+
+                return {
+                    ...o,
+                    overflowSource: {
+                        route: orderRoute,
+                        stackNumber: stackNum,
+                        movedAt
+                    }
+                };
+            });
+
+        const newOverflowDef: StackDefinition = {
+            id: `OVERFLOW-${Date.now()}`,
+            type: 'overflow',
+            status: 'open',
+            routes: [],
+            manualOrders: overflowOrders,
+            isOverflow: true,
+            importedAt: movedAt,
+            sourceNote: `Overflow from ${sourceStack.route}`
+        };
+
+        // Update source stack to REMOVE the moved orders, and add new overflow stack
+        setStackDefs(prev => {
+            const movedOrderIds = new Set(orderIds);
+
+            return prev.map(def => {
+                // Find the source stack and remove the moved orders from it
+                if (def.id === sourceStackId && def.manualOrders) {
+                    return {
+                        ...def,
+                        manualOrders: def.manualOrders.filter(o => !movedOrderIds.has(o.orderId))
+                    };
+                }
+                return def;
+            }).concat(newOverflowDef);
+        });
+        setSpilloverStack(null);
     };
 
-    const clearSearch = () => {
-        setSearchQuery('');
-        setSearchResult(null);
-    };
+    const handleImport = async (file: File) => {
+        const text = await file.text();
+        try {
+            historyService.pushState(stackDefs);
 
-    const handleCloseModal = () => {
-        setSelectedStack(null);
-    };
+            const importedStacks = stackExportService.importStacks(text);
+            const newDefs: StackDefinition[] = importedStacks.map(s => ({
+                id: s.id,
+                type: s.type,
+                status: s.status,
+                routes: [s.route],
+                manualOrders: s.orders,
+                isOverflow: s.isOverflow,
+                overflowCount: s.overflowCount,
+                importedAt: s.importedAt,
+                sourceNote: s.sourceNote
+            }));
 
-    const handleCapacityConfigChange = (config: StackCapacityConfig) => {
-        onSettingsChange({ ...apiSettings, stackCapacityConfig: config });
-    };
-
-    const handleGenerateTestData = () => {
-        if (!onAddTestData) return;
-
-        const routes = ['SD-007', 'SD-008', 'SD-009'];
-        const cities = [
-            { city: 'Los Angeles', state: 'CA', zip: '90001' },
-            { city: 'San Francisco', state: 'CA', zip: '94102' },
-            { city: 'New York', state: 'NY', zip: '10001' },
-            { city: 'Chicago', state: 'IL', zip: '60601' },
-            { city: 'Miami', state: 'FL', zip: '33101' },
-            { city: 'Houston', state: 'TX', zip: '77001' },
-        ];
-
-        const testOrders: ResolvedRouteInfo[] = [];
-
-        // Generate 300 test orders - each route gets 100 orders (2.5 full stacks)
-        for (let i = 1; i <= 300; i++) {
-            const hasRoute = i > 10; // First 10 orders have no route (exceptions)
-            const routeIndex = Math.floor((i - 11) / 100) % routes.length;
-            const cityData = cities[i % cities.length];
-
-            const order: ResolvedRouteInfo = {
-                orderId: `TEST-${String(i).padStart(4, '0')}`,
-                date: new Date().toLocaleDateString(),
-                address: `${100 + i} Main St, ${cityData.city}, ${cityData.state} ${cityData.zip}`,
-                zipCode: cityData.zip,
-                weight: Math.floor(Math.random() * 50) + 1,
-                volume: Math.floor(Math.random() * 100) + 10,
-                resolvedAt: new Date().toISOString(),
-                route: hasRoute ? {
-                    zip: cityData.zip,
-                    metroArea: cityData.city,
-                    state: cityData.state,
-                    destinationZone: `ZONE-${routeIndex + 1}`,
-                    routeConfiguration: routes[routeIndex],
-                    route2Configuration: '',
-                } : undefined,
-            };
-
-            testOrders.push(order);
+            setStackDefs(prev => [...prev, ...newDefs]);
+        } catch (e) {
+            console.error(e);
+            alert('Import failed');
         }
-
-        onAddTestData(testOrders);
     };
+
+    const onUndo = () => {
+        const prev = historyService.undo();
+        if (prev) setStackDefs(prev);
+    };
+
+    const onRedo = () => {
+        const next = historyService.redo();
+        if (next) setStackDefs(next);
+    };
+
+    const handleExportAll = () => {
+        const json = stackExportService.exportStacks(renderableStacks, { mode: 'all' });
+        downloadJson(json, 'stacks_all.json');
+    };
+
+    const handleExportOverflow = () => {
+        const json = stackExportService.exportStacks(renderableStacks, { mode: 'overflow' });
+        downloadJson(json, 'stacks_overflow.json');
+    };
+
+    const downloadJson = (json: string, filename: string) => {
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const displayedStacks = useMemo(() => {
+        let result = renderableStacks;
+        if (filterMode === 'full') result = result.filter(s => s.isFull);
+        if (filterMode === 'notFull') result = result.filter(s => !s.isFull);
+        if (filterMode === 'overflow') result = result.filter(s => s.isOverflow);
+        return result;
+    }, [renderableStacks, filterMode]);
+
 
     return (
-        <div className="flex flex-col space-y-8 animate-in fade-in duration-500">
-            {/* Header */}
-            <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="h-full flex flex-col space-y-6 p-6 animate-in fade-in duration-500">
+            {/* Consolidated Header with Import/Export and Settings */}
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-900/50 p-4 rounded-2xl border border-white/5 backdrop-blur-sm">
+                {/* Left: Title and Stats */}
                 <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-sky-500/10 rounded-2xl flex items-center justify-center text-sky-400 border border-sky-500/20">
-                        <Layers className="w-7 h-7" />
+                    <div className="p-3 bg-blue-500/10 rounded-xl border border-blue-500/20">
+                        <Layers className="w-6 h-6 text-blue-400" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight">Route Stack Manager</h1>
-                        <div className="text-slate-500 text-sm mt-1">
-                            <span className="text-white font-black">{stacks.reduce((acc, s) => acc + s.orders.length, 0) + exceptionPool.length}</span> orders •
-                            <span className="text-sky-400 font-black ml-2">{stacks.length}</span> stacks •
-                            <span className="text-emerald-400 font-black ml-2">{fullStackCount}</span> full •
-                            <span className="text-amber-400 font-black ml-2">{notFullStackCount}</span> partial •
-                            <span className="text-red-400 font-black ml-2">{exceptionPool.length}</span> exceptions
+                        <h2 className="text-2xl font-black text-white tracking-tight">Route Stacks</h2>
+                        <div className="flex items-center gap-2 text-sm font-medium text-slate-400">
+                            {renderableStacks.length} Active Stacks
+                            <span className="w-1 h-1 bg-slate-600 rounded-full" />
+                            {exceptionPool.length} Exceptions
                         </div>
                     </div>
                 </div>
-                <div className="flex items-center gap-3">
-                    {false && onAddTestData && (
+
+                {/* Right: Actions */}
+                <div className="flex items-center gap-3 flex-wrap justify-end">
+                    {/* Merge Button (when 2 selected) */}
+                    {selectedStackIds.size >= 2 && (
                         <button
-                            onClick={handleGenerateTestData}
-                            className="bg-purple-500 hover:bg-purple-400 p-3 px-5 rounded-xl border border-purple-400/50 flex items-center gap-2 transition-colors shadow-lg shadow-purple-500/20 font-bold text-white"
+                            onClick={handleMergeSelected}
+                            className="animate-in slide-in-from-bottom-4 fade-in px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold shadow-lg shadow-indigo-900/30 flex items-center gap-2"
                         >
-                            <Database className="w-4 h-4" />
-                            Generate Test Data
+                            <Layers className="w-4 h-4" />
+                            MERGE ({selectedStackIds.size})
                         </button>
                     )}
+
+                    {/* Import */}
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleImport(file);
+                            if (e.target) e.target.value = '';
+                        }}
+                        className="hidden"
+                        accept=".json"
+                    />
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-colors text-sm"
+                    >
+                        <Upload className="w-4 h-4" />
+                        Import
+                    </button>
+
+                    {/* Export All */}
+                    <button
+                        onClick={handleExportAll}
+                        className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl font-medium transition-colors border border-white/5 text-sm"
+                    >
+                        <Download className="w-4 h-4" />
+                        Export All
+                    </button>
+
+                    {/* Export Overflow */}
+                    <button
+                        onClick={handleExportOverflow}
+                        className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 rounded-xl font-bold transition-colors border border-amber-500/20 text-sm"
+                    >
+                        <Archive className="w-4 h-4" />
+                        Export Overflow
+                    </button>
+
+                    {/* Undo/Redo */}
+                    <div className="flex items-center gap-1 bg-black/20 p-1 rounded-xl border border-white/5">
+                        <button
+                            onClick={onUndo}
+                            disabled={!historyService.canUndo()}
+                            className={`p-2 rounded-lg transition-colors ${historyService.canUndo() ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-700 cursor-not-allowed'}`}
+                            title="Undo"
+                        >
+                            <RotateCcw className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={onRedo}
+                            disabled={!historyService.canRedo()}
+                            className={`p-2 rounded-lg transition-colors ${historyService.canRedo() ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-700 cursor-not-allowed'}`}
+                            title="Redo"
+                        >
+                            <RotateCw className="w-4 h-4" />
+                        </button>
+                    </div>
+
+                    {/* Settings (Capacity Rules) */}
                     <button
                         onClick={() => setShowSettingsModal(true)}
-                        className="bg-slate-800 p-3 px-5 rounded-xl border border-white/5 flex items-center gap-2 hover:bg-slate-700 transition-colors"
+                        className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-colors border border-white/5"
+                        title="Stack Capacity Rules"
                     >
-                        <Settings className="w-4 h-4" />
-                        Settings
+                        <Settings className="w-5 h-5" />
                     </button>
                 </div>
-            </header>
-
-            {/* Search Bar */}
-            <div className="glass-panel p-4 rounded-2xl border border-white/10 flex items-center gap-3">
-                <Search className="w-5 h-5 text-slate-500" />
-                <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                    placeholder="Search order ID..."
-                    className="flex-1 bg-transparent border-none outline-none text-white placeholder-slate-600 text-sm"
-                />
-                {searchQuery && (
-                    <button onClick={clearSearch} className="p-1 hover:bg-white/10 rounded-lg transition-colors">
-                        <X className="w-4 h-4 text-slate-500" />
-                    </button>
-                )}
-                <button
-                    onClick={handleSearch}
-                    className="bg-sky-500 hover:bg-sky-400 text-white px-4 py-2 rounded-xl font-bold text-sm uppercase tracking-wider transition-all"
-                >
-                    Search
-                </button>
             </div>
 
-            {/* Search Result */}
-            {searchResult && (
-                <div className={`p-4 rounded-2xl border ${searchResult.found ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
-                    {searchResult.found ? (
-                        searchResult.isException ? (
-                            <span className="text-emerald-400 font-bold">
-                                ✓ Found in <span className="text-red-400">Exception Pool</span>
-                            </span>
-                        ) : (
-                            <span className="text-emerald-400 font-bold">
-                                ✓ Found in stack <span className="text-sky-400">{searchResult.stackName}</span>
-                            </span>
-                        )
-                    ) : (
-                        <span className="text-red-400 font-bold">✗ Order not found in any stack or exception pool</span>
-                    )}
-                </div>
-            )}
-
-            {/* Settings Modal */}
-            {showSettingsModal && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200">
-                    <div className="glass-panel p-6 rounded-3xl border border-white/10 w-full max-w-lg mx-4 animate-in zoom-in-95 duration-300">
-                        <div className="flex items-center justify-between mb-6">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-sky-500/10 rounded-xl flex items-center justify-center text-sky-400 border border-sky-500/20">
-                                    <Settings className="w-5 h-5" />
-                                </div>
-                                <h2 className="text-xl font-bold">Stack Settings</h2>
-                            </div>
-                            <button
-                                onClick={() => setShowSettingsModal(false)}
-                                className="p-2 hover:bg-white/10 rounded-xl transition-colors"
-                            >
-                                <X className="w-5 h-5 text-slate-400" />
-                            </button>
-                        </div>
-
-                        <CapacityRuleEditor
-                            config={capacityConfig}
-                            onChange={handleCapacityConfigChange}
+            {/* Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-20">
+                {exceptionPool.length > 0 && (
+                    <div className="md:col-span-2 xl:col-span-1">
+                        <ExceptionPool
+                            exceptions={exceptionPool}
+                            onResolve={() => { }}
+                            initialExpanded={true}
                         />
-
-                        <div className="mt-6 flex justify-end">
-                            <button
-                                onClick={() => setShowSettingsModal(false)}
-                                className="bg-sky-500 hover:bg-sky-400 text-white px-6 py-2.5 rounded-xl font-bold text-sm uppercase tracking-wider transition-all"
-                            >
-                                Done
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Exception Pool Section */}
-            <ExceptionPool orders={exceptionPool} onClick={handleExceptionClick} onReasonClick={handleReasonClick} />
-
-            {/* Route Stacks Grid */}
-            <div>
-                <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-lg font-bold text-slate-400 uppercase tracking-widest">
-                        Active Route Stacks
-                    </h2>
-                    {/* Filter Buttons */}
-                    <div className="flex items-center gap-2">
-                        <Filter className="w-4 h-4 text-slate-500" />
-                        <button
-                            onClick={() => setFilterMode('all')}
-                            className={`px-4 py-2 rounded-xl text-sm font-bold uppercase tracking-wider transition-all ${filterMode === 'all'
-                                ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/30'
-                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                                }`}
-                        >
-                            All ({stacks.length})
-                        </button>
-                        <button
-                            onClick={() => setFilterMode('full')}
-                            className={`px-4 py-2 rounded-xl text-sm font-bold uppercase tracking-wider transition-all ${filterMode === 'full'
-                                ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30'
-                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                                }`}
-                        >
-                            Full ({fullStackCount})
-                        </button>
-                        <button
-                            onClick={() => setFilterMode('notFull')}
-                            className={`px-4 py-2 rounded-xl text-sm font-bold uppercase tracking-wider transition-all ${filterMode === 'notFull'
-                                ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30'
-                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                                }`}
-                        >
-                            Partial ({notFullStackCount})
-                        </button>
-                    </div>
-                </div>
-                {filteredStacks.length === 0 ? (
-                    <div className="glass-panel p-20 rounded-3xl border border-white/10 flex flex-col items-center text-slate-700 opacity-30">
-                        <Layers className="w-20 h-20 mb-4" />
-                        <p className="text-xl font-black uppercase tracking-widest">No Route Stacks</p>
-                        <p className="text-sm uppercase tracking-wider mt-2">{stacks.length > 0 ? 'No stacks match filter' : 'Scan orders to populate stacks'}</p>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {filteredStacks.map((stack, idx) => (
-                            <RouteStackCard
-                                key={stack.displayName}
-                                stack={stack}
-                                onClick={() => handleStackClick(stack)}
-                            />
-                        ))}
                     </div>
                 )}
+
+                {displayedStacks.map(stack => (
+                    stack.type === 'merged' ? (
+                        <MergedStackCard
+                            key={stack.id}
+                            stack={stack}
+                            onClick={() => setSelectedDetailStack({ title: stack.route, orders: stack.orders })}
+                            onSplit={() => handleSplitStack(stack)}
+                            onResolveOverflow={() => handleResolveOverflow(stack)}
+                            selected={selectedStackIds.has(stack.id)}
+                        />
+                    ) : (
+                        <RouteStackCard
+                            key={stack.id}
+                            stack={stack}
+                            onClick={() => handleStackClick(stack)}
+                            selected={selectedStackIds.has(stack.id)}
+                        />
+                    )
+                ))}
             </div>
 
-            {/* Order Detail Modal */}
-            {selectedStack && (
+            {/* Modals */}
+            {selectedDetailStack && (
                 <OrderDetailModal
-                    isOpen={true}
-                    onClose={handleCloseModal}
-                    title={selectedStack.title}
-                    orders={selectedStack.orders}
+                    isOpen={!!selectedDetailStack}
+                    onClose={() => setSelectedDetailStack(null)}
+                    title={selectedDetailStack.title}
+                    orders={selectedDetailStack.orders}
+                    onExport={() => { }}
                 />
             )}
+
+            <CapacityRuleEditor
+                isOpen={showSettingsModal}
+                onClose={() => setShowSettingsModal(false)}
+                config={capacityConfig}
+                onSave={(cfg) => {
+                    onSettingsChange({ ...apiSettings, stackCapacityConfig: cfg });
+                    setShowSettingsModal(false);
+                }}
+            />
+
+            <SpilloverModal
+                isOpen={!!spilloverStack}
+                onClose={() => setSpilloverStack(null)}
+                stack={spilloverStack}
+                onConfirmSpillover={handleConfirmSpillover}
+            />
         </div>
     );
 };

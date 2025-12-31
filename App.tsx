@@ -40,6 +40,7 @@ import ApiConfigModal from './components/ApiConfigModal';
 import RulesManagementView from './components/RulesManagementView';
 import DashboardView from './components/DashboardView';
 import UpdateNotification from './components/UpdateNotification';
+import TokenExpiredModal from './components/TokenExpiredModal';
 import { MOCK_ORDERS } from './constants/mockData';
 
 const STORAGE_KEY = 'LOGISTICS_ACTIVITY_STREAM';
@@ -55,6 +56,7 @@ const App: React.FC = () => {
   const [printStatus, setPrintStatus] = useState<'idle' | 'printing'>('idle');
   const [currentResult, setCurrentResult] = useState<ResolvedRouteInfo | null>(null);
   const [showApiConfig, setShowApiConfig] = useState(false);
+  const [showTokenExpired, setShowTokenExpired] = useState(false);
 
   const [batchMode, setBatchMode] = useState<{ active: boolean; ids: string[] }>({ active: false, ids: [] });
   const [selectedEventTypes, setSelectedEventTypes] = useState<EventType[]>([]);
@@ -250,7 +252,16 @@ const App: React.FC = () => {
 
             // Execute unload separately
             handleEventInitiated(uppercaseId, [{ type: 'UNLOAD', status: 'PENDING', timestamp: new Date().toISOString() }]);
-            await executeUnload(uppercaseId, apiSettings, handleEventFinished);
+            try {
+              await executeUnload(uppercaseId, apiSettings, handleEventFinished);
+            } catch (error: any) {
+              if (error.isTokenExpired) {
+                setShowTokenExpired(true);
+                handleEventFinished(uppercaseId, 'UNLOAD', false, error.originalMessage);
+              } else {
+                throw error;
+              }
+            }
           } else {
             // Use middleware chain for non-UNLOAD events (skip remote lookup, use cached data)
             const chain = new MiddlewareChain();
@@ -347,7 +358,16 @@ const App: React.FC = () => {
 
           // Execute unload separately
           handleEventInitiated(targetId, [{ type: 'UNLOAD', status: 'PENDING', timestamp: new Date().toISOString() }]);
-          await executeUnload(targetId, apiSettings, handleEventFinished);
+          try {
+            await executeUnload(targetId, apiSettings, handleEventFinished);
+          } catch (error: any) {
+            if (error.isTokenExpired) {
+              setShowTokenExpired(true);
+              handleEventFinished(targetId, 'UNLOAD', false, error.originalMessage);
+            } else {
+              throw error;
+            }
+          }
           setOrderId('');
         } else {
           // Use middleware chain for non-UNLOAD events
@@ -760,6 +780,12 @@ const App: React.FC = () => {
           onClose={() => setShowApiConfig(false)}
           apiSettings={apiSettings}
           onSettingsChange={setApiSettings}
+        />
+
+        <TokenExpiredModal
+          isOpen={showTokenExpired}
+          onClose={() => setShowTokenExpired(false)}
+          onOpenSettings={() => setShowApiConfig(true)}
         />
 
         {/* Update Notification */}

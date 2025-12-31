@@ -91,6 +91,12 @@ export interface ResolvedRouteInfo extends OrderData {
     isStackFull: boolean;
     isNewStack: boolean;
   };
+  // Overflow source tracking - set when order is moved to overflow pool
+  overflowSource?: {
+    route: string;
+    stackNumber: number;
+    movedAt: string;
+  };
 }
 
 // Middleware interface for data processing
@@ -107,14 +113,57 @@ export interface IExportService {
 }
 
 // Route Stack Management
-export interface RouteStack {
-  routeName: string;
-  baseRouteName: string;  // Original route name (e.g., "SD-007")
-  stackNumber: number;    // Stack index (1, 2, 3...)
-  displayName: string;    // Full display name (e.g., "SD-007-001")
-  capacity: number;
+// --- Core Enums ---
+export type StackStatus = 'open' | 'active' | 'locked';
+export type StackType = 'normal' | 'merged' | 'overflow';
+
+// --- Merged Stack Details ---
+export interface MergedStackComponent {
+  stackId: string;
+  route: string;
+  stackNumber: number;  // Stack number from source
   orders: ResolvedRouteInfo[];
-  isFull: boolean;
+  overflowCount: number;
+}
+
+// --- The Master RouteStack Interface ---
+export interface RouteStack {
+  id: string;               // Unique ID
+  route: string;            // Display route name
+  stackNumber: number;
+  orders: ResolvedRouteInfo[];
+
+  capacity: number;
+
+  status: StackStatus;      // open/active/locked
+  type: StackType;          // normal/merged/overflow
+
+  // Merge Info
+  mergeInfo?: {
+    primaryStackId: string;
+    components: MergedStackComponent[];
+    mergedAt: string;
+  };
+
+  // Overflow / Legacy / Import Info
+  // NOTE: isOverflow = TRUE triggers the GOLD BORDER UI
+  isOverflow?: boolean;
+  overflowFromStackId?: string;
+  overflowCount: number;    // Derived/Allocated overflow count
+
+  importedAt?: string;
+  sourceNote?: string;
+
+  // Persistence for UI state (optional, for convenience)
+  displayName?: string;
+  isFull?: boolean;
+}
+
+// --- Export Schema ---
+export interface StackExportData {
+  version: '1.0';
+  exportedAt: string;
+  stacks: RouteStack[];
 }
 
 export interface RouteStackState {

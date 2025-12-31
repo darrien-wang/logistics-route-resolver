@@ -54,6 +54,14 @@ export async function executeUnload(
             const step1Result = await step1Response.json();
             console.log(`[Unload] Step 1 Response:`, step1Result);
 
+            // Check for 401 Unauthorized
+            if (step1Result.code === 401 || step1Response.status === 401) {
+                const error: any = new Error('TOKEN_EXPIRED');
+                error.isTokenExpired = true;
+                error.originalMessage = step1Result.msg || 'Token expired, please update authorization';
+                throw error;
+            }
+
             // data is an array, get the first item
             const loadingListData = step1Result.data?.[0];
             if (!step1Result.success || !loadingListData?.loadingListId) {
@@ -88,6 +96,14 @@ export async function executeUnload(
 
             const step2Result = await step2Response.json();
             console.log(`[Unload] Step 2 Response:`, step2Result);
+
+            // Check for 401 Unauthorized
+            if (step2Result.code === 401 || step2Response.status === 401) {
+                const error: any = new Error('TOKEN_EXPIRED');
+                error.isTokenExpired = true;
+                error.originalMessage = step2Result.msg || 'Token expired, please update authorization';
+                throw error;
+            }
 
             if (!step2Result.success) {
                 const message = step2Result.message || 'Failed to get unload data';
@@ -158,6 +174,14 @@ export async function executeUnload(
 
         const step3Result = await step3Response.json();
         console.log(`[Unload] Step 3 Response:`, step3Result);
+
+        // Check for 401 Unauthorized
+        if (step3Result.code === 401 || step3Response.status === 401) {
+            const error: any = new Error('TOKEN_EXPIRED');
+            error.isTokenExpired = true;
+            error.originalMessage = step3Result.msg || 'Token expired, please update authorization';
+            throw error;
+        }
 
         const isSuccess = step3Result.success === true;
         const message = step3Result.message || (isSuccess ? 'Unload Success' : 'Unload Failed');
