@@ -14920,6 +14920,35 @@ app.on("activate", () => {
     createWindow();
   }
 });
+ipcMain.handle("print-html", async (_event, html, options = {}) => {
+  if (!win) {
+    throw new Error("No window available for printing");
+  }
+  try {
+    const printWindow = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+    await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await printWindow.webContents.print({
+      silent: options.silent !== false,
+      // Default to silent
+      printBackground: options.printBackground !== false,
+      margins: { marginType: "none" },
+      pageSize: options.pageSize || { width: 1e5, height: 15e4 }
+      // 10cm x 15cm in microns
+    });
+    printWindow.close();
+    return { success: true };
+  } catch (error2) {
+    console.error("[Electron] Print failed:", error2);
+    throw error2;
+  }
+});
 app.whenReady().then(() => {
   createWindow();
   if (app.isPackaged && win) {

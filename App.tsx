@@ -23,7 +23,8 @@ import {
   Key,
   Lock,
   X,
-  Database
+  Database,
+  Printer
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { OrderData, ResolvedRouteInfo, ZipRouteRecord, EventType, OrderEventStatus, EventStatus, ApiSettings } from './types';
@@ -41,6 +42,9 @@ import { executeUnload } from './services/UnloadService';
 import { batchSearchOrders, getCachedOrder } from './services/BatchOrderService';
 import { FlexibleDataSource } from './services/RouteService';
 import { ExcelExportService } from './services/ExportService';
+import { routeStackService } from './services/RouteStackService';
+import { voiceService } from './services/VoiceService';
+import { labelPrintService } from './services/LabelPrintService';
 import StatCard from './components/StatCard';
 import RouteStackManager from './components/RouteStackManager';
 import UpdateNotification from './components/UpdateNotification';
@@ -81,7 +85,10 @@ const App: React.FC = () => {
       pickupEnabled: false,
       taskCode: '',
       ptId: 0,
-      pickupSite: 0
+      pickupSite: 0,
+      voiceEnabled: true,
+      autoPrintLabelEnabled: false,
+      stackCapacity: 40
     };
   });
 
@@ -98,6 +105,10 @@ const App: React.FC = () => {
 
   useEffect(() => {
     localStorage.setItem(API_CONFIG_KEY, JSON.stringify(apiSettings));
+    // Sync service configurations
+    voiceService.setEnabled(apiSettings.voiceEnabled);
+    labelPrintService.setEnabled(apiSettings.autoPrintLabelEnabled);
+    routeStackService.setCapacity(apiSettings.stackCapacity);
   }, [apiSettings]);
 
   const isBatchComplete = useMemo(() => {
@@ -187,6 +198,31 @@ const App: React.FC = () => {
               .use(createEnrichmentMiddleware());
 
             const result = await chain.run(initialData);
+
+            // Add stack tracking if route was resolved
+            if (result.route?.routeConfiguration) {
+              const stackInfo = routeStackService.addToStack(result.route.routeConfiguration, uppercaseId);
+              result.stackInfo = stackInfo;
+
+              // Voice announcement (optional for batch, can be noisy)
+              if (apiSettings.voiceEnabled && ids.length === 1) {
+                if (stackInfo.isNewStack && stackInfo.stackNumber > 1) {
+                  voiceService.announceStackFull(
+                    result.route.routeConfiguration,
+                    stackInfo.stackNumber - 1,
+                    stackInfo.stackNumber
+                  );
+                } else {
+                  voiceService.announceRoute(result.route.routeConfiguration, stackInfo.stackNumber);
+                }
+              }
+
+              // Auto-print label for new stacks
+              if (apiSettings.autoPrintLabelEnabled && stackInfo.isNewStack) {
+                labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber);
+              }
+            }
+
             setHistory(prev => [result, ...prev.filter(h => h.orderId !== result.orderId)].slice(0, 500));
 
             // Execute unload separately
@@ -202,6 +238,31 @@ const App: React.FC = () => {
               .use(createPickupScanMiddleware(apiSettings, handleEventFinished));
 
             const result = await chain.run(initialData);
+
+            // Add stack tracking if route was resolved
+            if (result.route?.routeConfiguration) {
+              const stackInfo = routeStackService.addToStack(result.route.routeConfiguration, uppercaseId);
+              result.stackInfo = stackInfo;
+
+              // Voice announcement (optional for batch, can be noisy)
+              if (apiSettings.voiceEnabled && ids.length === 1) {
+                if (stackInfo.isNewStack && stackInfo.stackNumber > 1) {
+                  voiceService.announceStackFull(
+                    result.route.routeConfiguration,
+                    stackInfo.stackNumber - 1,
+                    stackInfo.stackNumber
+                  );
+                } else {
+                  voiceService.announceRoute(result.route.routeConfiguration, stackInfo.stackNumber);
+                }
+              }
+
+              // Auto-print label for new stacks
+              if (apiSettings.autoPrintLabelEnabled && stackInfo.isNewStack) {
+                labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber);
+              }
+            }
+
             setHistory(prev => [result, ...prev.filter(h => h.orderId !== result.orderId)].slice(0, 500));
           }
         }
@@ -225,6 +286,31 @@ const App: React.FC = () => {
             .use(createEnrichmentMiddleware());
 
           const result = await chain.run(initialOrder);
+
+          // Add stack tracking if route was resolved
+          if (result.route?.routeConfiguration) {
+            const stackInfo = routeStackService.addToStack(result.route.routeConfiguration, targetId);
+            result.stackInfo = stackInfo;
+
+            // Voice announcement
+            if (apiSettings.voiceEnabled) {
+              if (stackInfo.isNewStack && stackInfo.stackNumber > 1) {
+                voiceService.announceStackFull(
+                  result.route.routeConfiguration,
+                  stackInfo.stackNumber - 1,
+                  stackInfo.stackNumber
+                );
+              } else {
+                voiceService.announceRoute(result.route.routeConfiguration, stackInfo.stackNumber);
+              }
+            }
+
+            // Auto-print label for new stacks
+            if (apiSettings.autoPrintLabelEnabled && stackInfo.isNewStack) {
+              labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber);
+            }
+          }
+
           setCurrentResult(result);
           setHistory(prev => [result, ...prev.filter(h => h.orderId !== result.orderId)].slice(0, 50));
 
@@ -247,6 +333,33 @@ const App: React.FC = () => {
             .use(createEnrichmentMiddleware());
 
           const result = await chain.run(initialOrder);
+
+          // Add stack tracking if route was resolved
+          if (result.route?.routeConfiguration) {
+            const stackInfo = routeStackService.addToStack(result.route.routeConfiguration, targetId);
+            result.stackInfo = stackInfo;
+
+            // Voice announcement
+            if (apiSettings.voiceEnabled) {
+              if (stackInfo.isNewStack && stackInfo.stackNumber > 1) {
+                // Stack full warning
+                voiceService.announceStackFull(
+                  result.route.routeConfiguration,
+                  stackInfo.stackNumber - 1,
+                  stackInfo.stackNumber
+                );
+              } else {
+                // Normal route announcement
+                voiceService.announceRoute(result.route.routeConfiguration, stackInfo.stackNumber);
+              }
+            }
+
+            // Auto-print label for new stacks
+            if (apiSettings.autoPrintLabelEnabled && stackInfo.isNewStack) {
+              labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber);
+            }
+          }
+
           setCurrentResult(result);
           setHistory(prev => [result, ...prev.filter(h => h.orderId !== result.orderId)].slice(0, 50));
           setOrderId('');
@@ -415,107 +528,150 @@ const App: React.FC = () => {
 
   // API Config Modal
   const ApiConfigModal = () => (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-300">
-      <div className="w-full max-w-xl glass-panel rounded-[40px] p-10 border-white/10 shadow-[0_0_100px_rgba(56,189,248,0.2)] animate-in zoom-in-95 duration-300">
-        <div className="flex justify-between items-center mb-10">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-sky-500/10 rounded-2xl flex items-center justify-center text-sky-400">
-              <Lock className="w-6 h-6" />
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-300 p-4">
+      <div className="w-full max-w-xl max-h-[90vh] glass-panel rounded-[32px] border-white/10 shadow-[0_0_100px_rgba(56,189,248,0.2)] animate-in zoom-in-95 duration-300 flex flex-col">
+        <div className="flex justify-between items-center p-6 pb-4 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-sky-500/10 rounded-xl flex items-center justify-center text-sky-400">
+              <Lock className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-2xl font-black uppercase tracking-widest">Network Config</h2>
-              <p className="text-slate-500 text-xs">Configure Wpglb API credentials</p>
+              <h2 className="text-xl font-black uppercase tracking-widest">Network Config</h2>
+              <p className="text-slate-500 text-[10px]">Configure Wpglb API credentials</p>
             </div>
           </div>
           <button onClick={() => setShowApiConfig(false)} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
-            <X className="w-6 h-6 text-slate-400" />
+            <X className="w-5 h-5 text-slate-400" />
           </button>
         </div>
 
-        <div className="space-y-6">
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Wpglb-Auth Token</label>
-            <textarea
-              value={apiSettings.wpglbAuth}
-              onChange={(e) => setApiSettings({ ...apiSettings, wpglbAuth: e.target.value })}
-              placeholder="bearer eyJ..."
-              className="w-full bg-slate-900 border border-white/5 rounded-2xl p-4 text-xs font-mono text-sky-400 focus:outline-none focus:border-sky-500/50 h-32 resize-none"
-            />
-          </div>
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Authorization Header</label>
-            <input
-              type="text"
-              value={apiSettings.authorization}
-              onChange={(e) => setApiSettings({ ...apiSettings, authorization: e.target.value })}
-              placeholder="Basic YWRtaW46..."
-              className="w-full bg-slate-900 border border-white/5 rounded-2xl p-4 text-xs font-mono text-sky-400 focus:outline-none focus:border-sky-500/50"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
+        <div className="overflow-y-auto px-6 flex-1 custom-scrollbar">
+          <div className="space-y-4 pb-4">
             <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Task Code</label>
+              <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Wpglb-Auth Token</label>
+              <textarea
+                value={apiSettings.wpglbAuth}
+                onChange={(e) => setApiSettings({ ...apiSettings, wpglbAuth: e.target.value })}
+                placeholder="bearer eyJ..."
+                className="w-full bg-slate-900 border border-white/5 rounded-xl p-3 text-xs font-mono text-sky-400 focus:outline-none focus:border-sky-500/50 h-20 resize-none"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Authorization Header</label>
               <input
                 type="text"
-                value={apiSettings.taskCode}
-                onChange={(e) => setApiSettings({ ...apiSettings, taskCode: e.target.value })}
-                placeholder="WPLS-..."
-                className="w-full bg-slate-900 border border-white/5 rounded-2xl p-4 text-xs font-mono text-sky-400 focus:outline-none focus:border-sky-500/50"
+                value={apiSettings.authorization}
+                onChange={(e) => setApiSettings({ ...apiSettings, authorization: e.target.value })}
+                placeholder="Basic YWRtaW46..."
+                className="w-full bg-slate-900 border border-white/5 rounded-xl p-3 text-xs font-mono text-sky-400 focus:outline-none focus:border-sky-500/50"
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">PT ID</label>
-              <input
-                type="number"
-                value={apiSettings.ptId}
-                onChange={(e) => setApiSettings({ ...apiSettings, ptId: parseInt(e.target.value) || 0 })}
-                placeholder="3391"
-                className="w-full bg-slate-900 border border-white/5 rounded-2xl p-4 text-xs font-mono text-sky-400 focus:outline-none focus:border-sky-500/50"
-              />
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Task Code</label>
+                <input
+                  type="text"
+                  value={apiSettings.taskCode}
+                  onChange={(e) => setApiSettings({ ...apiSettings, taskCode: e.target.value })}
+                  placeholder="WPLS-..."
+                  className="w-full bg-slate-900 border border-white/5 rounded-xl p-3 text-xs font-mono text-sky-400 focus:outline-none focus:border-sky-500/50"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">PT ID</label>
+                <input
+                  type="number"
+                  value={apiSettings.ptId}
+                  onChange={(e) => setApiSettings({ ...apiSettings, ptId: parseInt(e.target.value) || 0 })}
+                  placeholder="3391"
+                  className="w-full bg-slate-900 border border-white/5 rounded-xl p-3 text-xs font-mono text-sky-400 focus:outline-none focus:border-sky-500/50"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Pickup Site ID</label>
+                <input
+                  type="number"
+                  value={apiSettings.pickupSite}
+                  onChange={(e) => setApiSettings({ ...apiSettings, pickupSite: parseInt(e.target.value) || 0 })}
+                  placeholder="3"
+                  className="w-full bg-slate-900 border border-white/5 rounded-xl p-3 text-xs font-mono text-sky-400 focus:outline-none focus:border-sky-500/50"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Stack Capacity</label>
+                <input
+                  type="number"
+                  value={apiSettings.stackCapacity}
+                  onChange={(e) => setApiSettings({ ...apiSettings, stackCapacity: parseInt(e.target.value) || 40 })}
+                  placeholder="40"
+                  min="1"
+                  className="w-full bg-slate-900 border border-white/5 rounded-xl p-3 text-xs font-mono text-sky-400 focus:outline-none focus:border-sky-500/50"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl border border-white/5">
+              <div className="flex items-center gap-2">
+                <Database className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs font-bold text-white">Remote Lookup</span>
+              </div>
+              <button
+                onClick={() => setApiSettings({ ...apiSettings, enabled: !apiSettings.enabled })}
+                className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${apiSettings.enabled ? 'bg-sky-500' : 'bg-slate-700'}`}
+              >
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${apiSettings.enabled ? 'left-7' : 'left-1'}`}></div>
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl border border-white/5">
+              <div className="flex items-center gap-2">
+                <RefreshCcw className="w-4 h-4 text-sky-400" />
+                <span className="text-xs font-bold text-white">Pickup Scan (RECEIVE)</span>
+              </div>
+              <button
+                onClick={() => setApiSettings({ ...apiSettings, pickupEnabled: !apiSettings.pickupEnabled })}
+                className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${apiSettings.pickupEnabled ? 'bg-sky-500' : 'bg-slate-700'}`}
+              >
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${apiSettings.pickupEnabled ? 'left-7' : 'left-1'}`}></div>
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl border border-white/5">
+              <div className="flex items-center gap-2">
+                <Activity className="w-4 h-4 text-purple-400" />
+                <span className="text-xs font-bold text-white">Voice Announcements</span>
+              </div>
+              <button
+                onClick={() => setApiSettings({ ...apiSettings, voiceEnabled: !apiSettings.voiceEnabled })}
+                className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${apiSettings.voiceEnabled ? 'bg-sky-500' : 'bg-slate-700'}`}
+              >
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${apiSettings.voiceEnabled ? 'left-7' : 'left-1'}`}></div>
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl border border-white/5">
+              <div className="flex items-center gap-2">
+                <Printer className="w-4 h-4 text-amber-400" />
+                <span className="text-xs font-bold text-white">Auto-Print Labels</span>
+              </div>
+              <button
+                onClick={() => setApiSettings({ ...apiSettings, autoPrintLabelEnabled: !apiSettings.autoPrintLabelEnabled })}
+                className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${apiSettings.autoPrintLabelEnabled ? 'bg-sky-500' : 'bg-slate-700'}`}
+              >
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${apiSettings.autoPrintLabelEnabled ? 'left-7' : 'left-1'}`}></div>
+              </button>
             </div>
           </div>
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Pickup Site ID</label>
-            <input
-              type="number"
-              value={apiSettings.pickupSite}
-              onChange={(e) => setApiSettings({ ...apiSettings, pickupSite: parseInt(e.target.value) || 0 })}
-              placeholder="3"
-              className="w-full bg-slate-900 border border-white/5 rounded-2xl p-4 text-xs font-mono text-sky-400 focus:outline-none focus:border-sky-500/50"
-            />
-          </div>
+        </div>
 
-          <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-2xl border border-white/5">
-            <div className="flex items-center gap-3">
-              <Database className="w-5 h-5 text-emerald-400" />
-              <span className="text-sm font-bold text-white">Enable Remote Lookup</span>
-            </div>
-            <button
-              onClick={() => setApiSettings({ ...apiSettings, enabled: !apiSettings.enabled })}
-              className={`w-14 h-8 rounded-full relative transition-colors duration-300 ${apiSettings.enabled ? 'bg-sky-500' : 'bg-slate-700'}`}
-            >
-              <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all duration-300 ${apiSettings.enabled ? 'left-7' : 'left-1'}`}></div>
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-2xl border border-white/5">
-            <div className="flex items-center gap-3">
-              <RefreshCcw className="w-5 h-5 text-sky-400" />
-              <span className="text-sm font-bold text-white">Enable Pickup Scan (RECEIVE)</span>
-            </div>
-            <button
-              onClick={() => setApiSettings({ ...apiSettings, pickupEnabled: !apiSettings.pickupEnabled })}
-              className={`w-14 h-8 rounded-full relative transition-colors duration-300 ${apiSettings.pickupEnabled ? 'bg-sky-500' : 'bg-slate-700'}`}
-            >
-              <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all duration-300 ${apiSettings.pickupEnabled ? 'left-7' : 'left-1'}`}></div>
-            </button>
-          </div>
-
-          <div className="flex gap-4 pt-6">
+        <div className="p-6 pt-4 flex-shrink-0">
+          <div className="flex gap-4">
             <button
               onClick={() => setShowApiConfig(false)}
-              className="flex-1 bg-sky-500 text-white font-black uppercase py-4 rounded-2xl shadow-xl shadow-sky-500/20 hover:scale-[1.02] active:scale-95 transition-all"
+              className="flex-1 bg-sky-500 text-white font-black uppercase py-3 rounded-xl shadow-xl shadow-sky-500/20 hover:scale-[1.02] active:scale-95 transition-all"
             >
               Save Configurations
             </button>
@@ -664,9 +820,36 @@ const App: React.FC = () => {
                     {currentResult.route?.routeConfiguration || 'N/A'}
                   </div>
 
+                  {/* Stack Number Display */}
+                  {currentResult.stackInfo && (
+                    <div className="mt-8 flex flex-col items-center space-y-4">
+                      <div className="text-6xl font-black text-sky-400">
+                        #{String(currentResult.stackInfo.stackNumber).padStart(3, '0')}
+                      </div>
+
+                      {/* Capacity Bar */}
+                      <div className="w-96 bg-slate-800/50 rounded-full h-8 overflow-hidden border-2 border-white/10">
+                        <div
+                          className="h-full bg-gradient-to-r from-sky-500 to-emerald-500 transition-all duration-500"
+                          style={{ width: `${(currentResult.stackInfo.currentCount / currentResult.stackInfo.capacity) * 100}%` }}
+                        />
+                      </div>
+                      <div className="text-2xl font-bold text-slate-400">
+                        {currentResult.stackInfo.currentCount} / {currentResult.stackInfo.capacity}
+                      </div>
+                    </div>
+                  )}
+
                   <div className={`absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 border-4 ${hasFailed ? 'border-red-500' : 'border-emerald-500/50'} px-12 py-4 rounded-full shadow-2xl transition-colors`}>
                     <span className={`${hasFailed ? 'text-red-500' : 'text-emerald-400'} font-black text-4xl tracking-[0.2em] uppercase`}>{currentResult.orderId}</span>
                   </div>
+
+                  {/* Stack Full Warning */}
+                  {currentResult.stackInfo?.isNewStack && currentResult.stackInfo.stackNumber > 1 && (
+                    <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-amber-500 text-slate-900 px-8 py-3 rounded-full font-black text-lg uppercase tracking-widest shadow-xl animate-pulse">
+                      ⚠️ Stack #{String(currentResult.stackInfo.stackNumber - 1).padStart(3, '0')} FULL - Now #{String(currentResult.stackInfo.stackNumber).padStart(3, '0')}
+                    </div>
+                  )}
 
                   {hasFailed && (
                     <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">

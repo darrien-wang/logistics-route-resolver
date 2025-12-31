@@ -52,6 +52,9 @@ export interface ApiSettings {
   taskCode: string;
   ptId: number;
   pickupSite: number;
+  voiceEnabled: boolean;
+  autoPrintLabelEnabled: boolean;
+  stackCapacity: number;
 }
 
 export interface ResolvedRouteInfo extends OrderData {
@@ -59,6 +62,13 @@ export interface ResolvedRouteInfo extends OrderData {
   resolvedAt: string;
   activeEvents?: OrderEventStatus[];
   exceptionReason?: string; // Reason for being in exception pool
+  stackInfo?: {
+    stackNumber: number;
+    currentCount: number;
+    capacity: number;
+    isStackFull: boolean;
+    isNewStack: boolean;
+  };
 }
 
 // Middleware interface for data processing

@@ -31,5 +31,6 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
       electron.ipcRenderer.on("update-status", handler);
       return () => electron.ipcRenderer.removeListener("update-status", handler);
     }
-  }
+  },
+  printHTML: (html, options) => electron.ipcRenderer.invoke("print-html", html, options)
 });

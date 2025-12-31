@@ -1,4 +1,4 @@
-import { app, BrowserWindow, session } from 'electron'
+import { app, BrowserWindow, session, ipcMain } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { setupAutoUpdater } from './updater'
@@ -69,6 +69,46 @@ app.on('activate', () => {
         createWindow()
     }
 })
+
+// Handle print-html IPC for silent label printing
+ipcMain.handle('print-html', async (_event, html: string, options: any = {}) => {
+    if (!win) {
+        throw new Error('No window available for printing');
+    }
+
+    try {
+        // Create a hidden window for printing
+        const printWindow = new BrowserWindow({
+            show: false,
+            webPreferences: {
+                nodeIntegration: false,
+                contextIsolation: true,
+            },
+        });
+
+        // Load the HTML content
+        await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+
+        // Wait for content to load
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Print silently
+        await printWindow.webContents.print({
+            silent: options.silent !== false,  // Default to silent
+            printBackground: options.printBackground !== false,
+            margins: { marginType: 'none' },
+            pageSize: options.pageSize || { width: 100000, height: 150000 }, // 10cm x 15cm in microns
+        });
+
+        // Close the print window
+        printWindow.close();
+
+        return { success: true };
+    } catch (error) {
+        console.error('[Electron] Print failed:', error);
+        throw error;
+    }
+});
 
 app.whenReady().then(() => {
     createWindow()
