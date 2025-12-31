@@ -226,6 +226,16 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
         setSpilloverStack(stack);
     };
 
+    const handleDeleteStack = (stack: RouteStack) => {
+        historyService.pushState(stackDefs);
+        setStackDefs(prev => prev.filter(d => d.id !== stack.id));
+        setSelectedStackIds(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(stack.id);
+            return newSet;
+        });
+    };
+
     const handleConfirmSpillover = (sourceStackId: string, orderIds: string[]) => {
         const sourceStack = renderableStacks.find(s => s.id === sourceStackId);
         if (!sourceStack) return;
@@ -474,6 +484,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                             onClick={() => setSelectedDetailStack({ title: stack.route, orders: stack.orders, mergeInfo: stack.mergeInfo })}
                             onSplit={() => handleSplitStack(stack)}
                             onResolveOverflow={() => handleResolveOverflow(stack)}
+                            onDelete={() => handleDeleteStack(stack)}
                             selected={selectedStackIds.has(stack.id)}
                         />
                     ) : (
@@ -481,6 +492,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                             key={stack.id}
                             stack={stack}
                             onClick={() => handleStackClick(stack)}
+                            onDelete={() => handleDeleteStack(stack)}
                             selected={selectedStackIds.has(stack.id)}
                         />
                     )

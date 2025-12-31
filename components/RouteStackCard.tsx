@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Package, Printer, CheckCircle, Database } from 'lucide-react';
+import { Package, Printer, CheckCircle, Database, Trash2 } from 'lucide-react';
 import { RouteStack } from '../types';
 import LabelPrintDialog from './LabelPrintDialog';
 
 interface RouteStackCardProps {
     stack: RouteStack;
     onClick: () => void;
+    onDelete?: () => void;
     selected?: boolean;
 }
 
@@ -91,8 +92,9 @@ const generateLabelImage = (route: string, stackNumber: number): string => {
     return canvas.toDataURL('image/png');
 };
 
-const RouteStackCard: React.FC<RouteStackCardProps> = ({ stack, onClick, selected }) => {
+const RouteStackCard: React.FC<RouteStackCardProps> = ({ stack, onClick, onDelete, selected }) => {
     const [showDialog, setShowDialog] = useState(false);
+    const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const fillPercentage = Math.min((stack.orders.length / stack.capacity) * 100, 100);
 
     // Color gradient: red → yellow → green (full = green)
@@ -106,6 +108,17 @@ const RouteStackCard: React.FC<RouteStackCardProps> = ({ stack, onClick, selecte
     const handlePrintClick = (e: React.MouseEvent) => {
         e.stopPropagation();
         setShowDialog(true);
+    };
+
+    const handleContextMenu = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setContextMenu({ x: e.clientX, y: e.clientY });
+    };
+
+    const handleDelete = () => {
+        setContextMenu(null);
+        onDelete?.();
     };
 
     const handleConfirmPrint = (printer: string) => {
@@ -142,8 +155,33 @@ const RouteStackCard: React.FC<RouteStackCardProps> = ({ stack, onClick, selecte
 
     return (
         <>
+            {/* Context menu backdrop */}
+            {contextMenu && (
+                <div
+                    className="fixed inset-0 z-50"
+                    onClick={() => setContextMenu(null)}
+                />
+            )}
+
+            {/* Context menu */}
+            {contextMenu && (
+                <div
+                    className="fixed z-50 bg-slate-800 border border-white/10 rounded-xl shadow-lg py-1 min-w-[120px]"
+                    style={{ left: contextMenu.x, top: contextMenu.y }}
+                >
+                    <button
+                        onClick={handleDelete}
+                        className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                        Delete Stack
+                    </button>
+                </div>
+            )}
+
             <div
                 onClick={onClick}
+                onContextMenu={handleContextMenu}
                 className={`
                     relative group cursor-pointer 
                     rounded-[24px] border ${borderStyle} 
