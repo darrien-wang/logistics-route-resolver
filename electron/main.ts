@@ -71,22 +71,27 @@ app.on('activate', () => {
 })
 
 // Handle print-image IPC for silent label printing
+let printWindow: BrowserWindow | null = null;
+
+// Handle print-image IPC for silent label printing
 ipcMain.handle('print-image', async (_event, imageDataUrl: string, options: any = {}) => {
     if (!win) {
         throw new Error('No window available for printing');
     }
 
     try {
-        // Create a hidden window for printing
-        const printWindow = new BrowserWindow({
-            show: false,
-            width: 378,  // 10cm at 96 DPI
-            height: 567, // 15cm at 96 DPI
-            webPreferences: {
-                nodeIntegration: false,
-                contextIsolation: true,
-            },
-        });
+        // Create a hidden window for printing if it doesn't exist
+        if (!printWindow || printWindow.isDestroyed()) {
+            printWindow = new BrowserWindow({
+                show: false,
+                width: 378,
+                height: 567,
+                webPreferences: {
+                    nodeIntegration: false,
+                    contextIsolation: true,
+                },
+            });
+        }
 
         // Create simple HTML with just the image
         const html = `<!DOCTYPE html>
@@ -105,23 +110,25 @@ ipcMain.handle('print-image', async (_event, imageDataUrl: string, options: any 
         // Load the HTML content
         await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
 
-        // Wait for image to load
-        await new Promise(resolve => setTimeout(resolve, 300));
+        // Small buffer to ensure rendering
+        await new Promise(resolve => setTimeout(resolve, 50));
 
-        // Print silently using callback pattern
+        // Print silently
         return new Promise((resolve, reject) => {
+            if (!printWindow) return reject(new Error('Print window destroyed'));
+
             printWindow.webContents.print({
                 silent: options.silent !== false,
                 printBackground: true,
                 margins: { marginType: 'none' },
                 pageSize: { width: 100000, height: 150000 },
             }, (success, failureReason) => {
-                printWindow.close();
                 if (success) {
                     resolve({ success: true });
                 } else {
                     reject(new Error(failureReason || 'Print failed'));
                 }
+                // Don't close window, reuse it
             });
         });
     } catch (error) {

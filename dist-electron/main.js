@@ -14920,22 +14920,23 @@ app.on("activate", () => {
     createWindow();
   }
 });
+let printWindow = null;
 ipcMain.handle("print-image", async (_event, imageDataUrl, options = {}) => {
   if (!win) {
     throw new Error("No window available for printing");
   }
   try {
-    const printWindow = new BrowserWindow({
-      show: false,
-      width: 378,
-      // 10cm at 96 DPI
-      height: 567,
-      // 15cm at 96 DPI
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true
-      }
-    });
+    if (!printWindow || printWindow.isDestroyed()) {
+      printWindow = new BrowserWindow({
+        show: false,
+        width: 378,
+        height: 567,
+        webPreferences: {
+          nodeIntegration: false,
+          contextIsolation: true
+        }
+      });
+    }
     const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -14949,15 +14950,15 @@ ipcMain.handle("print-image", async (_event, imageDataUrl, options = {}) => {
 <body><img src="${imageDataUrl}" /></body>
 </html>`;
     await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await new Promise((resolve) => setTimeout(resolve, 50));
     return new Promise((resolve, reject) => {
+      if (!printWindow) return reject(new Error("Print window destroyed"));
       printWindow.webContents.print({
         silent: options.silent !== false,
         printBackground: true,
         margins: { marginType: "none" },
         pageSize: { width: 1e5, height: 15e4 }
       }, (success, failureReason) => {
-        printWindow.close();
         if (success) {
           resolve({ success: true });
         } else {

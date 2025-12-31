@@ -18,12 +18,21 @@ class LabelPrintService {
     private isPrinting: boolean = false;
     private enabled: boolean = false;
     private jobIdCounter: number = 0;
+    private imageCache: Map<string, string> = new Map();
 
     /**
      * Generate label image (10cm x 15cm at 300 DPI)
      * Extracted from RouteStackCard.tsx
      */
     generateLabelImage(baseRouteName: string, stackNumber: number): string {
+        const tStart = performance.now();
+        const cacheKey = `${baseRouteName}-${stackNumber}`;
+        if (this.imageCache.has(cacheKey)) {
+            const dataUrl = this.imageCache.get(cacheKey)!;
+            console.log(`[Perf] Image cache hit (${(performance.now() - tStart).toFixed(2)}ms)`);
+            return dataUrl;
+        }
+
         const canvas = document.createElement('canvas');
         const width = 1181;  // 10cm at 300 DPI
         const height = 1772; // 15cm at 300 DPI
@@ -96,7 +105,10 @@ class LabelPrintService {
         ctx.textAlign = 'center';
         ctx.fillText('NOTES', rightStart + rightWidth / 2, height - 50);
 
-        return canvas.toDataURL('image/png');
+        const dataUrl = canvas.toDataURL('image/png');
+        this.imageCache.set(cacheKey, dataUrl);
+        console.log(`[Perf] Image generation (${(performance.now() - tStart).toFixed(2)}ms)`);
+        return dataUrl;
     }
 
     /**
@@ -131,6 +143,8 @@ class LabelPrintService {
         while (this.printQueue.length > 0) {
             const job = this.printQueue.shift()!;
             job.status = 'printing';
+            const queueWait = Date.now() - job.timestamp;
+            console.log(`[Perf] Queue wait time: ${queueWait}ms`);
 
             try {
                 await this.executePrint(job);
@@ -153,8 +167,12 @@ class LabelPrintService {
                 const electronAPI = typeof window !== 'undefined' && (window as any).electronAPI;
 
                 if (electronAPI?.printImage) {
+                    const tStart = performance.now();
                     electronAPI.printImage(dataUrl, { silent: true })
-                        .then(() => resolve())
+                        .then(() => {
+                            console.log(`[Perf] Electron IPC + Print time (${(performance.now() - tStart).toFixed(0)}ms)`);
+                            resolve();
+                        })
                         .catch((error: Error) => reject(error));
                 } else {
                     // Fallback to browser print dialog (not truly silent)
