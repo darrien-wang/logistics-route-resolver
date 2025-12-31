@@ -1,6 +1,6 @@
 import React from 'react';
 import { X, Download, Package, MapPin, Calendar } from 'lucide-react';
-import { ResolvedRouteInfo } from '../types';
+import { ResolvedRouteInfo, MergedStackComponent } from '../types';
 import * as XLSX from 'xlsx';
 
 interface OrderDetailModalProps {
@@ -8,37 +8,65 @@ interface OrderDetailModalProps {
     onClose: () => void;
     title: string;
     orders: ResolvedRouteInfo[];
+    mergeInfo?: {
+        components: MergedStackComponent[];
+    };
+    onExport?: () => void;
 }
 
-const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ isOpen, onClose, title, orders }) => {
+const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ isOpen, onClose, title, orders, mergeInfo }) => {
     if (!isOpen) return null;
 
+    // Build a route-to-stackNumber lookup from mergeInfo
+    const routeStackLookup = new Map<string, number>();
+    if (mergeInfo?.components) {
+        mergeInfo.components.forEach(comp => {
+            routeStackLookup.set(comp.route, comp.stackNumber);
+        });
+    }
+
     const handleExport = () => {
-        const exportData = orders.map(order => ({
-            'Order ID': order.orderId,
-            'Date': order.date || '',
-            'Address': order.address || '',
-            'Location ID': order.locationId || '',
-            'Location Name': order.locationName || '',
-            'Latitude': order.latitude ?? '',
-            'Longitude': order.longitude ?? '',
-            'Duration': order.duration ?? '',
-            'TW from': order.twFrom || '',
-            'TW to': order.twTo || '',
-            'Weight': order.weight ?? '',
-            'Volume': order.volume ?? '',
-            'Vehicle Features': order.vehicleFeatures || '',
-            'Skills': order.skills || '',
-            'Assigned to Driver': order.assignedToDriver || '',
-            'Notes': order.notes || '',
-            'Email': order.email || '',
-            'Phone': order.phone || '',
-            'Notifications': order.notifications || '',
-            // Overflow source tracking columns
-            'Source Route': order.overflowSource?.route || '',
-            'Source Stack #': order.overflowSource?.stackNumber ?? '',
-            'Overflow Date': order.overflowSource?.movedAt ? new Date(order.overflowSource.movedAt).toLocaleString() : '',
-        }));
+        const exportData = orders.map(order => {
+            // Determine source route and stack number
+            // Priority: overflowSource > order.route + mergeInfo lookup
+            let sourceRoute = '';
+            let sourceStackNum: number | string = '';
+
+            if (order.overflowSource) {
+                // Overflow pool - use stamped source
+                sourceRoute = order.overflowSource.route;
+                sourceStackNum = order.overflowSource.stackNumber;
+            } else if (order.route?.routeConfiguration) {
+                // Merged pool - use original route and lookup stack from mergeInfo
+                sourceRoute = order.route.routeConfiguration;
+                sourceStackNum = routeStackLookup.get(sourceRoute) || 1;
+            }
+
+            return {
+                'Order ID': order.orderId,
+                'Source Route': sourceRoute,
+                'Source Stack #': sourceStackNum,
+                'Date': order.date || '',
+                'Address': order.address || '',
+                'Location ID': order.locationId || '',
+                'Location Name': order.locationName || '',
+                'Latitude': order.latitude ?? '',
+                'Longitude': order.longitude ?? '',
+                'Duration': order.duration ?? '',
+                'TW from': order.twFrom || '',
+                'TW to': order.twTo || '',
+                'Weight': order.weight ?? '',
+                'Volume': order.volume ?? '',
+                'Vehicle Features': order.vehicleFeatures || '',
+                'Skills': order.skills || '',
+                'Assigned to Driver': order.assignedToDriver || '',
+                'Notes': order.notes || '',
+                'Email': order.email || '',
+                'Phone': order.phone || '',
+                'Notifications': order.notifications || '',
+                'Overflow Date': order.overflowSource?.movedAt ? new Date(order.overflowSource.movedAt).toLocaleString() : '',
+            };
+        });
 
         const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();

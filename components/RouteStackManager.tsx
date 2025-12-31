@@ -41,7 +41,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
     // --- State ---
     const [stackDefs, setStackDefs] = useState<StackDefinition[]>([]);
     const [selectedStackIds, setSelectedStackIds] = useState<Set<string>>(new Set());
-    const [selectedDetailStack, setSelectedDetailStack] = useState<{ title: string; orders: ResolvedRouteInfo[] } | null>(null);
+    const [selectedDetailStack, setSelectedDetailStack] = useState<{ title: string; orders: ResolvedRouteInfo[]; mergeInfo?: { components: any[] } } | null>(null);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
     const [spilloverStack, setSpilloverStack] = useState<RouteStack | null>(null);
     const [filterMode, setFilterMode] = useState<FilterMode>('all');
@@ -170,7 +170,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
 
     const handleStackClick = (stack: RouteStack) => {
         if (stack.type === 'merged' || stack.isOverflow) {
-            setSelectedDetailStack({ title: stack.route, orders: stack.orders });
+            setSelectedDetailStack({ title: stack.route, orders: stack.orders, mergeInfo: stack.mergeInfo });
             return;
         }
 
@@ -471,7 +471,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                         <MergedStackCard
                             key={stack.id}
                             stack={stack}
-                            onClick={() => setSelectedDetailStack({ title: stack.route, orders: stack.orders })}
+                            onClick={() => setSelectedDetailStack({ title: stack.route, orders: stack.orders, mergeInfo: stack.mergeInfo })}
                             onSplit={() => handleSplitStack(stack)}
                             onResolveOverflow={() => handleResolveOverflow(stack)}
                             selected={selectedStackIds.has(stack.id)}
@@ -494,7 +494,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                     onClose={() => setSelectedDetailStack(null)}
                     title={selectedDetailStack.title}
                     orders={selectedDetailStack.orders}
-                    onExport={() => { }}
+                    mergeInfo={selectedDetailStack.mergeInfo}
                 />
             )}
 
