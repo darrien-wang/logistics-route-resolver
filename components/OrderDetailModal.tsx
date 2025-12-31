@@ -39,7 +39,7 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ isOpen, onClose, ti
         const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Orders');
-        XLSX.writeFile(wb, `${title.replace(/\s+/g, '_')}_Orders_${new Date().toISOString().split('T')[0]}.xlsx`);
+        XLSX.writeFile(wb, `${(title || 'Orders').replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
     return (
