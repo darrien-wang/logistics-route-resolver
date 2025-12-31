@@ -1,10 +1,6 @@
 
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
-  Truck,
-  Download,
-  Upload,
-  FileSpreadsheet,
   LayoutDashboard,
   Settings,
   AlertCircle,
@@ -13,21 +9,15 @@ import {
   Minimize2,
   ScanBarcode,
   RefreshCcw,
-  Package,
   Activity,
   ChevronRight,
   ClipboardList,
   Layers,
-  Save,
-  Trash2,
-  Key,
-  Lock,
-  X,
-  Database,
+  Download,
   Printer
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { OrderData, ResolvedRouteInfo, ZipRouteRecord, EventType, OrderEventStatus, EventStatus, ApiSettings, DEFAULT_CAPACITY_CONFIG } from './types';
+import { OrderData, ResolvedRouteInfo, ZipRouteRecord, EventType, OrderEventStatus, ApiSettings, DEFAULT_CAPACITY_CONFIG } from './types';
 import {
   MiddlewareChain,
   createOrderLookupMiddleware,
@@ -39,26 +29,22 @@ import {
   createPickupScanMiddleware,
 } from './services/MiddlewareChain';
 import { executeUnload } from './services/UnloadService';
-import { batchSearchOrders, getCachedOrder } from './services/BatchOrderService';
+import { batchSearchOrders } from './services/BatchOrderService';
 import { FlexibleDataSource } from './services/RouteService';
 import { ExcelExportService } from './services/ExportService';
 import { routeStackService } from './services/RouteStackService';
 import { voiceService } from './services/VoiceService';
 import { labelPrintService } from './services/LabelPrintService';
-import StatCard from './components/StatCard';
 import RouteStackManager from './components/RouteStackManager';
 import ApiConfigModal from './components/ApiConfigModal';
 import RulesManagementView from './components/RulesManagementView';
 import DashboardView from './components/DashboardView';
 import UpdateNotification from './components/UpdateNotification';
+import { MOCK_ORDERS } from './constants/mockData';
 
 const STORAGE_KEY = 'LOGISTICS_ACTIVITY_STREAM';
 const API_CONFIG_KEY = 'LOGISTICS_API_CONFIG';
 
-const MOCK_ORDERS: Record<string, OrderData> = {
-  "ORD001": { orderId: "ORD001", date: "12/13/2024", address: "Canal St, New York, NY 10013, USA", email: "john@example.com", weight: 5, volume: 10 },
-  "ORD002": { orderId: "ORD002", date: "12/13/2024", address: "Smith St, San Diego, CA 92101, USA", phone: "+16505553010", weight: 2, volume: 30 },
-};
 
 const App: React.FC = () => {
   const [view, setView] = useState<'dashboard' | 'operator' | 'rules' | 'stacks'>('dashboard');
