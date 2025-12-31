@@ -835,9 +835,9 @@ const App: React.FC = () => {
                 </div>
               </div>
             ) : currentResult ? (
-              <div className="flex flex-col items-center space-y-10 animate-in zoom-in-95 duration-150">
-                <div className={`${currentHasFailed ? 'bg-red-500/5 border-red-500/20' : 'bg-emerald-500/5 border-emerald-500/10'} border-[10px] p-24 px-32 rounded-[110px] shadow-[0_0_150px_rgba(52,211,153,0.15)] relative transition-colors duration-500`}>
-                  <div className={`text-[12rem] leading-none font-black ${currentHasFailed ? 'text-red-400 opacity-50' : 'text-white'} drop-shadow-[0_0_70px_rgba(255,255,255,0.3)] tracking-tighter whitespace-nowrap px-10`}>
+              <div className="flex flex-col items-center space-y-10 animate-in zoom-in-95 duration-150 w-full h-full">
+                <div className={`${currentHasFailed ? 'bg-red-500/5 border-red-500/20' : 'bg-emerald-500/5 border-emerald-500/10'} border-[10px] p-10 pb-20 rounded-[80px] shadow-[0_0_150px_rgba(52,211,153,0.15)] relative transition-colors duration-500 flex flex-col items-center w-full flex-1`}>
+                  <div className={`text-[12rem] leading-none font-black ${currentHasFailed ? 'text-red-400 opacity-50' : 'text-white'} drop-shadow-[0_0_70px_rgba(255,255,255,0.3)] tracking-tighter whitespace-nowrap px-10 mt-10`}>
                     {currentResult.route?.routeConfiguration || 'N/A'}
                   </div>
 
@@ -867,31 +867,31 @@ const App: React.FC = () => {
 
                   {/* Stack Full Warning */}
                   {currentResult.stackInfo?.isNewStack && currentResult.stackInfo.stackNumber > 1 && (
-                    <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-amber-500 text-slate-900 px-8 py-3 rounded-full font-black text-lg uppercase tracking-widest shadow-xl animate-pulse">
+                    <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-amber-500 text-slate-900 px-8 py-3 rounded-full font-black text-lg uppercase tracking-widest shadow-xl animate-pulse z-20">
                       ⚠️ Stack #{String(currentResult.stackInfo.stackNumber - 1).padStart(3, '0')} FULL - Now #{String(currentResult.stackInfo.stackNumber).padStart(3, '0')}
                     </div>
                   )}
 
                   {/* Result Card Content */}
-                  <div className="flex-1 relative animate-in zoom-in-95 duration-500 flex flex-col">
-                    <div className="absolute inset-x-8 top-1/2 -translate-y-1/2 h-[500px] bg-sky-500/20 blur-[120px] rounded-full animate-pulse-slow"></div>
+                  <div className="flex-1 relative animate-in zoom-in-95 duration-500 flex flex-col w-full mt-12 mb-6">
+                    <div className="absolute inset-x-8 top-1/2 -translate-y-1/2 h-full bg-sky-500/20 blur-[120px] rounded-full animate-pulse-slow"></div>
 
-                    <div className="relative z-10 bg-slate-900/80 backdrop-blur-3xl border-8 border-white/10 rounded-[80px] p-20 flex flex-col items-center justify-center text-center shadow-2xl flex-1 overflow-hidden">
+                    <div className="relative z-10 bg-slate-900/40 backdrop-blur-md border-4 border-white/5 rounded-[40px] p-10 flex flex-col items-center justify-center text-center shadow-xl flex-1">
                       {/* Print Status Badge */}
                       {printStatus === 'printing' && (
-                        <div className="absolute top-12 right-12 flex items-center gap-3 bg-sky-500/20 border border-sky-500/30 px-6 py-3 rounded-full animate-in slide-in-from-top-4 fade-in duration-300">
-                          <Printer className="w-5 h-5 text-sky-400 animate-pulse" />
-                          <span className="text-sky-400 font-bold text-sm tracking-wider uppercase">Printing Sent</span>
+                        <div className="absolute top-6 right-6 flex items-center gap-3 bg-sky-500/20 border border-sky-500/30 px-4 py-2 rounded-full animate-in slide-in-from-top-4 fade-in duration-300">
+                          <Printer className="w-4 h-4 text-sky-400 animate-pulse" />
+                          <span className="text-sky-400 font-bold text-xs tracking-wider uppercase">Printing Sent</span>
                         </div>
                       )}
 
                       {currentHasFailed && (
-                        <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
+                        <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-20">
                           <div className="bg-red-600 text-white px-8 py-2 rounded-full font-black text-xl uppercase tracking-widest shadow-xl animate-bounce">
                             Process Failed
                           </div>
                           {currentEvents.find(e => e.status === 'FAILED')?.message && (
-                            <div className="bg-slate-900/90 backdrop-blur-md border border-red-500/50 text-red-400 px-4 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider whitespace-nowrap shadow-2xl">
+                            <div className="bg-slate-900/95 backdrop-blur-md border border-red-500/50 text-red-400 px-4 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider whitespace-nowrap shadow-2xl">
                               {currentEvents.find(e => e.status === 'FAILED')?.message}
                             </div>
                           )}
@@ -899,13 +899,13 @@ const App: React.FC = () => {
                       )}
                     </div>
 
-                    <div className="flex gap-6 mt-6 justify-center">
+                    <div className="flex gap-4 mt-8 justify-center">
                       {selectedEventTypes.map(type => {
                         const status = currentEvents.find(e => e.type === type)?.status;
                         return (
-                          <div key={type} className={`flex items-center gap-4 px-10 py-5 rounded-3xl border transition-all duration-500 ${status === 'SUCCESS' ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400 shadow-[0_0_30px_rgba(52,211,153,0.2)]' : status === 'FAILED' ? 'bg-red-500/10 border-red-500/40 text-red-400' : 'bg-slate-800/80 border-white/10 text-slate-400'}`}>
-                            {status === 'SUCCESS' ? <CheckCircle2 className="w-8 h-8" /> : status === 'FAILED' ? <AlertCircle className="w-8 h-8" /> : <RefreshCcw className="w-8 h-8 animate-spin text-amber-500" />}
-                            <span className="font-black uppercase tracking-[0.2em] text-xl">{type}</span>
+                          <div key={type} className={`flex items-center gap-3 px-8 py-4 rounded-2xl border transition-all duration-500 ${status === 'SUCCESS' ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400 shadow-[0_0_30px_rgba(52,211,153,0.2)]' : status === 'FAILED' ? 'bg-red-500/10 border-red-500/40 text-red-400' : 'bg-slate-800/60 border-white/5 text-slate-500'}`}>
+                            {status === 'SUCCESS' ? <CheckCircle2 className="w-6 h-6" /> : status === 'FAILED' ? <AlertCircle className="w-6 h-6" /> : <RefreshCcw className="w-6 h-6 animate-spin text-amber-500" />}
+                            <span className="font-black uppercase tracking-[0.2em] text-lg">{type}</span>
                           </div>
                         );
                       })}
