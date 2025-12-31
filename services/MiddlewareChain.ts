@@ -39,7 +39,7 @@ export const createRemoteLookupMiddleware = (settings: ApiSettings): ProcessingM
       formData.append("trackingNumber", context.orderId);
       formData.append("queryTimeType", "0");
 
-      const response = await fetch("/api-remote/api/wpglb-dms-orders/order/orders/ordersSearch", {
+      const response = await fetch("https://dms.wpglb.com/api/wpglb-dms-orders/order/orders/ordersSearch", {
         method: "POST",
         headers: {
           "wpglb-auth": settings.wpglbAuth,
