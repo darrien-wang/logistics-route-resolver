@@ -48,6 +48,7 @@ import { labelPrintService } from './services/LabelPrintService';
 import StatCard from './components/StatCard';
 import RouteStackManager from './components/RouteStackManager';
 import ApiConfigModal from './components/ApiConfigModal';
+import RulesManagementView from './components/RulesManagementView';
 import UpdateNotification from './components/UpdateNotification';
 
 const STORAGE_KEY = 'LOGISTICS_ACTIVITY_STREAM';
@@ -801,145 +802,8 @@ const App: React.FC = () => {
     );
   };
 
-  // Rules Management View
-  const RulesManagementView = () => {
-    const [records, setRecords] = useState(dataSource.getAllRecords());
-    const [searchTerm, setSearchTerm] = useState('');
-    const [editingZip, setEditingZip] = useState<string | null>(null);
-    const [editValue, setEditValue] = useState('');
 
-    const filteredRecords = records.filter(r =>
-      r.zip.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.metroArea.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.routeConfiguration.toLowerCase().includes(searchTerm.toLowerCase())
-    );
 
-    const handleDelete = (zip: string) => {
-      if (confirm(`Delete rule for ZIP ${zip}?`)) {
-        dataSource.deleteRecord(zip);
-        setRecords([...dataSource.getAllRecords()]);
-      }
-    };
-
-    const handleStartEdit = (r: ZipRouteRecord) => {
-      setEditingZip(r.zip);
-      setEditValue(r.routeConfiguration);
-    };
-
-    const handleSaveEdit = (zip: string) => {
-      dataSource.updateRecord(zip, { routeConfiguration: editValue });
-      setEditingZip(null);
-      setRecords([...dataSource.getAllRecords()]);
-    };
-
-    const handleExport = () => {
-      const data = dataSource.getAllRecords();
-      const ws = XLSX.utils.json_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Rules");
-      XLSX.writeFile(wb, `Rules_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
-    };
-
-    return (
-      <div className="flex flex-col space-y-8 animate-in fade-in duration-500">
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Rules Management</h1>
-            <div className="text-slate-500 text-sm mt-1">Total Rules: <span className="text-sky-400 font-black">{records.length}</span></div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search ZIP or Route..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="bg-slate-900 border border-white/10 rounded-xl px-5 py-3 text-sm focus:outline-none focus:border-sky-500 w-64 uppercase"
-              />
-              <Activity className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
-            </div>
-            <button
-              onClick={handleExport}
-              className="bg-emerald-500 p-3 px-6 rounded-xl border border-emerald-400/50 flex items-center gap-2 hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20 font-bold"
-            >
-              <Download className="w-5 h-5" /> Export Rules
-            </button>
-          </div>
-        </header>
-
-        <div className="glass-panel rounded-[40px] border border-white/10 overflow-hidden shadow-2xl">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-900/50 border-b border-white/5">
-                  <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Zip Code</th>
-                  <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Metro Area</th>
-                  <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-500">State</th>
-                  <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Route Code</th>
-                  <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Zone</th>
-                  <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {filteredRecords.map((r, idx) => (
-                  <tr key={idx} className="hover:bg-white/5 transition-colors group">
-                    <td className="px-8 py-4 font-mono font-black text-sky-400">{r.zip}</td>
-                    <td className="px-8 py-4 text-slate-300 font-bold">{r.metroArea}</td>
-                    <td className="px-8 py-4 text-slate-500 uppercase font-black text-xs">{r.state}</td>
-                    <td className="px-8 py-4">
-                      {editingZip === r.zip ? (
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSaveEdit(r.zip)}
-                            className="bg-slate-800 border border-sky-500/50 rounded-lg px-3 py-1 text-emerald-400 font-bold w-32 focus:outline-none"
-                            autoFocus
-                          />
-                          <button onClick={() => handleSaveEdit(r.zip)} className="text-emerald-400 hover:text-white transition-colors">
-                            <CheckCircle2 className="w-5 h-5" />
-                          </button>
-                          <button onClick={() => setEditingZip(null)} className="text-slate-500 hover:text-white transition-colors">
-                            <X className="w-5 h-5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <span className="text-emerald-400 font-bold tracking-wider">{r.routeConfiguration}</span>
-                          <button
-                            onClick={() => handleStartEdit(r)}
-                            className="p-1 text-slate-600 hover:text-sky-400 transition-colors opacity-0 group-hover:opacity-100"
-                          >
-                            <Save className="w-3 h-3" />
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-8 py-4 text-slate-500">{r.destinationZone}</td>
-                    <td className="px-8 py-4 text-right">
-                      <button
-                        onClick={() => handleDelete(r.zip)}
-                        className="p-2 text-slate-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {filteredRecords.length === 0 && (
-            <div className="p-20 flex flex-col items-center text-slate-800 opacity-20">
-              <FileSpreadsheet className="w-20 h-20 mb-4" />
-              <p className="font-black uppercase tracking-widest">No Rules Found</p>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-sky-500/30">
@@ -972,7 +836,7 @@ const App: React.FC = () => {
       </div>
 
       <main className="flex-1 ml-24 p-10 lg:p-14 relative overflow-y-auto">
-        {view === 'dashboard' ? <DashboardView /> : view === 'operator' ? <OperatorView /> : view === 'stacks' ? <RouteStackManager history={history} apiSettings={apiSettings} onSettingsChange={setApiSettings} onAddTestData={handleAddTestData} /> : <RulesManagementView />}
+        {view === 'dashboard' ? <DashboardView /> : view === 'operator' ? <OperatorView /> : view === 'stacks' ? <RouteStackManager history={history} apiSettings={apiSettings} onSettingsChange={setApiSettings} onAddTestData={handleAddTestData} /> : <RulesManagementView dataSource={dataSource} />}
 
         {view === 'operator' && (
           <button
