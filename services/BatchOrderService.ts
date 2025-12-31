@@ -9,7 +9,11 @@ export interface OrderSearchResult {
     trackingNumber: string;
     deliveryAddress: string;
     zipCode: string;
-    weight: number;
+    weight: number;       // ordersWeight (lb)
+    length: number;       // ordersLength (in)
+    width: number;        // ordersWidth (in)
+    height: number;       // ordersHeight (in)
+    volume: number;       // calculated volume (ft³)
     deliverySiteCode: string;
     raw: any;
 }
@@ -118,11 +122,23 @@ async function fetchOrdersChunk(
             const allMatches = deliveryAddress.match(/\b\d{5}(-\d{4})?\b/g);
             const zipCode = allMatches ? allMatches[allMatches.length - 1] : "";
 
+            // Extract dimensions
+            const length = parseFloat(row.ordersLength) || 0;
+            const width = parseFloat(row.ordersWidth) || 0;
+            const height = parseFloat(row.ordersHeight) || 0;
+            // Calculate volume in cubic feet (1 ft³ = 1728 in³)
+            const volumeInCubicInches = length * width * height;
+            const volumeInCubicFeet = volumeInCubicInches / 1728;
+
             const orderResult: OrderSearchResult = {
                 trackingNumber: row.trackingNumber,
                 deliveryAddress,
                 zipCode,
                 weight: parseFloat(row.ordersWeight) || 0,
+                length,
+                width,
+                height,
+                volume: Math.round(volumeInCubicFeet * 100) / 100, // Round to 2 decimals
                 deliverySiteCode: row.deliverySiteCode || "",
                 raw: row
             };

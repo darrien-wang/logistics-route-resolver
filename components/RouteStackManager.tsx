@@ -1,25 +1,36 @@
 import React, { useState, useMemo } from 'react';
 import { Settings, Layers, Database, Filter, Search, X } from 'lucide-react';
-import { RouteStack, ResolvedRouteInfo } from '../types';
+import { RouteStack, ResolvedRouteInfo, StackCapacityConfig, DEFAULT_CAPACITY_CONFIG, ApiSettings } from '../types';
 import RouteStackCard from './RouteStackCard';
 import ExceptionPool from './ExceptionPool';
 import OrderDetailModal from './OrderDetailModal';
+import CapacityRuleEditor from './CapacityRuleEditor';
 
 interface RouteStackManagerProps {
     history: ResolvedRouteInfo[];
-    defaultCapacity?: number;
+    apiSettings: ApiSettings;
+    onSettingsChange: (settings: ApiSettings) => void;
     onAddTestData?: (testOrders: ResolvedRouteInfo[]) => void;
 }
 
 type FilterMode = 'all' | 'full' | 'notFull';
 
-const RouteStackManager: React.FC<RouteStackManagerProps> = ({ history, defaultCapacity = 40, onAddTestData }) => {
-    const [capacity, setCapacity] = useState(defaultCapacity);
+const RouteStackManager: React.FC<RouteStackManagerProps> = ({
+    history,
+    apiSettings,
+    onSettingsChange,
+    onAddTestData
+}) => {
     const [selectedStack, setSelectedStack] = useState<{ title: string; orders: ResolvedRouteInfo[] } | null>(null);
-    const [showSettings, setShowSettings] = useState(false);
+    const [showSettingsModal, setShowSettingsModal] = useState(false);
     const [filterMode, setFilterMode] = useState<FilterMode>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResult, setSearchResult] = useState<{ found: boolean; stackName?: string; isException?: boolean } | null>(null);
+
+    // Get capacity from config
+    const capacityConfig = apiSettings.stackCapacityConfig || DEFAULT_CAPACITY_CONFIG;
+    const countRule = capacityConfig.rules.find(r => r.type === 'count');
+    const capacity = countRule?.value || 40;
 
     // Build stacks from history - creating multiple stacks per route when capacity exceeded
     const { stacks, exceptionPool } = useMemo(() => {
@@ -164,6 +175,10 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({ history, defaultC
         setSelectedStack(null);
     };
 
+    const handleCapacityConfigChange = (config: StackCapacityConfig) => {
+        onSettingsChange({ ...apiSettings, stackCapacityConfig: config });
+    };
+
     const handleGenerateTestData = () => {
         if (!onAddTestData) return;
 
@@ -239,7 +254,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({ history, defaultC
                         </button>
                     )}
                     <button
-                        onClick={() => setShowSettings(!showSettings)}
+                        onClick={() => setShowSettingsModal(true)}
                         className="bg-slate-800 p-3 px-5 rounded-xl border border-white/5 flex items-center gap-2 hover:bg-slate-700 transition-colors"
                     >
                         <Settings className="w-4 h-4" />
@@ -291,21 +306,38 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({ history, defaultC
                 </div>
             )}
 
-            {/* Settings Panel */}
-            {showSettings && (
-                <div className="glass-panel p-6 rounded-3xl border border-white/10 animate-in slide-in-from-top-4 duration-300">
-                    <div className="flex items-center gap-4">
-                        <label className="text-sm font-bold text-slate-400 uppercase tracking-wider">
-                            Default Stack Capacity:
-                        </label>
-                        <input
-                            type="number"
-                            value={capacity}
-                            onChange={(e) => setCapacity(Math.max(1, parseInt(e.target.value) || 40))}
-                            className="bg-slate-900 border border-white/10 rounded-xl px-4 py-2 text-sm font-mono text-sky-400 focus:outline-none focus:border-sky-500 w-24"
-                            min="1"
+            {/* Settings Modal */}
+            {showSettingsModal && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200">
+                    <div className="glass-panel p-6 rounded-3xl border border-white/10 w-full max-w-lg mx-4 animate-in zoom-in-95 duration-300">
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-sky-500/10 rounded-xl flex items-center justify-center text-sky-400 border border-sky-500/20">
+                                    <Settings className="w-5 h-5" />
+                                </div>
+                                <h2 className="text-xl font-bold">Stack Settings</h2>
+                            </div>
+                            <button
+                                onClick={() => setShowSettingsModal(false)}
+                                className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+                            >
+                                <X className="w-5 h-5 text-slate-400" />
+                            </button>
+                        </div>
+
+                        <CapacityRuleEditor
+                            config={capacityConfig}
+                            onChange={handleCapacityConfigChange}
                         />
-                        <span className="text-xs text-slate-600">orders per stack</span>
+
+                        <div className="mt-6 flex justify-end">
+                            <button
+                                onClick={() => setShowSettingsModal(false)}
+                                className="bg-sky-500 hover:bg-sky-400 text-white px-6 py-2.5 rounded-xl font-bold text-sm uppercase tracking-wider transition-all"
+                            >
+                                Done
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

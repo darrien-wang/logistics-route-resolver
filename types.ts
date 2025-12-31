@@ -54,8 +54,30 @@ export interface ApiSettings {
   pickupSite: number;
   voiceEnabled: boolean;
   autoPrintLabelEnabled: boolean;
-  stackCapacity: number;
+  stackCapacity: number;  // Legacy - kept for backward compatibility
+  stackCapacityConfig?: StackCapacityConfig;
 }
+
+// Multi-dimensional stack capacity types
+export type CapacityRuleType = 'count' | 'weight' | 'volume';
+export type CapacityOperator = '>=' | '>' | '<=' | '<';
+
+export interface StackCapacityRule {
+  type: CapacityRuleType;
+  operator: CapacityOperator;
+  value: number;
+}
+
+export interface StackCapacityConfig {
+  rules: StackCapacityRule[];
+  logic: 'AND' | 'OR';
+}
+
+// Default capacity config (count >= 40)
+export const DEFAULT_CAPACITY_CONFIG: StackCapacityConfig = {
+  rules: [{ type: 'count', operator: '>=', value: 40 }],
+  logic: 'AND'
+};
 
 export interface ResolvedRouteInfo extends OrderData {
   route?: ZipRouteRecord;

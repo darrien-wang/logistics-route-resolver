@@ -1,39 +1,53 @@
 /**
- * RouteStackService - Tracks stack counts per route
+ * RouteStackService - Tracks stack counts per route with multi-dimensional capacity
  * 
  * Manages virtual stacks for each route, automatically creating new stacks
- * when capacity is reached.
+ * when capacity rules are satisfied.
  */
+
+import { StackCapacityConfig, StackCapacityRule, DEFAULT_CAPACITY_CONFIG } from '../types';
 
 export interface RouteStackInfo {
     stackNumber: number;
     currentCount: number;
-    capacity: number;
+    currentWeight: number;   // Cumulative weight (lb)
+    currentVolume: number;   // Cumulative volume (ft³)
+    capacity: number;        // Legacy: item count capacity
     isStackFull: boolean;
     isNewStack: boolean;
+}
+
+export interface OrderDimensions {
+    weight: number;  // lb
+    volume: number;  // ft³
 }
 
 interface RouteState {
     currentStackNumber: number;
     currentStackCount: number;
-    scannedOrderIds: Set<string>;  // Track unique order IDs
+    currentStackWeight: number;   // Cumulative weight (lb)
+    currentStackVolume: number;   // Cumulative volume (ft³)
+    scannedOrderIds: Set<string>;
 }
 
 class RouteStackService {
     private routeStates: Map<string, RouteState> = new Map();
-    private capacity: number = 40;  // Default capacity
+    private capacityConfig: StackCapacityConfig = DEFAULT_CAPACITY_CONFIG;
 
     /**
      * Add an order to a route's stack and return updated stack info
-     * Only increments count if this is a new unique order ID
+     * Only increments counts if this is a new unique order ID
      */
-    addToStack(routeName: string, orderId: string): RouteStackInfo {
+    addToStack(routeName: string, orderId: string, dimensions?: OrderDimensions): RouteStackInfo {
         if (!routeName) {
             throw new Error('Route name is required');
         }
         if (!orderId) {
             throw new Error('Order ID is required');
         }
+
+        const orderWeight = dimensions?.weight || 0;
+        const orderVolume = dimensions?.volume || 0;
 
         let state = this.routeStates.get(routeName);
         let isNewStack = false;
@@ -44,6 +58,8 @@ class RouteStackService {
             state = {
                 currentStackNumber: 1,
                 currentStackCount: 1,
+                currentStackWeight: orderWeight,
+                currentStackVolume: orderVolume,
                 scannedOrderIds: new Set([orderId]),
             };
             isNewStack = true;
@@ -51,35 +67,99 @@ class RouteStackService {
         } else {
             // Check if this order was already scanned
             if (state.scannedOrderIds.has(orderId)) {
-                // Duplicate scan - don't increment count
+                // Duplicate scan - don't increment counts
                 isNewOrder = false;
             } else {
-                // New order - add to set and increment count
+                // New order - add to set and increment counts
                 state.scannedOrderIds.add(orderId);
                 isNewOrder = true;
 
-                // Check if current stack is full
-                if (state.currentStackCount >= this.capacity) {
+                // Check if current stack is full BEFORE adding
+                if (this.isStackFull(state)) {
                     // Move to next stack
                     state.currentStackNumber++;
                     state.currentStackCount = 1;
+                    state.currentStackWeight = orderWeight;
+                    state.currentStackVolume = orderVolume;
                     isNewStack = true;
                 } else {
                     // Add to current stack
                     state.currentStackCount++;
+                    state.currentStackWeight += orderWeight;
+                    state.currentStackVolume += orderVolume;
                 }
             }
         }
 
         this.routeStates.set(routeName, state);
 
+        // Get the legacy capacity value for backward compatibility
+        const countRule = this.capacityConfig.rules.find(r => r.type === 'count');
+        const legacyCapacity = countRule?.value || 40;
+
         return {
             stackNumber: state.currentStackNumber,
             currentCount: state.currentStackCount,
-            capacity: this.capacity,
-            isStackFull: state.currentStackCount >= this.capacity,
-            isNewStack: isNewStack && isNewOrder,  // Only trigger new stack actions for new orders
+            currentWeight: Math.round(state.currentStackWeight * 100) / 100,
+            currentVolume: Math.round(state.currentStackVolume * 100) / 100,
+            capacity: legacyCapacity,
+            isStackFull: this.isStackFull(state),
+            isNewStack: isNewStack && isNewOrder,
         };
+    }
+
+    /**
+     * Evaluate if a stack is full based on the capacity config
+     */
+    private isStackFull(state: RouteState): boolean {
+        const config = this.capacityConfig;
+
+        if (!config.rules || config.rules.length === 0) {
+            // No rules = never full (default behavior)
+            return false;
+        }
+
+        const results = config.rules.map(rule => this.evaluateRule(rule, state));
+
+        if (config.logic === 'AND') {
+            return results.every(r => r);
+        } else {
+            return results.some(r => r);
+        }
+    }
+
+    /**
+     * Evaluate a single capacity rule
+     */
+    private evaluateRule(rule: StackCapacityRule, state: RouteState): boolean {
+        let currentValue: number;
+
+        switch (rule.type) {
+            case 'count':
+                currentValue = state.currentStackCount;
+                break;
+            case 'weight':
+                currentValue = state.currentStackWeight;
+                break;
+            case 'volume':
+                currentValue = state.currentStackVolume;
+                break;
+            default:
+                return false;
+        }
+
+        switch (rule.operator) {
+            case '>=':
+                return currentValue >= rule.value;
+            case '>':
+                return currentValue > rule.value;
+            case '<=':
+                return currentValue <= rule.value;
+            case '<':
+                return currentValue < rule.value;
+            default:
+                return false;
+        }
     }
 
     /**
@@ -87,12 +167,16 @@ class RouteStackService {
      */
     getStackInfo(routeName: string): RouteStackInfo {
         const state = this.routeStates.get(routeName);
+        const countRule = this.capacityConfig.rules.find(r => r.type === 'count');
+        const legacyCapacity = countRule?.value || 40;
 
         if (!state) {
             return {
                 stackNumber: 1,
                 currentCount: 0,
-                capacity: this.capacity,
+                currentWeight: 0,
+                currentVolume: 0,
+                capacity: legacyCapacity,
                 isStackFull: false,
                 isNewStack: false,
             };
@@ -101,27 +185,48 @@ class RouteStackService {
         return {
             stackNumber: state.currentStackNumber,
             currentCount: state.currentStackCount,
-            capacity: this.capacity,
-            isStackFull: state.currentStackCount >= this.capacity,
+            currentWeight: Math.round(state.currentStackWeight * 100) / 100,
+            currentVolume: Math.round(state.currentStackVolume * 100) / 100,
+            capacity: legacyCapacity,
+            isStackFull: this.isStackFull(state),
             isNewStack: false,
         };
     }
 
     /**
-     * Set the capacity for all stacks
+     * Set the capacity configuration
+     */
+    setCapacityConfig(config: StackCapacityConfig): void {
+        this.capacityConfig = config;
+    }
+
+    /**
+     * Get current capacity config
+     */
+    getCapacityConfig(): StackCapacityConfig {
+        return this.capacityConfig;
+    }
+
+    /**
+     * Legacy method - set capacity by count only
+     * Creates a simple count >= value rule
      */
     setCapacity(capacity: number): void {
         if (capacity < 1) {
             throw new Error('Capacity must be at least 1');
         }
-        this.capacity = capacity;
+        this.capacityConfig = {
+            rules: [{ type: 'count', operator: '>=', value: capacity }],
+            logic: 'AND'
+        };
     }
 
     /**
-     * Get current capacity
+     * Get current capacity (legacy - returns count rule value)
      */
     getCapacity(): number {
-        return this.capacity;
+        const countRule = this.capacityConfig.rules.find(r => r.type === 'count');
+        return countRule?.value || 40;
     }
 
     /**
