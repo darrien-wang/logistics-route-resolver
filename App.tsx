@@ -836,8 +836,8 @@ const App: React.FC = () => {
               </div>
             ) : currentResult ? (
               <div className="flex flex-col items-center space-y-10 animate-in zoom-in-95 duration-150">
-                <div className={`${currentHasFailed ? 'bg-red-500/5 border-red-500/20' : 'bg-emerald-500/5 border-emerald-500/10'} border-[10px] p-28 px-44 rounded-[110px] shadow-[0_0_150px_rgba(52,211,153,0.15)] relative transition-colors duration-500`}>
-                  <div className={`text-[18rem] leading-none font-black ${currentHasFailed ? 'text-red-400 opacity-50' : 'text-white'} drop-shadow-[0_0_70px_rgba(255,255,255,0.3)] tracking-tighter whitespace-nowrap px-10`}>
+                <div className={`${currentHasFailed ? 'bg-red-500/5 border-red-500/20' : 'bg-emerald-500/5 border-emerald-500/10'} border-[10px] p-24 px-32 rounded-[110px] shadow-[0_0_150px_rgba(52,211,153,0.15)] relative transition-colors duration-500`}>
+                  <div className={`text-[12rem] leading-none font-black ${currentHasFailed ? 'text-red-400 opacity-50' : 'text-white'} drop-shadow-[0_0_70px_rgba(255,255,255,0.3)] tracking-tighter whitespace-nowrap px-10`}>
                     {currentResult.route?.routeConfiguration || 'N/A'}
                   </div>
 
