@@ -246,6 +246,10 @@ const App: React.FC = () => {
                 // Reset status after a short delay to simulate completion (or use event if we had one)
                 setTimeout(() => setPrintStatus('idle'), 2000);
               }
+            } else {
+              if (apiSettings.autoPrintLabelEnabled) {
+                labelPrintService.queueExceptionPrint(uppercaseId);
+              }
             }
 
             setHistory(prev => [result, ...prev.filter(h => h.orderId !== result.orderId)].slice(0, 500));
@@ -299,10 +303,15 @@ const App: React.FC = () => {
               if (apiSettings.autoPrintLabelEnabled) {
                 labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber);
               }
+            } else {
+              // EXCEPTION: No route found
+              if (apiSettings.autoPrintLabelEnabled) {
+                labelPrintService.queueExceptionPrint(uppercaseId);
+              }
             }
-
-            setHistory(prev => [result, ...prev.filter(h => h.orderId !== result.orderId)].slice(0, 500));
           }
+
+          setHistory(prev => [result, ...prev.filter(h => h.orderId !== result.orderId)].slice(0, 500));
         }
 
         setCurrentResult(null);
@@ -350,6 +359,11 @@ const App: React.FC = () => {
             // Auto-print label on every scan (not just new stacks)
             if (apiSettings.autoPrintLabelEnabled) {
               labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber);
+            }
+          } else {
+            // EXCEPTION
+            if (apiSettings.autoPrintLabelEnabled) {
+              labelPrintService.queueExceptionPrint(targetId);
             }
           }
 
@@ -412,6 +426,11 @@ const App: React.FC = () => {
             // Auto-print label on every scan (not just new stacks)
             if (apiSettings.autoPrintLabelEnabled) {
               labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber);
+            }
+          } else {
+            // EXCEPTION
+            if (apiSettings.autoPrintLabelEnabled) {
+              labelPrintService.queueExceptionPrint(targetId);
             }
           }
 

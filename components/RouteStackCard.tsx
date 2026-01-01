@@ -11,7 +11,7 @@ interface RouteStackCardProps {
 }
 
 // Generate vertical label image (10cm x 15cm at 300 DPI = 1181 x 1772 pixels)
-const generateLabelImage = (route: string, stackNumber: number): string => {
+const generateLabelImage = (route: string | undefined | null, stackNumber: number | undefined | null): string => {
     const canvas = document.createElement('canvas');
     // 10cm x 15cm at 300 DPI
     const width = 1181;
@@ -30,27 +30,39 @@ const generateLabelImage = (route: string, stackNumber: number): string => {
     const rightStart = leftWidth + 60;
     const rightWidth = width - rightStart - 40;
 
-    // Top half: Route name - centered and auto-sized
+    // ===== DATE in top-right corner (small text) =====
+    const today = new Date();
+    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    ctx.fillStyle = '#666666';
+    ctx.font = '32px Arial';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'top';
+    ctx.fillText(dateStr, width - 30, 25);
+
+    // ===== Top half: Route name - centered and auto-sized =====
+    const routeText = route || ''; // Handle missing route
     ctx.fillStyle = '#000000';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // Auto-size font to fit the left section width
-    let fontSize = 200;
-    ctx.font = `bold ${fontSize}px Arial`;
-    let textWidth = ctx.measureText(route).width;
-
-    // Scale down font if text is too wide
-    while (textWidth > leftWidth - 80 && fontSize > 50) {
-        fontSize -= 5;
+    if (routeText) {
+        // Auto-size font to fit the left section width
+        let fontSize = 200;
         ctx.font = `bold ${fontSize}px Arial`;
-        textWidth = ctx.measureText(route).width;
+        let textWidth = ctx.measureText(routeText).width;
+
+        // Scale down font if text is too wide
+        while (textWidth > leftWidth - 80 && fontSize > 50) {
+            fontSize -= 5;
+            ctx.font = `bold ${fontSize}px Arial`;
+            textWidth = ctx.measureText(routeText).width;
+        }
+
+        // Draw route name centered in top half
+        ctx.fillText(routeText, leftWidth / 2, height * 0.25);
     }
 
-    // Draw route name centered in top half
-    ctx.fillText(route, leftWidth / 2, height * 0.25);
-
-    // Divider line - full width
+    // ===== Divider line - full width =====
     ctx.strokeStyle = '#000000';
     ctx.lineWidth = 4;
     ctx.beginPath();
@@ -58,21 +70,25 @@ const generateLabelImage = (route: string, stackNumber: number): string => {
     ctx.lineTo(width - 20, height * 0.5);
     ctx.stroke();
 
-    // Bottom half: Stack number - centered in left section
-    let stackFontSize = 300;
-    ctx.font = `bold ${stackFontSize}px Arial`;
-    let stackTextWidth = ctx.measureText(`${stackNumber}`).width;
+    // ===== Bottom half: Stack number - centered in left section =====
+    const stackText = stackNumber != null ? `${stackNumber}` : '';
 
-    // Scale down if needed
-    while (stackTextWidth > leftWidth - 80 && stackFontSize > 100) {
-        stackFontSize -= 10;
+    if (stackText) {
+        let stackFontSize = 300;
         ctx.font = `bold ${stackFontSize}px Arial`;
-        stackTextWidth = ctx.measureText(`${stackNumber}`).width;
+        let stackTextWidth = ctx.measureText(stackText).width;
+
+        // Scale down if needed
+        while (stackTextWidth > leftWidth - 80 && stackFontSize > 100) {
+            stackFontSize -= 10;
+            ctx.font = `bold ${stackFontSize}px Arial`;
+            stackTextWidth = ctx.measureText(stackText).width;
+        }
+
+        ctx.fillText(stackText, leftWidth / 2, height * 0.75);
     }
 
-    ctx.fillText(`${stackNumber}`, leftWidth / 2, height * 0.75);
-
-    // Right side: Dashed rectangle for manual writing (bottom half only)
+    // ===== Right side: Dashed rectangle for manual writing (bottom half only) =====
     const notesBoxTop = height * 0.5 + 40; // Start below the divider line
     const notesBoxHeight = height * 0.5 - 120; // Bottom half minus margins
 

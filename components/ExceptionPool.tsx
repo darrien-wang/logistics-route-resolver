@@ -1,125 +1,204 @@
-import React from 'react';
-import { AlertCircle, Droplet } from 'lucide-react';
+import React, { useState } from 'react';
+import { AlertCircle, Droplet, Printer, ChevronDown, ChevronUp } from 'lucide-react';
 import { ResolvedRouteInfo } from '../types';
+import LabelPrintDialog from './LabelPrintDialog';
 
 interface ExceptionPoolProps {
-    orders: ResolvedRouteInfo[];
-    onClick: () => void;
-    onReasonClick: (reason: string) => void;
+    exceptions: ResolvedRouteInfo[];
+    onResolve: () => void;
+    initialExpanded?: boolean;
 }
 
-const ExceptionPool: React.FC<ExceptionPoolProps> = ({ orders, onClick, onReasonClick }) => {
-    const orderCount = orders.length;
+// Generate label for exception orders (blank route/stack)
+const generateExceptionLabelImage = (orderId: string): string => {
+    const canvas = document.createElement('canvas');
+    const width = 1181;
+    const height = 1772;
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext('2d')!;
+
+    // White background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+
+    // Left section dimensions
+    const leftWidth = width * 0.55;
+    const rightStart = leftWidth + 60;
+    const rightWidth = width - rightStart - 40;
+
+    // DATE in top-right corner
+    const today = new Date();
+    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    ctx.fillStyle = '#666666';
+    ctx.font = '32px Arial';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'top';
+    ctx.fillText(dateStr, width - 30, 25);
+
+    // "EXCEPTION" label at top
+    ctx.fillStyle = '#cc0000';
+    ctx.font = 'bold 80px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('EXCEPTION', leftWidth / 2, height * 0.15);
+
+    // Order ID in center
+    ctx.fillStyle = '#000000';
+    let fontSize = 100;
+    ctx.font = `bold ${fontSize}px Arial`;
+    let textWidth = ctx.measureText(orderId).width;
+
+    while (textWidth > leftWidth - 80 && fontSize > 40) {
+        fontSize -= 5;
+        ctx.font = `bold ${fontSize}px Arial`;
+        textWidth = ctx.measureText(orderId).width;
+    }
+    ctx.fillText(orderId, leftWidth / 2, height * 0.38);
+
+    // Divider line
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(20, height * 0.5);
+    ctx.lineTo(width - 20, height * 0.5);
+    ctx.stroke();
+
+    // "NO ROUTE" text in bottom half
+    ctx.fillStyle = '#999999';
+    ctx.font = 'bold 120px Arial';
+    ctx.fillText('NO ROUTE', leftWidth / 2, height * 0.75);
+
+    // Notes box
+    const notesBoxTop = height * 0.5 + 40;
+    const notesBoxHeight = height * 0.5 - 120;
+
+    ctx.setLineDash([20, 15]);
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = '#666666';
+    ctx.strokeRect(rightStart, notesBoxTop, rightWidth, notesBoxHeight);
+
+    ctx.setLineDash([]);
+    ctx.font = '36px Arial';
+    ctx.fillStyle = '#999999';
+    ctx.fillText('NOTES', rightStart + rightWidth / 2, height - 50);
+
+    return canvas.toDataURL('image/png');
+};
+
+const ExceptionPool: React.FC<ExceptionPoolProps> = ({ exceptions, onResolve, initialExpanded = false }) => {
+    const [expanded, setExpanded] = useState(initialExpanded);
+    const [showPrintDialog, setShowPrintDialog] = useState(false);
+    const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
+    const orderCount = exceptions.length;
+
+    const handlePrintOrder = (e: React.MouseEvent, orderId: string) => {
+        e.stopPropagation();
+        setPrintingOrderId(orderId);
+        setShowPrintDialog(true);
+    };
+
+    const handleConfirmPrint = (printer: string) => {
+        if (!printingOrderId) return;
+
+        const imageData = generateExceptionLabelImage(printingOrderId);
+
+        // Use Electron IPC to print
+        if ((window as any).electron?.printBase64) {
+            (window as any).electron.printBase64(imageData, printer);
+        } else {
+            // Fallback for web mode
+            const link = document.createElement('a');
+            link.download = `EXCEPTION_${printingOrderId}.png`;
+            link.href = imageData;
+            link.click();
+        }
+        setShowPrintDialog(false);
+        setPrintingOrderId(null);
+    };
 
     return (
-        <button
-            onClick={onClick}
-            className="glass-panel p-8 rounded-[40px] border-2 border-red-500/30 hover:border-red-500/50 transition-all hover:scale-[1.02] cursor-pointer group w-full"
-        >
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center border-2 border-red-500/30">
-                        <AlertCircle className="w-8 h-8 text-red-400" />
-                    </div>
-                    <div className="text-left">
-                        <h3 className="text-3xl font-black uppercase tracking-widest text-red-400">
-                            Exception Pool
-                        </h3>
-                        <div className="text-sm text-slate-500 uppercase tracking-wider mt-1">
-                            Unrouted Orders • No Capacity Limit
+        <>
+            <div
+                onClick={() => setExpanded(!expanded)}
+                className="glass-panel p-6 rounded-[24px] border-2 border-red-500/30 hover:border-red-500/50 transition-all cursor-pointer group"
+            >
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-red-500/10 rounded-xl flex items-center justify-center border border-red-500/30">
+                            <AlertCircle className="w-6 h-6 text-red-400" />
                         </div>
-                    </div>
-                </div>
-                <div className="text-right">
-                    <div className="text-6xl font-black text-red-400 drop-shadow-[0_0_20px_rgba(239,68,68,0.3)]">
-                        {orderCount}
-                    </div>
-                    <div className="text-xs text-slate-600 uppercase tracking-widest mt-1">Orders</div>
-                </div>
-            </div>
-
-            {/* Large Water Tank Visualization */}
-            <div className="relative w-full h-64 bg-slate-900/50 rounded-3xl border-4 border-red-500/20 overflow-hidden">
-                {/* Animated Background */}
-                <div className="absolute inset-0 bg-gradient-to-t from-red-500/5 to-transparent" />
-
-                {/* Water Fill Effect - grows from bottom */}
-                <div
-                    className="absolute bottom-0 left-0 right-0 bg-red-500/20 transition-all duration-1000 ease-out"
-                    style={{
-                        height: orderCount > 0 ? `${Math.min(orderCount * 5, 100)}%` : '10%',
-                    }}
-                >
-                    <div className="absolute inset-0 bg-gradient-to-t from-red-500/30 to-transparent animate-pulse" />
-                </div>
-
-                {/* Ripple Effect */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <Droplet className="w-24 h-24 text-red-500/20 group-hover:text-red-500/40 transition-colors animate-bounce" />
-                </div>
-
-                {/* Warning Message */}
-                {orderCount > 0 && (
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
-                        <div className="bg-red-900/80 backdrop-blur-md border-2 border-red-500/50 px-8 py-4 rounded-2xl shadow-2xl">
-                            <div className="text-2xl font-black text-red-400 uppercase tracking-wider">
-                                Attention Required
-                            </div>
-                            <div className="text-sm text-red-300/80 mt-1">
-                                {orderCount} order{orderCount !== 1 ? 's' : ''} without route
+                        <div>
+                            <h3 className="text-xl font-black uppercase tracking-wider text-red-400">
+                                Exception Pool
+                            </h3>
+                            <div className="text-xs text-slate-500 uppercase tracking-wider">
+                                Unrouted Orders
                             </div>
                         </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <div className="text-4xl font-black text-red-400">
+                            {orderCount}
+                        </div>
+                        {expanded ? (
+                            <ChevronUp className="w-5 h-5 text-slate-500" />
+                        ) : (
+                            <ChevronDown className="w-5 h-5 text-slate-500" />
+                        )}
+                    </div>
+                </div>
+
+                {/* Expanded Order List */}
+                {expanded && orderCount > 0 && (
+                    <div className="mt-4 space-y-2 max-h-64 overflow-y-auto">
+                        {exceptions.map((order, idx) => (
+                            <div
+                                key={order.orderId || idx}
+                                className="flex items-center justify-between px-4 py-3 bg-slate-800/50 rounded-xl border border-red-500/20"
+                            >
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-sm font-bold text-white truncate">
+                                        {order.orderId}
+                                    </div>
+                                    <div className="text-xs text-red-400 truncate">
+                                        {order.exceptionReason || 'No route found'}
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={(e) => handlePrintOrder(e, order.orderId)}
+                                    className="ml-3 p-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-colors"
+                                    title="Print Exception Label"
+                                >
+                                    <Printer className="w-4 h-4" />
+                                </button>
+                            </div>
+                        ))}
                     </div>
                 )}
 
                 {/* Empty State */}
                 {orderCount === 0 && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="text-center text-slate-700">
-                            <AlertCircle className="w-16 h-16 mx-auto mb-3 opacity-30" />
-                            <div className="text-xl font-black uppercase tracking-widest">All Clear</div>
-                            <div className="text-xs uppercase tracking-wider mt-1">No Exceptions</div>
-                        </div>
+                    <div className="mt-4 text-center py-6 text-slate-600">
+                        <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <div className="text-sm font-bold">All Clear - No Exceptions</div>
                     </div>
                 )}
             </div>
 
-            {/* Exception Reasons Summary */}
-            {orderCount > 0 && (
-                <div className="mt-4 space-y-2 max-h-32 overflow-y-auto">
-                    {(() => {
-                        // Group by reason
-                        const reasonCounts = new Map<string, number>();
-                        orders.forEach(o => {
-                            const reason = o.exceptionReason || 'Unknown';
-                            reasonCounts.set(reason, (reasonCounts.get(reason) || 0) + 1);
-                        });
-
-                        return Array.from(reasonCounts.entries()).map(([reason, count]) => (
-                            <button
-                                key={reason}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onReasonClick(reason);
-                                }}
-                                className="flex items-center justify-between w-full px-4 py-2 bg-red-500/10 rounded-xl border border-red-500/20 hover:bg-red-500/20 hover:border-red-500/40 transition-all text-left"
-                            >
-                                <span className="text-xs text-red-300 truncate flex-1">{reason}</span>
-                                <span className="text-sm font-bold text-red-400 ml-2">{count}</span>
-                            </button>
-                        ));
-                    })()}
-                </div>
-            )}
-
-            {/* Footer Stats */}
-            <div className="mt-6 flex justify-center">
-                <div className="px-6 py-3 rounded-full border-2 border-red-500/30 bg-red-500/10 font-black text-lg uppercase tracking-wider text-red-400">
-                    Click to View Details
-                </div>
-            </div>
-        </button>
+            {/* Print Dialog */}
+            <LabelPrintDialog
+                isOpen={showPrintDialog}
+                onClose={() => {
+                    setShowPrintDialog(false);
+                    setPrintingOrderId(null);
+                }}
+                onConfirm={handleConfirmPrint}
+                title={`Print Exception: ${printingOrderId}`}
+            />
+        </>
     );
 };
 

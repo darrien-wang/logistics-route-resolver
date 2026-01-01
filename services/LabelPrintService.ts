@@ -7,8 +7,10 @@
 
 export interface PrintJob {
     id: string;
-    baseRouteName: string;
-    stackNumber: number;
+    type: 'standard' | 'exception';
+    baseRouteName?: string;
+    stackNumber?: number;
+    orderId?: string;
     status: 'pending' | 'printing' | 'done' | 'failed';
     timestamp: number;
 }
@@ -21,16 +23,17 @@ class LabelPrintService {
     private imageCache: Map<string, string> = new Map();
 
     /**
-     * Generate label image (10cm x 15cm at 300 DPI)
+     * Generate standard label image (10cm x 15cm at 300 DPI)
      * Extracted from RouteStackCard.tsx
      */
     generateLabelImage(baseRouteName: string, stackNumber: number): string {
-        const tStart = performance.now();
         const cacheKey = `${baseRouteName}-${stackNumber}`;
-        if (this.imageCache.has(cacheKey)) {
-            const dataUrl = this.imageCache.get(cacheKey)!;
-            console.log(`[Perf] Image cache hit (${(performance.now() - tStart).toFixed(2)}ms)`);
-            return dataUrl;
+        const today = new Date();
+        const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        const fullCacheKey = `${cacheKey}-${dateStr}`;
+
+        if (this.imageCache.has(fullCacheKey)) {
+            return this.imageCache.get(fullCacheKey)!;
         }
 
         const canvas = document.createElement('canvas');
@@ -50,6 +53,13 @@ class LabelPrintService {
         const rightStart = leftWidth + 60;
         const rightWidth = width - rightStart - 40;
 
+        // DATE in top-right corner
+        ctx.fillStyle = '#666666';
+        ctx.font = '32px Arial';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'top';
+        ctx.fillText(dateStr, width - 30, 25);
+
         // Top half: Route name - centered and auto-sized
         ctx.fillStyle = '#000000';
         ctx.textAlign = 'center';
@@ -60,15 +70,17 @@ class LabelPrintService {
         ctx.font = `bold ${fontSize}px Arial`;
         let textWidth = ctx.measureText(baseRouteName).width;
 
+        // Scale down font if text is too wide
         while (textWidth > leftWidth - 80 && fontSize > 50) {
             fontSize -= 5;
             ctx.font = `bold ${fontSize}px Arial`;
             textWidth = ctx.measureText(baseRouteName).width;
         }
 
+        // Draw route name centered in top half
         ctx.fillText(baseRouteName, leftWidth / 2, height * 0.25);
 
-        // Divider line
+        // Divider line - full width
         ctx.strokeStyle = '#000000';
         ctx.lineWidth = 4;
         ctx.beginPath();
@@ -76,11 +88,12 @@ class LabelPrintService {
         ctx.lineTo(width - 20, height * 0.5);
         ctx.stroke();
 
-        // Bottom half: Stack number
+        // Bottom half: Stack number - centered in left section
         let stackFontSize = 300;
         ctx.font = `bold ${stackFontSize}px Arial`;
         let stackTextWidth = ctx.measureText(`${stackNumber}`).width;
 
+        // Scale down if needed
         while (stackTextWidth > leftWidth - 80 && stackFontSize > 100) {
             stackFontSize -= 10;
             ctx.font = `bold ${stackFontSize}px Arial`;
@@ -89,35 +102,113 @@ class LabelPrintService {
 
         ctx.fillText(`${stackNumber}`, leftWidth / 2, height * 0.75);
 
-        // Right side: Dashed rectangle for notes
-        const notesBoxTop = height * 0.5 + 40;
-        const notesBoxHeight = height * 0.5 - 120;
+        // Right side: Dashed rectangle for manual writing (bottom half only)
+        const notesBoxTop = height * 0.5 + 40; // Start below the divider line
+        const notesBoxHeight = height * 0.5 - 120; // Bottom half minus margins
 
         ctx.setLineDash([20, 15]);
         ctx.lineWidth = 6;
         ctx.strokeStyle = '#666666';
         ctx.strokeRect(rightStart, notesBoxTop, rightWidth, notesBoxHeight);
 
-        // Notes hint text
+        // Add small hint text
         ctx.setLineDash([]);
         ctx.font = '36px Arial';
         ctx.fillStyle = '#999999';
         ctx.textAlign = 'center';
         ctx.fillText('NOTES', rightStart + rightWidth / 2, height - 50);
 
+        // Return data URL instead of auto-downloading
         const dataUrl = canvas.toDataURL('image/png');
-        this.imageCache.set(cacheKey, dataUrl);
-        console.log(`[Perf] Image generation (${(performance.now() - tStart).toFixed(2)}ms)`);
+        this.imageCache.set(fullCacheKey, dataUrl);
         return dataUrl;
     }
 
     /**
-     * Queue a print job (non-blocking)
+     * Generate exception label image
      */
-    queuePrint(baseRouteName: string, stackNumber: number): string {
+    generateExceptionLabelImage(orderId: string): string {
+        const canvas = document.createElement('canvas');
+        const width = 1181;
+        const height = 1772;
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d')!;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+
+        const leftWidth = width * 0.55;
+        const rightStart = leftWidth + 60;
+        const rightWidth = width - rightStart - 40;
+
+        // DATE
+        const today = new Date();
+        const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        ctx.fillStyle = '#666666';
+        ctx.font = '32px Arial';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'top';
+        ctx.fillText(dateStr, width - 30, 25);
+
+        // "EXCEPTION" label
+        ctx.fillStyle = '#cc0000';
+        ctx.font = 'bold 80px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('EXCEPTION', leftWidth / 2, height * 0.15);
+
+        // Order ID
+        ctx.fillStyle = '#000000';
+        let fontSize = 100;
+        ctx.font = `bold ${fontSize}px Arial`;
+        let textWidth = ctx.measureText(orderId).width;
+        while (textWidth > leftWidth - 80 && fontSize > 40) {
+            fontSize -= 5;
+            ctx.font = `bold ${fontSize}px Arial`;
+            textWidth = ctx.measureText(orderId).width;
+        }
+        ctx.fillText(orderId, leftWidth / 2, height * 0.38);
+
+        // Divider
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(20, height * 0.5);
+        ctx.lineTo(width - 20, height * 0.5);
+        ctx.stroke();
+
+        // "NO ROUTE"
+        ctx.fillStyle = '#999999';
+        ctx.font = 'bold 120px Arial';
+        ctx.fillText('NO ROUTE', leftWidth / 2, height * 0.75);
+
+        // Notes
+        const notesBoxTop = height * 0.5 + 40;
+        const notesBoxHeight = height * 0.5 - 120;
+        ctx.setLineDash([20, 15]);
+        ctx.lineWidth = 6;
+        ctx.strokeStyle = '#666666';
+        ctx.strokeRect(rightStart, notesBoxTop, rightWidth, notesBoxHeight);
+        ctx.setLineDash([]);
+        ctx.font = '36px Arial';
+        ctx.fillStyle = '#999999';
+        ctx.fillText('NOTES', rightStart + rightWidth / 2, height - 50);
+
+        return canvas.toDataURL('image/png');
+    }
+
+    setEnabled(enabled: boolean) {
+        this.enabled = enabled;
+    }
+
+    queuePrint(baseRouteName: string, stackNumber: number): string | null {
+        if (!this.enabled) return null;
+
         const jobId = `print-${++this.jobIdCounter}-${Date.now()}`;
         const job: PrintJob = {
             id: jobId,
+            type: 'standard',
             baseRouteName,
             stackNumber,
             status: 'pending',
@@ -127,6 +218,23 @@ class LabelPrintService {
         this.printQueue.push(job);
         this.processQueue();
 
+        return jobId;
+    }
+
+    queueExceptionPrint(orderId: string): string | null {
+        if (!this.enabled) return null;
+
+        const jobId = `print-ex-${++this.jobIdCounter}-${Date.now()}`;
+        const job: PrintJob = {
+            id: jobId,
+            type: 'exception',
+            orderId,
+            status: 'pending',
+            timestamp: Date.now(),
+        };
+
+        this.printQueue.push(job);
+        this.processQueue();
         return jobId;
     }
 
@@ -158,17 +266,27 @@ class LabelPrintService {
     }
 
     /**
-   * Execute silent print using Electron API
-   */
+     * Execute silent print using Electron API
+     */
     private async executePrint(job: PrintJob): Promise<void> {
         return new Promise((resolve, reject) => {
             try {
-                const dataUrl = this.generateLabelImage(job.baseRouteName, job.stackNumber);
-                const electronAPI = typeof window !== 'undefined' && (window as any).electronAPI;
+                let dataUrl: string;
+                if (job.type === 'exception' && job.orderId) {
+                    dataUrl = this.generateExceptionLabelImage(job.orderId);
+                } else if ((!job.type || job.type === 'standard') && job.baseRouteName && job.stackNumber) {
+                    dataUrl = this.generateLabelImage(job.baseRouteName, job.stackNumber);
+                } else {
+                    resolve(); return; // Invalid job, skip
+                }
 
-                if (electronAPI?.printImage) {
+                const electronAPI = typeof window !== 'undefined' && (window as any).electronAPI;
+                const electronImpl = electronAPI || (window as any).electron;
+
+                if (electronImpl?.printImage || electronImpl?.printBase64) {
+                    const printFn = electronImpl.printImage || electronImpl.printBase64;
                     const tStart = performance.now();
-                    electronAPI.printImage(dataUrl, { silent: true })
+                    printFn(dataUrl, { silent: true })
                         .then(() => {
                             console.log(`[Perf] Electron IPC + Print time (${(performance.now() - tStart).toFixed(0)}ms)`);
                             resolve();
@@ -198,6 +316,12 @@ class LabelPrintService {
             </head>
             <body>
               <img src="${dataUrl}" />
+              <script>
+                window.onload = function() {
+                  window.print();
+                  setTimeout(function() { window.parent.document.body.removeChild(window.frameElement); }, 1000);
+                }
+              </script>
             </body>
             </html>
           `);
@@ -257,5 +381,4 @@ class LabelPrintService {
     }
 }
 
-// Export singleton instance
 export const labelPrintService = new LabelPrintService();

@@ -271,7 +271,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
             });
 
         const newOverflowDef: StackDefinition = {
-            id: `OVERFLOW-${Date.now()}`,
+            id: `OVERFLOW-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             type: 'overflow',
             status: 'open',
             routes: [],
