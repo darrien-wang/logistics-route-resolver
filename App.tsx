@@ -309,9 +309,9 @@ const App: React.FC = () => {
                 labelPrintService.queueExceptionPrint(uppercaseId);
               }
             }
-          }
 
-          setHistory(prev => [result, ...prev.filter(h => h.orderId !== result.orderId)].slice(0, 500));
+            setHistory(prev => [result, ...prev.filter(h => h.orderId !== result.orderId)].slice(0, 500));
+          }
         }
 
         setCurrentResult(null);

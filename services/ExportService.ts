@@ -30,7 +30,7 @@ export class ExcelExportService implements IExportService {
     const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Processed_Orders");
-    
+
     XLSX.writeFile(workbook, `Order_Export_${new Date().getTime()}.xlsx`);
   }
 
@@ -55,7 +55,31 @@ export class ExcelExportService implements IExportService {
     const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Activity_Log");
-    
+
     XLSX.writeFile(workbook, `Activity_Log_${new Date().getTime()}.xlsx`);
+  }
+
+  /**
+   * Export Exception Pool
+   */
+  async exportExceptions(data: ResolvedRouteInfo[]): Promise<void> {
+    const headers = [
+      "Order ID", "Reason", "Date", "Address", "Zip Code", "Resolved At"
+    ];
+
+    const rows = data.map(item => [
+      item.orderId,
+      item.exceptionReason || "Unknown",
+      item.date || "",
+      item.address || "",
+      item.zipCode || "",
+      new Date(item.resolvedAt).toLocaleString()
+    ]);
+
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Exceptions");
+
+    XLSX.writeFile(workbook, `Exceptions_${new Date().getTime()}.xlsx`);
   }
 }

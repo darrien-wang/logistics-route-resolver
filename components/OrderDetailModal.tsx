@@ -128,7 +128,11 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ isOpen, onClose, ti
                                                 {order.orderId}
                                             </div>
                                             <div className="text-xs text-slate-500 uppercase tracking-wider mt-1">
-                                                Route: <span className="text-emerald-400 font-bold">{order.route?.routeConfiguration || 'N/A'}</span>
+                                                {order.exceptionReason ? (
+                                                    <>Reason: <span className="text-red-400 font-bold">{order.exceptionReason}</span></>
+                                                ) : (
+                                                    <>Route: <span className="text-emerald-400 font-bold">{order.route?.routeConfiguration || 'N/A'}</span></>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

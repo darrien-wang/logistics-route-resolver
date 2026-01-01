@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { AlertCircle, Droplet, Printer, ChevronDown, ChevronUp } from 'lucide-react';
+import { AlertCircle, Droplet, Printer, ChevronDown, ChevronUp, Download } from 'lucide-react';
 import { ResolvedRouteInfo } from '../types';
 import LabelPrintDialog from './LabelPrintDialog';
+import OrderDetailModal from './OrderDetailModal';
+import { ExcelExportService } from '../services/ExportService';
 
 interface ExceptionPoolProps {
     exceptions: ResolvedRouteInfo[];
@@ -91,7 +93,14 @@ const ExceptionPool: React.FC<ExceptionPoolProps> = ({ exceptions, onResolve, in
     const [expanded, setExpanded] = useState(initialExpanded);
     const [showPrintDialog, setShowPrintDialog] = useState(false);
     const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
+    const [selectedOrder, setSelectedOrder] = useState<ResolvedRouteInfo | null>(null);
     const orderCount = exceptions.length;
+
+    const handleExport = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const exportService = new ExcelExportService();
+        exportService.exportExceptions(exceptions);
+    };
 
     const handlePrintOrder = (e: React.MouseEvent, orderId: string) => {
         e.stopPropagation();
@@ -140,6 +149,13 @@ const ExceptionPool: React.FC<ExceptionPoolProps> = ({ exceptions, onResolve, in
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
+                        <button
+                            onClick={handleExport}
+                            className="p-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition-colors border border-emerald-500/20"
+                            title="Export Exceptions to Excel"
+                        >
+                            <Download className="w-5 h-5" />
+                        </button>
                         <div className="text-4xl font-black text-red-400">
                             {orderCount}
                         </div>
@@ -157,7 +173,11 @@ const ExceptionPool: React.FC<ExceptionPoolProps> = ({ exceptions, onResolve, in
                         {exceptions.map((order, idx) => (
                             <div
                                 key={order.orderId || idx}
-                                className="flex items-center justify-between px-4 py-3 bg-slate-800/50 rounded-xl border border-red-500/20"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedOrder(order);
+                                }}
+                                className="flex items-center justify-between px-4 py-3 bg-slate-800/50 rounded-xl border border-red-500/20 hover:border-red-500/50 cursor-pointer transition-all"
                             >
                                 <div className="flex-1 min-w-0">
                                     <div className="text-sm font-bold text-white truncate">
@@ -197,6 +217,14 @@ const ExceptionPool: React.FC<ExceptionPoolProps> = ({ exceptions, onResolve, in
                 }}
                 onConfirm={handleConfirmPrint}
                 title={`Print Exception: ${printingOrderId}`}
+            />
+
+            {/* Order Detail Modal */}
+            <OrderDetailModal
+                isOpen={!!selectedOrder}
+                onClose={() => setSelectedOrder(null)}
+                title={`Exception Details`}
+                orders={selectedOrder ? [selectedOrder] : []}
             />
         </>
     );
