@@ -55,10 +55,10 @@ class LabelPrintService {
 
         // DATE in top-right corner
         ctx.fillStyle = '#666666';
-        ctx.font = '32px Arial';
+        ctx.font = '56px Arial';
         ctx.textAlign = 'right';
         ctx.textBaseline = 'top';
-        ctx.fillText(dateStr, width - 30, 25);
+        ctx.fillText(dateStr, width - 60, 25);
 
         // Top half: Route name - centered and auto-sized
         ctx.fillStyle = '#000000';
@@ -146,10 +146,10 @@ class LabelPrintService {
         const today = new Date();
         const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
         ctx.fillStyle = '#666666';
-        ctx.font = '32px Arial';
+        ctx.font = '56px Arial';
         ctx.textAlign = 'right';
         ctx.textBaseline = 'top';
-        ctx.fillText(dateStr, width - 30, 25);
+        ctx.fillText(dateStr, width - 60, 25);
 
         // "EXCEPTION" label
         ctx.fillStyle = '#cc0000';
@@ -198,9 +198,7 @@ class LabelPrintService {
         return canvas.toDataURL('image/png');
     }
 
-    setEnabled(enabled: boolean) {
-        this.enabled = enabled;
-    }
+
 
     queuePrint(baseRouteName: string, stackNumber: number): string | null {
         if (!this.enabled) return null;

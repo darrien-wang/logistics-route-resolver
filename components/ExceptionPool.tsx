@@ -32,10 +32,10 @@ const generateExceptionLabelImage = (orderId: string): string => {
     const today = new Date();
     const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     ctx.fillStyle = '#666666';
-    ctx.font = '32px Arial';
+    ctx.font = '56px Arial';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
-    ctx.fillText(dateStr, width - 30, 25);
+    ctx.fillText(dateStr, width - 60, 25);
 
     // "EXCEPTION" label at top
     ctx.fillStyle = '#cc0000';

@@ -34,10 +34,10 @@ const generateLabelImage = (route: string | undefined | null, stackNumber: numbe
     const today = new Date();
     const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     ctx.fillStyle = '#666666';
-    ctx.font = '32px Arial';
+    ctx.font = '56px Arial';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'top';
-    ctx.fillText(dateStr, width - 30, 25);
+    ctx.fillText(dateStr, width - 60, 25);
 
     // ===== Top half: Route name - centered and auto-sized =====
     const routeText = route || ''; // Handle missing route
