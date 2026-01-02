@@ -295,9 +295,14 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
             return prev.map(def => {
                 // Find the source stack and remove the moved orders from it
                 if (def.id === sourceStackId && def.manualOrders) {
+                    const remainingOrders = def.manualOrders.filter(o => !movedOrderIds.has(o.orderId));
+                    // Recalculate overflow count based on remaining orders
+                    const newOverflowCount = Math.max(0, remainingOrders.length - capacity);
+
                     return {
                         ...def,
-                        manualOrders: def.manualOrders.filter(o => !movedOrderIds.has(o.orderId))
+                        manualOrders: remainingOrders,
+                        overflowCount: newOverflowCount  // Update overflow count
                     };
                 }
                 return def;
