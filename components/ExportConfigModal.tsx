@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Download, FileSpreadsheet, Check, Layers } from 'lucide-react';
+import { X, Download, FileSpreadsheet, Check, Layers, Filter } from 'lucide-react';
 import { RouteStack } from '../types';
 import { ExportEngine, exportTemplates, ExportTemplate } from '../lib/export';
 
@@ -11,22 +11,37 @@ interface ExportConfigModalProps {
 }
 
 type ExportScope = 'selected' | 'all';
+type StackFilter = 'all' | 'normal' | 'overflow' | 'merged';
 
 const ExportConfigModal: React.FC<ExportConfigModalProps> = ({ isOpen, onClose, selectedStacks, allStacks }) => {
     const [selectedTemplateId, setSelectedTemplateId] = useState<string>('or');
     const [exportScope, setExportScope] = useState<ExportScope>(selectedStacks.length > 0 ? 'selected' : 'all');
+    const [stackFilter, setStackFilter] = useState<StackFilter>('all');
 
     // Auto-select scope when modal opens based on current selection
     React.useEffect(() => {
         if (isOpen) {
             setExportScope(selectedStacks.length > 0 ? 'selected' : 'all');
+            setStackFilter('all'); // Reset filter when modal opens
         }
     }, [isOpen, selectedStacks.length]);
 
     if (!isOpen) return null;
 
     const selectedTemplate = exportTemplates.find(t => t.id === selectedTemplateId);
-    const stacksToExport = exportScope === 'all' ? allStacks : selectedStacks;
+
+    // Apply scope filter first
+    let stacksToExport = exportScope === 'all' ? allStacks : selectedStacks;
+
+    // Apply stack type filter
+    if (stackFilter !== 'all') {
+        stacksToExport = stacksToExport.filter(stack => {
+            if (stackFilter === 'overflow') return stack.type === 'overflow' || stack.isOverflow;
+            if (stackFilter === 'merged') return stack.type === 'merged';
+            if (stackFilter === 'normal') return stack.type === 'normal';
+            return true;
+        });
+    }
 
     const handleExport = () => {
         if (!selectedTemplate || stacksToExport.length === 0) return;
@@ -136,6 +151,50 @@ const ExportConfigModal: React.FC<ExportConfigModalProps> = ({ isOpen, onClose, 
                         >
                             <Download className="w-4 h-4" />
                             <span className="font-medium">All Stacks ({allStacks.length})</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Stack Type Filter */}
+                <div className="mb-6">
+                    <label className="text-sm font-medium text-slate-300 mb-2 block">Stack Type Filter</label>
+                    <div className="grid grid-cols-4 gap-2">
+                        <button
+                            onClick={() => setStackFilter('all')}
+                            className={`p-3 rounded-xl border transition-all flex items-center justify-center gap-2 ${stackFilter === 'all'
+                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                    : 'bg-slate-800/30 border-white/5 text-slate-400 hover:bg-slate-800/50'
+                                }`}
+                        >
+                            <Filter className="w-4 h-4" />
+                            <span className="font-medium text-sm">All</span>
+                        </button>
+                        <button
+                            onClick={() => setStackFilter('normal')}
+                            className={`p-3 rounded-xl border transition-all flex items-center justify-center gap-2 ${stackFilter === 'normal'
+                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                    : 'bg-slate-800/30 border-white/5 text-slate-400 hover:bg-slate-800/50'
+                                }`}
+                        >
+                            <span className="font-medium text-sm">Normal</span>
+                        </button>
+                        <button
+                            onClick={() => setStackFilter('overflow')}
+                            className={`p-3 rounded-xl border transition-all flex items-center justify-center gap-2 ${stackFilter === 'overflow'
+                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                    : 'bg-slate-800/30 border-white/5 text-slate-400 hover:bg-slate-800/50'
+                                }`}
+                        >
+                            <span className="font-medium text-sm">Overflow</span>
+                        </button>
+                        <button
+                            onClick={() => setStackFilter('merged')}
+                            className={`p-3 rounded-xl border transition-all flex items-center justify-center gap-2 ${stackFilter === 'merged'
+                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                    : 'bg-slate-800/30 border-white/5 text-slate-400 hover:bg-slate-800/50'
+                                }`}
+                        >
+                            <span className="font-medium text-sm">Merged</span>
                         </button>
                     </div>
                 </div>

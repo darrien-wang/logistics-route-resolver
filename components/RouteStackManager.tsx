@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Settings, Layers, Upload, Download, Archive, RotateCcw, RotateCw } from 'lucide-react';
+import { Settings, Layers, Upload, Download, RotateCcw, RotateCw } from 'lucide-react';
 import { RouteStack, ResolvedRouteInfo, StackCapacityConfig, DEFAULT_CAPACITY_CONFIG, ApiSettings, StackStatus, StackType } from '../types';
 import RouteStackCard from './RouteStackCard';
 import MergedStackCard from './MergedStackCard';
@@ -361,10 +361,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
         downloadJson(json, 'stacks_all.json');
     };
 
-    const handleExportOverflow = () => {
-        const json = stackExportService.exportStacks(renderableStacks, { mode: 'overflow' });
-        downloadJson(json, 'stacks_overflow.json');
-    };
+
 
     const handleBatchExport = () => {
         // Show export config modal (handles both selected and all stacks)
@@ -448,19 +445,9 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                         className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-colors text-sm"
                     >
                         <Upload className="w-4 h-4" />
-                        Import
+                        IMPORT
                     </button>
 
-
-
-                    {/* Export Overflow */}
-                    <button
-                        onClick={handleExportOverflow}
-                        className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 rounded-xl font-bold transition-colors border border-amber-500/20 text-sm"
-                    >
-                        <Archive className="w-4 h-4" />
-                        Export Overflow
-                    </button>
 
                     {/* Undo/Redo */}
                     <div className="flex items-center gap-1 bg-black/20 p-1 rounded-xl border border-white/5">
