@@ -9,6 +9,8 @@ import CapacityRuleEditor from './CapacityRuleEditor';
 import SpilloverModal from './SpilloverModal';
 import { stackMergeService, historyService } from '../services/StackMergeService';
 import { stackExportService } from '../services/StackExportService';
+import { ExcelExportService } from '../services/ExportService';
+import ExportConfigModal from './ExportConfigModal';
 
 interface RouteStackManagerProps {
     history: ResolvedRouteInfo[];
@@ -43,6 +45,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
     const [selectedStackIds, setSelectedStackIds] = useState<Set<string>>(new Set());
     const [selectedDetailStack, setSelectedDetailStack] = useState<{ title: string; orders: ResolvedRouteInfo[]; mergeInfo?: { components: any[] } } | null>(null);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
+    const [showExportModal, setShowExportModal] = useState(false);
     const [spilloverStack, setSpilloverStack] = useState<RouteStack | null>(null);
     const [filterMode, setFilterMode] = useState<FilterMode>('all');
 
@@ -178,43 +181,45 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
         if (newSet.has(stack.id)) {
             newSet.delete(stack.id);
         } else {
-            if (newSet.size < 2) {
-                newSet.add(stack.id);
-            }
+            newSet.add(stack.id);
         }
         setSelectedStackIds(newSet);
     };
 
     const handleMergeSelected = () => {
         if (selectedStackIds.size < 2) return;
-        const ids = Array.from(selectedStackIds);
-        const s1 = renderableStacks.find(s => s.id === ids[0]);
-        const s2 = renderableStacks.find(s => s.id === ids[1]);
-        if (!s1 || !s2) return;
+
+        const stacksToMerge = renderableStacks.filter(s => selectedStackIds.has(s.id));
+        // Sort by stack number purely for deterministic component order
+        stacksToMerge.sort((a, b) => a.stackNumber - b.stackNumber);
+
+        if (stacksToMerge.length < 2) return;
 
         historyService.pushState(stackDefs);
 
-        // Snapshot orders at merge time
-        const mergedOrders = [...s1.orders, ...s2.orders];
+        try {
+            const mergedStack = stackMergeService.mergeMultipleStacks(stacksToMerge);
+            const sourceIds = new Set(stacksToMerge.map(s => s.id));
 
-        const newDef: StackDefinition = {
-            id: `MERGED-${Date.now()}`,
-            type: 'merged',
-            status: 'active',
-            routes: [],
-            manualOrders: mergedOrders,
-            mergeInfo: {
-                primaryStackId: s1.id,
-                components: [
-                    { stackId: s1.id, route: s1.route, stackNumber: s1.stackNumber, orders: s1.orders, overflowCount: s1.overflowCount },
-                    { stackId: s2.id, route: s2.route, stackNumber: s2.stackNumber, orders: s2.orders, overflowCount: s2.overflowCount }
-                ],
-                mergedAt: new Date().toISOString()
-            }
-        };
+            const newDef: StackDefinition = {
+                id: mergedStack.id,
+                type: mergedStack.type,
+                status: mergedStack.status,
+                routes: stacksToMerge.map(s => s.route),
+                manualOrders: mergedStack.orders,
+                mergeInfo: mergedStack.mergeInfo,
+                isOverflow: mergedStack.isOverflow,
+                overflowCount: mergedStack.overflowCount,
+                importedAt: mergedStack.importedAt,
+                sourceNote: mergedStack.sourceNote
+            };
 
-        setStackDefs(prev => [...prev.filter(d => d.id !== s1.id && d.id !== s2.id), newDef]);
-        setSelectedStackIds(new Set());
+            setStackDefs(prev => [...prev.filter(d => !sourceIds.has(d.id)), newDef]);
+            setSelectedStackIds(new Set());
+        } catch (e) {
+            console.error(e);
+            alert('Merge failed: ' + (e as Error).message);
+        }
     };
 
     const handleSplitStack = (stack: RouteStack) => {
@@ -344,6 +349,11 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
         downloadJson(json, 'stacks_overflow.json');
     };
 
+    const handleBatchExport = () => {
+        // Show export config modal (handles both selected and all stacks)
+        setShowExportModal(true);
+    };
+
     const downloadJson = (json: string, filename: string) => {
         const blob = new Blob([json], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -395,6 +405,15 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                         </button>
                     )}
 
+                    {/* Export Button (always visible) */}
+                    <button
+                        onClick={handleBatchExport}
+                        className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold shadow-lg shadow-emerald-900/30 transition-colors"
+                    >
+                        <Download className="w-4 h-4" />
+                        {selectedStackIds.size > 0 ? `EXPORT (${selectedStackIds.size})` : 'EXPORT ALL'}
+                    </button>
+
                     {/* Import */}
                     <input
                         type="file"
@@ -415,14 +434,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                         Import
                     </button>
 
-                    {/* Export All */}
-                    <button
-                        onClick={handleExportAll}
-                        className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl font-medium transition-colors border border-white/5 text-sm"
-                    >
-                        <Download className="w-4 h-4" />
-                        Export All
-                    </button>
+
 
                     {/* Export Overflow */}
                     <button
@@ -525,6 +537,13 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                 onClose={() => setSpilloverStack(null)}
                 stack={spilloverStack}
                 onConfirmSpillover={handleConfirmSpillover}
+            />
+
+            <ExportConfigModal
+                isOpen={showExportModal}
+                onClose={() => setShowExportModal(false)}
+                selectedStacks={renderableStacks.filter(s => selectedStackIds.has(s.id))}
+                allStacks={renderableStacks}
             />
         </div>
     );

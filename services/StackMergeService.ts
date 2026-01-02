@@ -108,6 +108,76 @@ class StackMergeService {
         };
     }
 
+    /**
+     * Merge multiple stacks into one
+     */
+    mergeMultipleStacks(stacks: RouteStack[]): RouteStack {
+        if (stacks.length < 2) {
+            throw new Error('Need at least 2 stacks to merge');
+        }
+
+        // Sort stacks by stack number to ensure deterministic order
+        const sortedStacks = [...stacks].sort((a, b) => a.stackNumber - b.stackNumber);
+        const primary = sortedStacks[0];
+
+        // Flatten components
+        // If a stack is already merged, take its components. Otherwise create one.
+        const allComponents: MergedStackComponent[] = [];
+        let allOrders: any[] = []; // Type issue? inferred
+        let combinedRouteNames: string[] = [];
+
+        sortedStacks.forEach(stack => {
+            if (stack.status === 'locked') {
+                throw new Error(`Stack ${stack.route} is locked`);
+            }
+
+            combinedRouteNames.push(stack.route);
+
+            if (stack.mergeInfo) {
+                // Already merged - flatten components
+                allComponents.push(...stack.mergeInfo.components);
+            } else {
+                // Normal or Overflow stack
+                allComponents.push({
+                    stackId: stack.id,
+                    route: stack.route,
+                    orders: [...stack.orders],
+                    overflowCount: stack.overflowCount,
+                    stackNumber: stack.stackNumber // Preserve original stack number
+                });
+            }
+        });
+
+        // Re-aggregate orders from components to ensure sync? 
+        // Or just concat stack.orders? 
+        // Concat stack.orders is safer because components might be stale if we edit orders?
+        // But components are snapshot.
+        // Let's use components to build the master list to guarantee consistency with components list.
+        allOrders = allComponents.flatMap(c => c.orders);
+
+        const newId = `MERGED-${Date.now()}`;
+        const totalCapacity = primary.capacity; // Use primary capacity
+
+        return {
+            id: newId,
+            route: combinedRouteNames.join(' & '),
+            stackNumber: primary.stackNumber,
+            orders: allOrders,
+            capacity: totalCapacity,
+            status: 'active',
+            type: 'merged',
+            isOverflow: allOrders.length > totalCapacity,
+            overflowCount: Math.max(0, allOrders.length - totalCapacity),
+            mergeInfo: {
+                primaryStackId: primary.id,
+                components: allComponents,
+                mergedAt: new Date().toISOString()
+            },
+            importedAt: sortedStacks.find(s => s.importedAt)?.importedAt,
+            overflowFromStackId: undefined
+        };
+    }
+
     splitStack(mergedStack: RouteStack): RouteStack[] {
         if (!mergedStack.mergeInfo) return [mergedStack];
 

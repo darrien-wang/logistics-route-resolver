@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, Download, Package, MapPin, Calendar } from 'lucide-react';
 import { ResolvedRouteInfo, MergedStackComponent } from '../types';
-import * as XLSX from 'xlsx';
+import { ExportEngine, orderWithStackColumns } from '../lib/export';
 
 interface OrderDetailModalProps {
     isOpen: boolean;
@@ -26,52 +26,32 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ isOpen, onClose, ti
     }
 
     const handleExport = () => {
-        const exportData = orders.map(order => {
-            // Determine source route and stack number
-            // Priority: overflowSource > order.route + mergeInfo lookup
+        // Enrich orders with source info
+        const enrichedOrders = orders.map(order => {
             let sourceRoute = '';
             let sourceStackNum: number | string = '';
 
             if (order.overflowSource) {
-                // Overflow pool - use stamped source
                 sourceRoute = order.overflowSource.route;
                 sourceStackNum = order.overflowSource.stackNumber;
             } else if (order.route?.routeConfiguration) {
-                // Merged pool - use original route and lookup stack from mergeInfo
                 sourceRoute = order.route.routeConfiguration;
                 sourceStackNum = routeStackLookup.get(sourceRoute) || 1;
             }
 
             return {
-                'Order ID': order.orderId,
-                'Source Route': sourceRoute,
-                'Source Stack #': sourceStackNum,
-                'Date': order.date || '',
-                'Address': order.address || '',
-                'Location ID': order.locationId || '',
-                'Location Name': order.locationName || '',
-                'Latitude': order.latitude ?? '',
-                'Longitude': order.longitude ?? '',
-                'Duration': order.duration ?? '',
-                'TW from': order.twFrom || '',
-                'TW to': order.twTo || '',
-                'Weight': order.weight ?? '',
-                'Volume': order.volume ?? '',
-                'Vehicle Features': order.vehicleFeatures || '',
-                'Skills': order.skills || '',
-                'Assigned to Driver': order.assignedToDriver || '',
-                'Notes': order.notes || '',
-                'Email': order.email || '',
-                'Phone': order.phone || '',
-                'Notifications': order.notifications || '',
-                'Overflow Date': order.overflowSource?.movedAt ? new Date(order.overflowSource.movedAt).toLocaleString() : '',
+                ...order,
+                sourceRoute,
+                sourceStackNum
             };
         });
 
-        const ws = XLSX.utils.json_to_sheet(exportData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Orders');
-        XLSX.writeFile(wb, `${(title || 'Orders').replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
+        // Use modular export system
+        ExportEngine.exportToExcel(enrichedOrders, {
+            columns: orderWithStackColumns,
+            sheetName: 'Orders',
+            filename: `${(title || 'Orders').replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}`
+        });
     };
 
     return (
