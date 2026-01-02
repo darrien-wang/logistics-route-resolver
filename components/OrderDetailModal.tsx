@@ -1,7 +1,6 @@
 import React from 'react';
-import { X, Download, Package, MapPin, Calendar } from 'lucide-react';
+import { X, Package, MapPin, Calendar } from 'lucide-react';
 import { ResolvedRouteInfo, MergedStackComponent } from '../types';
-import { ExportEngine, orderWithStackColumns } from '../lib/export';
 
 interface OrderDetailModalProps {
     isOpen: boolean;
@@ -11,48 +10,10 @@ interface OrderDetailModalProps {
     mergeInfo?: {
         components: MergedStackComponent[];
     };
-    onExport?: () => void;
 }
 
 const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ isOpen, onClose, title, orders, mergeInfo }) => {
     if (!isOpen) return null;
-
-    // Build a route-to-stackNumber lookup from mergeInfo
-    const routeStackLookup = new Map<string, number>();
-    if (mergeInfo?.components) {
-        mergeInfo.components.forEach(comp => {
-            routeStackLookup.set(comp.route, comp.stackNumber);
-        });
-    }
-
-    const handleExport = () => {
-        // Enrich orders with source info
-        const enrichedOrders = orders.map(order => {
-            let sourceRoute = '';
-            let sourceStackNum: number | string = '';
-
-            if (order.overflowSource) {
-                sourceRoute = order.overflowSource.route;
-                sourceStackNum = order.overflowSource.stackNumber;
-            } else if (order.route?.routeConfiguration) {
-                sourceRoute = order.route.routeConfiguration;
-                sourceStackNum = routeStackLookup.get(sourceRoute) || 1;
-            }
-
-            return {
-                ...order,
-                sourceRoute,
-                sourceStackNum
-            };
-        });
-
-        // Use modular export system
-        ExportEngine.exportToExcel(enrichedOrders, {
-            columns: orderWithStackColumns,
-            sheetName: 'Orders',
-            filename: `${(title || 'Orders').replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}`
-        });
-    };
 
     return (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/90 backdrop-blur-sm animate-in fade-in duration-300">
@@ -68,21 +29,12 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ isOpen, onClose, ti
                             <p className="text-slate-500 text-sm mt-1">{orders.length} order{orders.length !== 1 ? 's' : ''} in this stack</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={handleExport}
-                            className="bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/20"
-                        >
-                            <Download className="w-5 h-5" />
-                            Export Excel
-                        </button>
-                        <button
-                            onClick={onClose}
-                            className="p-3 hover:bg-white/10 rounded-xl transition-colors"
-                        >
-                            <X className="w-6 h-6 text-slate-400" />
-                        </button>
-                    </div>
+                    <button
+                        onClick={onClose}
+                        className="p-3 hover:bg-white/10 rounded-xl transition-colors"
+                    >
+                        <X className="w-6 h-6 text-slate-400" />
+                    </button>
                 </div>
 
                 {/* Order List */}

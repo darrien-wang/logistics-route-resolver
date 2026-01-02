@@ -172,11 +172,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
     // --- Interaction Handlers ---
 
     const handleStackClick = (stack: RouteStack) => {
-        if (stack.type === 'merged' || stack.isOverflow) {
-            setSelectedDetailStack({ title: stack.route, orders: stack.orders, mergeInfo: stack.mergeInfo });
-            return;
-        }
-
+        // Left click: toggle selection for all stack types
         const newSet = new Set(selectedStackIds);
         if (newSet.has(stack.id)) {
             newSet.delete(stack.id);
@@ -184,6 +180,12 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
             newSet.add(stack.id);
         }
         setSelectedStackIds(newSet);
+    };
+
+    const handleStackRightClick = (stack: RouteStack, e: React.MouseEvent) => {
+        // Right click: show details modal
+        e.preventDefault();
+        setSelectedDetailStack({ title: stack.route, orders: stack.orders, mergeInfo: stack.mergeInfo });
     };
 
     const handleMergeSelected = () => {
@@ -305,11 +307,21 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
     };
 
     const handleImport = async (file: File) => {
-        const text = await file.text();
         try {
             historyService.pushState(stackDefs);
 
-            const importedStacks = stackExportService.importStacks(text);
+            let importedStacks: RouteStack[];
+
+            // Detect file type and use appropriate import method
+            if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                // Excel import
+                importedStacks = await stackExportService.importStacksFromExcel(file);
+            } else {
+                // JSON import (legacy)
+                const text = await file.text();
+                importedStacks = stackExportService.importStacks(text);
+            }
+
             const newDefs: StackDefinition[] = importedStacks.map(s => ({
                 id: s.id,
                 type: s.type,
@@ -325,7 +337,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
             setStackDefs(prev => [...prev, ...newDefs]);
         } catch (e) {
             console.error(e);
-            alert('Import failed');
+            alert(`Import failed: ${(e as Error).message}`);
         }
     };
 
@@ -424,7 +436,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                             if (e.target) e.target.value = '';
                         }}
                         className="hidden"
-                        accept=".json"
+                        accept=".json,.xlsx,.xls"
                     />
                     <button
                         onClick={() => fileInputRef.current?.click()}
@@ -493,7 +505,8 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                         <MergedStackCard
                             key={stack.id}
                             stack={stack}
-                            onClick={() => setSelectedDetailStack({ title: stack.route, orders: stack.orders, mergeInfo: stack.mergeInfo })}
+                            onClick={() => handleStackClick(stack)}
+                            onContextMenu={(e) => handleStackRightClick(stack, e)}
                             onSplit={() => handleSplitStack(stack)}
                             onResolveOverflow={() => handleResolveOverflow(stack)}
                             onDelete={() => handleDeleteStack(stack)}
@@ -504,6 +517,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                             key={stack.id}
                             stack={stack}
                             onClick={() => handleStackClick(stack)}
+                            onContextMenu={(e) => handleStackRightClick(stack, e)}
                             onDelete={() => handleDeleteStack(stack)}
                             selected={selectedStackIds.has(stack.id)}
                         />

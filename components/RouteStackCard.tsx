@@ -6,6 +6,7 @@ import LabelPrintDialog from './LabelPrintDialog';
 interface RouteStackCardProps {
     stack: RouteStack;
     onClick: () => void;
+    onContextMenu?: (e: React.MouseEvent) => void;
     onDelete?: () => void;
     selected?: boolean;
 }
@@ -108,7 +109,7 @@ const generateLabelImage = (route: string | undefined | null, stackNumber: numbe
     return canvas.toDataURL('image/png');
 };
 
-const RouteStackCard: React.FC<RouteStackCardProps> = ({ stack, onClick, onDelete, selected }) => {
+const RouteStackCard: React.FC<RouteStackCardProps> = ({ stack, onClick, onContextMenu, onDelete, selected }) => {
     const [showDialog, setShowDialog] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const fillPercentage = Math.min((stack.orders.length / stack.capacity) * 100, 100);
@@ -127,9 +128,15 @@ const RouteStackCard: React.FC<RouteStackCardProps> = ({ stack, onClick, onDelet
     };
 
     const handleContextMenu = (e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setContextMenu({ x: e.clientX, y: e.clientY });
+        if (onContextMenu) {
+            // Use parent's context menu handler
+            onContextMenu(e);
+        } else {
+            // Fallback to internal context menu
+            e.preventDefault();
+            e.stopPropagation();
+            setContextMenu({ x: e.clientX, y: e.clientY });
+        }
     };
 
     const handleDelete = () => {
@@ -171,16 +178,16 @@ const RouteStackCard: React.FC<RouteStackCardProps> = ({ stack, onClick, onDelet
 
     return (
         <>
-            {/* Context menu backdrop */}
-            {contextMenu && (
+            {/* Context menu backdrop - only show if using internal context menu */}
+            {!onContextMenu && contextMenu && (
                 <div
                     className="fixed inset-0 z-50"
                     onClick={() => setContextMenu(null)}
                 />
             )}
 
-            {/* Context menu */}
-            {contextMenu && (
+            {/* Context menu - only show if using internal context menu */}
+            {!onContextMenu && contextMenu && (
                 <div
                     className="fixed z-50 bg-slate-800 border border-white/10 rounded-xl shadow-lg py-1 min-w-[120px]"
                     style={{ left: contextMenu.x, top: contextMenu.y }}

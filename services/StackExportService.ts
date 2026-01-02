@@ -1,4 +1,5 @@
 import { RouteStack, StackExportData, ResolvedRouteInfo } from '../types';
+import * as XLSX from 'xlsx';
 
 export interface ExportOptions {
     mode: 'all' | 'overflow';
@@ -72,6 +73,98 @@ class StackExportService {
         } catch (e) {
             console.error('Import failed', e);
             throw new Error('Failed to parse stack import file');
+        }
+    }
+
+    /**
+     * Import stacks from Excel file
+     * Supports multi-sheet Excel files where each sheet is a stack
+     */
+    async importStacksFromExcel(file: File): Promise<RouteStack[]> {
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+
+            const stacks: RouteStack[] = [];
+            const timestamp = new Date().toISOString();
+
+            // Process each sheet as a separate stack
+            workbook.SheetNames.forEach((sheetName, index) => {
+                const worksheet = workbook.Sheets[sheetName];
+                const data: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+                if (data.length === 0) return; // Skip empty sheets
+
+                // Parse sheet name to extract route and stack number
+                // Expected format: "ROUTE-1" or "OVFL-ROUTE" or custom names
+                const isOverflow = sheetName.startsWith('OVFL');
+                let route = sheetName;
+                let stackNumber = index + 1;
+
+                // Try to parse route-number format
+                const match = sheetName.match(/^(.+?)-(\d+)$/);
+                if (match) {
+                    route = match[1];
+                    stackNumber = parseInt(match[2], 10);
+                }
+
+                // Convert Excel rows to ResolvedRouteInfo objects
+                const orders: ResolvedRouteInfo[] = data.map((row, orderIndex) => ({
+                    orderId: row['Order ID'] || `IMPORTED-${timestamp}-${index}-${orderIndex}`,
+                    date: row['Date'] || '',
+                    address: row['Address'] || row['Location'] || '',
+                    zipCode: row['Zip Code'] || '',
+                    locationId: row['Location ID'] || '',
+                    locationName: row['Location Name'] || '',
+                    latitude: row['Latitude'] || undefined,
+                    longitude: row['Longitude'] || undefined,
+                    duration: row['Duration'] || undefined,
+                    twFrom: row['TW from'] || '',
+                    twTo: row['TW to'] || '',
+                    weight: row['Weight'] || undefined,
+                    volume: row['Volume'] || undefined,
+                    vehicleFeatures: row['Vehicle Features'] || '',
+                    skills: row['Skills'] || '',
+                    assignedToDriver: row['Assigned to Driver'] || '',
+                    notes: row['Notes'] || '',
+                    email: row['Email'] || '',
+                    phone: row['Phone'] || '',
+                    notifications: row['Notifications'] || '',
+                    resolvedAt: timestamp,
+                    route: (row['Source Route'] || row['Route Config']) ? {
+                        zip: row['Zip Code'] || '',
+                        metroArea: row['Metro Area'] || '',
+                        state: '',
+                        destinationZone: '',
+                        routeConfiguration: row['Source Route'] || row['Route Config'] || route,
+                        route2Configuration: '',
+                        zipCodes: []
+                    } as any : undefined
+                }));
+
+                // Create RouteStack object
+                const stack: RouteStack = {
+                    id: `IMPORTED-${timestamp}-${index}`,
+                    route: route,
+                    stackNumber: stackNumber,
+                    orders: orders,
+                    capacity: 40, // Default capacity
+                    status: 'active',
+                    type: isOverflow ? 'overflow' : 'normal',
+                    isOverflow: isOverflow,
+                    overflowCount: isOverflow ? Math.max(0, orders.length - 40) : 0,
+                    importedAt: timestamp,
+                    sourceNote: `Imported from Excel: ${file.name}`
+                };
+
+                stacks.push(stack);
+            });
+
+            return stacks;
+
+        } catch (e) {
+            console.error('Excel import failed', e);
+            throw new Error('Failed to import Excel file. Please ensure it matches the export format.');
         }
     }
 
