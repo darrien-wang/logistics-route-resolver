@@ -153,13 +153,8 @@ export const createEventTriggerMiddleware = (
  */
 export const createEnrichmentMiddleware = (): ProcessingMiddleware => {
   return async (context) => {
-    return {
-      ...context,
-      latitude: 32.7157,
-      longitude: -117.1611,
-      locationName: context.route?.metroArea || "Unknown",
-      duration: 15
-    };
+    // No default enrichment - return context as-is
+    return context;
   };
 };
 /**

@@ -108,17 +108,15 @@ export const ExceptionExportConfig: ExportConfig<ResolvedRouteInfo> = {
 /**
  * OR Format - Optimized for OptimoRoute import
  * Uses addressOR formatter for State/Zip formatting
+ * Duration defaults to 5 if not specified
  */
 export const orFormatColumns: ColumnConfig<ResolvedRouteInfo & { sourceRoute?: string; sourceStackNum?: number | string }>[] = [
     { header: 'Order ID', field: 'orderId', formatter: 'string' },
-    { header: 'Date', field: 'date', formatter: 'date' },
     { header: 'Address', field: 'address', formatter: 'addressOR' },
     { header: 'Location', field: 'address', formatter: 'addressOR' },
     { header: 'Location ID', field: 'locationId', formatter: 'string' },
     { header: 'Location Name', field: 'locationName', formatter: 'string' },
-    { header: 'Latitude', field: 'latitude', formatter: 'number' },
-    { header: 'Longitude', field: 'longitude', formatter: 'number' },
-    { header: 'Duration', field: 'duration', formatter: 'number' },
+    { header: 'Duration', field: 'duration', formatter: 'number', defaultValue: 5 },
     { header: 'TW from', field: 'twFrom', formatter: 'string' },
     { header: 'TW to', field: 'twTo', formatter: 'string' },
     { header: 'Weight', field: 'weight', formatter: 'number' },
