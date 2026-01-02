@@ -177,7 +177,8 @@ const SpilloverModal: React.FC<SpilloverModalProps> = ({ isOpen, onClose, stack,
                                 <div className="flex-1">
                                     <div className="flex items-center gap-2">
                                         <span className={`font-mono font-bold ${isSelected ? 'text-amber-400' : 'text-white'}`}>
-                                            {order.orderId}
+                                            {order.orderId.slice(0, -4)}
+                                            <span className="text-yellow-400">{order.orderId.slice(-4)}</span>
                                         </span>
                                         {isIdeallyOverflowing && (
                                             <span className="text-[10px] bg-red-500/20 text-red-500 px-1.5 rounded uppercase font-bold">Overcap</span>

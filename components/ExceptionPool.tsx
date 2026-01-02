@@ -181,7 +181,8 @@ const ExceptionPool: React.FC<ExceptionPoolProps> = ({ exceptions, onResolve, in
                             >
                                 <div className="flex-1 min-w-0">
                                     <div className="text-sm font-bold text-white truncate">
-                                        {order.orderId}
+                                        {order.orderId.slice(0, -4)}
+                                        <span className="text-yellow-400">{order.orderId.slice(-4)}</span>
                                     </div>
                                     <div className="text-xs text-red-400 truncate">
                                         {order.exceptionReason || 'No route found'}

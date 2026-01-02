@@ -57,7 +57,8 @@ const OrderDetailModal: React.FC<OrderDetailModalProps> = ({ isOpen, onClose, ti
                                         </div>
                                         <div>
                                             <div className="font-mono font-black text-xl text-sky-400 uppercase tracking-wider">
-                                                {order.orderId}
+                                                {order.orderId.slice(0, -4)}
+                                                <span className="text-yellow-400">{order.orderId.slice(-4)}</span>
                                             </div>
                                             <div className="text-xs text-slate-500 uppercase tracking-wider mt-1">
                                                 {order.exceptionReason ? (

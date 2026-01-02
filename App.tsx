@@ -599,11 +599,11 @@ const App: React.FC = () => {
               placeholder="USE SPACE TO BATCH"
               value={orderId}
               onChange={(e) => setOrderId(e.target.value)}
-              className="w-full bg-slate-900/60 border-[10px] border-white/5 rounded-[56px] py-14 px-14 text-5xl font-black text-center text-white focus:outline-none focus:border-sky-500 focus:ring-20 focus:ring-sky-500/5 transition-all placeholder:text-slate-500 uppercase tracking-widest shadow-2xl"
+              className="w-full bg-slate-900/60 border-[3px] border-white/5 rounded-[24px] py-4 px-8 text-xl font-black text-center text-white focus:outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-500/5 transition-all placeholder:text-slate-500 uppercase tracking-widest shadow-2xl"
             />
-            {loading && <RefreshCcw className="absolute right-16 top-1/2 -translate-y-1/2 w-16 h-16 text-sky-400 animate-spin" />}
-            <div className="absolute left-16 top-1/2 -translate-y-1/2 flex items-center gap-6 pointer-events-none opacity-20 group-focus-within:opacity-100 transition-opacity">
-              <ScanBarcode className="w-16 h-16 text-slate-400" />
+            {loading && <RefreshCcw className="absolute right-8 top-1/2 -translate-y-1/2 w-8 h-8 text-sky-400 animate-spin" />}
+            <div className="absolute left-8 top-1/2 -translate-y-1/2 flex items-center gap-3 pointer-events-none opacity-20 group-focus-within:opacity-100 transition-opacity">
+              <ScanBarcode className="w-8 h-8 text-slate-400" />
             </div>
           </form>
 

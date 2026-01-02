@@ -143,11 +143,11 @@ const OperatorView: React.FC<OperatorViewProps> = ({
                         placeholder="USE SPACE TO BATCH"
                         value={orderId}
                         onChange={(e) => onOrderIdChange(e.target.value)}
-                        className="w-full bg-slate-900/60 border-[10px] border-white/5 rounded-[56px] py-14 px-14 text-5xl font-black text-center text-white focus:outline-none focus:border-sky-500 focus:ring-20 focus:ring-sky-500/5 transition-all placeholder:text-slate-500 uppercase tracking-widest shadow-2xl"
+                        className="w-full bg-slate-900/60 border-[3px] border-white/5 rounded-[24px] py-4 px-8 text-xl font-black text-center text-white focus:outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-500/5 transition-all placeholder:text-slate-500 uppercase tracking-widest shadow-2xl"
                     />
-                    {loading && <RefreshCcw className="absolute right-16 top-1/2 -translate-y-1/2 w-16 h-16 text-sky-400 animate-spin" />}
-                    <div className="absolute left-16 top-1/2 -translate-y-1/2 flex items-center gap-6 pointer-events-none opacity-20 group-focus-within:opacity-100 transition-opacity">
-                        <ScanBarcode className="w-16 h-16 text-slate-400" />
+                    {loading && <RefreshCcw className="absolute right-12 top-1/2 -translate-y-1/2 w-12 h-12 text-sky-400 animate-spin" />}
+                    <div className="absolute left-12 top-1/2 -translate-y-1/2 flex items-center gap-4 pointer-events-none opacity-20 group-focus-within:opacity-100 transition-opacity">
+                        <ScanBarcode className="w-12 h-12 text-slate-400" />
                     </div>
                 </form>
 
@@ -212,7 +212,10 @@ const OperatorView: React.FC<OperatorViewProps> = ({
                                 )}
 
                                 <div className={`absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 border-4 ${currentHasFailed ? 'border-red-500' : 'border-emerald-500/50'} px-12 py-4 rounded-full shadow-2xl transition-colors`}>
-                                    <span className={`${currentHasFailed ? 'text-red-500' : 'text-emerald-400'} font-black text-4xl tracking-[0.2em] uppercase`}>{currentResult.orderId}</span>
+                                    <span className="font-black text-4xl tracking-[0.2em] uppercase">
+                                        <span className={currentHasFailed ? 'text-red-500' : 'text-emerald-400'}>{currentResult.orderId.slice(0, -4)}</span>
+                                        <span className="text-yellow-400">{currentResult.orderId.slice(-4)}</span>
+                                    </span>
                                 </div>
 
                                 {/* Stack Full Warning */}
