@@ -57,6 +57,15 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
         historyService.initialize([]);
     }, []);
 
+    // Sync stackDefs changes to historyService currentState (for redo to work)
+    useEffect(() => {
+        // Update currentState whenever stackDefs changes (but don't push to history)
+        // This ensures redo works correctly after operations like spillover
+        if (stackDefs.length > 0 || historyService['currentState'] !== null) {
+            historyService['currentState'] = JSON.parse(JSON.stringify(stackDefs));
+        }
+    }, [stackDefs]);
+
     // Capacity Config
     const capacityConfig = apiSettings.stackCapacityConfig || DEFAULT_CAPACITY_CONFIG;
     const countRule = capacityConfig.rules.find(r => r.type === 'count');
