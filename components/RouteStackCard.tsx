@@ -112,7 +112,7 @@ const generateLabelImage = (route: string | undefined | null, stackNumber: numbe
 const RouteStackCard: React.FC<RouteStackCardProps> = ({ stack, onClick, onContextMenu, onDelete, selected }) => {
     const [showDialog, setShowDialog] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-    const fillPercentage = Math.min((stack.orders.length / stack.capacity) * 100, 100);
+    const fillPercentage = Math.min(((stack.activeValue ?? stack.orders.length) / (stack.activeCapacity ?? stack.capacity)) * 100, 100);
 
     // Color gradient: red → yellow → green (full = green)
     const getColor = (percentage: number): string => {
@@ -329,17 +329,17 @@ const RouteStackCard: React.FC<RouteStackCardProps> = ({ stack, onClick, onConte
                                 strokeWidth="12"
                                 fill="transparent"
                                 strokeDasharray={351.86}
-                                strokeDashoffset={351.86 - (351.86 * fillPercentage) / 100}
+                                strokeDashoffset={351.86 - (351.86 * Math.min(((stack.activeValue ?? stack.orders.length) / (stack.activeCapacity ?? stack.capacity)) * 100, 100)) / 100}
                                 className="transition-all duration-1000 ease-out"
-                                style={{ color: getColor(fillPercentage) }}
+                                style={{ color: getColor(Math.min(((stack.activeValue ?? stack.orders.length) / (stack.activeCapacity ?? stack.capacity)) * 100, 100)) }}
                             />
                         </svg>
 
                         {/* Center Text */}
                         <div className="flex flex-col items-center">
-                            <span className="text-3xl font-black text-white">{stack.orders.length}</span>
+                            <span className="text-3xl font-black text-white">{stack.activeValue ?? stack.orders.length}</span>
                             <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
-                                / {stack.capacity}
+                                / {stack.activeCapacity ?? stack.capacity} {stack.activeUnit || 'pcs'}
                             </span>
                         </div>
                     </div>

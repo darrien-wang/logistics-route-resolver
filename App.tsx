@@ -269,6 +269,12 @@ const App: React.FC = () => {
             }
           } else {
             // Use middleware chain for non-UNLOAD events (skip remote lookup, use cached data)
+
+            // If no event types selected, record a generic 'SCAN' event so it appears in history
+            if (selectedEventTypes.length === 0) {
+              handleEventInitiated(uppercaseId, [{ type: 'SCAN', status: 'SUCCESS', timestamp: new Date().toISOString() }]);
+            }
+
             const chain = new MiddlewareChain();
             chain
               .use(createOrderLookupMiddleware())
@@ -387,6 +393,11 @@ const App: React.FC = () => {
         } else {
           // Use middleware chain for non-UNLOAD events
           const initialOrder = MOCK_ORDERS[targetId] || { orderId: targetId, address: "", date: new Date().toLocaleDateString() };
+
+          // If no event types selected, record a generic 'SCAN' event so it appears in history
+          if (selectedEventTypes.length === 0) {
+            handleEventInitiated(targetId, [{ type: 'SCAN', status: 'SUCCESS', timestamp: new Date().toISOString() }]);
+          }
 
           const chain = new MiddlewareChain();
           chain
@@ -803,15 +814,7 @@ const App: React.FC = () => {
           />
         ) : view === 'stacks' ? <RouteStackManager history={history} apiSettings={apiSettings} onSettingsChange={setApiSettings} onAddTestData={handleAddTestData} /> : <RulesManagementView dataSource={dataSource} />}
 
-        {view === 'operator' && (
-          <button
-            onClick={() => setView('dashboard')}
-            className="fixed top-10 right-10 bg-slate-800/95 backdrop-blur-2xl border-2 border-sky-500/30 px-6 py-3 rounded-[20px] flex items-center gap-3 text-slate-200 hover:text-white hover:border-sky-500/50 transition-all hover:scale-105 z-[200] shadow-xl shadow-sky-500/10 group"
-          >
-            <Minimize2 className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-            <span className="font-black text-sm uppercase tracking-widest">Exit Station</span>
-          </button>
-        )}
+
 
         <ApiConfigModal
           isOpen={showApiConfig}

@@ -105,6 +105,7 @@ class RouteStackService {
             capacity: legacyCapacity,
             isStackFull: this.isStackFull(state),
             isNewStack: isNewStack && isNewOrder,
+            ...this.getDynamicStackInfo(state)
         };
     }
 
@@ -190,6 +191,61 @@ class RouteStackService {
             capacity: legacyCapacity,
             isStackFull: this.isStackFull(state),
             isNewStack: false,
+            ...this.getDynamicStackInfo(state)
+        };
+    }
+
+    /**
+     * Helper to get dynamic fields based on active rules
+     */
+    private getDynamicStackInfo(state: RouteState): { activeValue: number, activeCapacity: number, activeUnit: string, activeMeasure: 'count' | 'weight' | 'volume' } {
+        const config = this.capacityConfig;
+        // Default to count if no rules
+        if (!config.rules || config.rules.length === 0) {
+            return {
+                activeValue: state.currentStackCount,
+                activeCapacity: 40,
+                activeUnit: 'pcs',
+                activeMeasure: 'count'
+            };
+        }
+
+        // Prioritize the first rule for display, or find the "most constrained" rule
+        // For simplicity, we'll use the first rule in the list as the "primary" display rule
+        // unless the user wants to see the one closest to full. 
+        // Let's assume the first rule is the primary constraint.
+        // Prioritize weight or volume rules for display if they exist
+        // Otherwise fall back to the first rule (usually count)
+        const primaryRule = config.rules.find(r => r.type !== 'count') || config.rules[0];
+
+        let activeValue = 0;
+        let activeUnit = 'pcs';
+        let activeMeasure: 'count' | 'weight' | 'volume' = 'count';
+
+        switch (primaryRule.type) {
+            case 'weight':
+                activeValue = Math.round(state.currentStackWeight * 100) / 100;
+                activeUnit = 'lb';
+                activeMeasure = 'weight';
+                break;
+            case 'volume':
+                activeValue = Math.round(state.currentStackVolume * 100) / 100;
+                activeUnit = 'ft³';
+                activeMeasure = 'volume';
+                break;
+            case 'count':
+            default:
+                activeValue = state.currentStackCount;
+                activeUnit = 'pcs';
+                activeMeasure = 'count';
+                break;
+        }
+
+        return {
+            activeValue,
+            activeCapacity: primaryRule.value,
+            activeUnit,
+            activeMeasure
         };
     }
 

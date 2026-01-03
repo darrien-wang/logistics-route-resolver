@@ -1,22 +1,9 @@
-import React from 'react';
-import {
-    Settings,
-    CheckCircle2,
-    ClipboardList,
-    Download,
-    ChevronRight,
-    RefreshCcw,
-    Activity,
-    ScanBarcode,
-    AlertCircle,
-    Layers,
-    Printer
-} from 'lucide-react';
-import { ResolvedRouteInfo, OrderEventStatus, EventType, ApiSettings } from '../types';
+import React, { useEffect, useRef, useState } from 'react';
+import { Package, RotateCcw, Box, Scan, Printer, ChevronDown, Check } from 'lucide-react';
+import { ResolvedRouteInfo, ApiSettings, OrderEventStatus, EventType } from '../types';
 import { ExcelExportService } from '../services/ExportService';
 
 interface OperatorViewProps {
-    // State props
     apiSettings: ApiSettings;
     operationLog: Record<string, OrderEventStatus[]>;
     selectedEventTypes: EventType[];
@@ -29,10 +16,8 @@ interface OperatorViewProps {
     printStatus: 'idle' | 'printing';
     exportService: ExcelExportService;
     scannerInputRef: React.RefObject<HTMLInputElement>;
-
-    // Callbacks
     onToggleEventType: (type: EventType) => void;
-    onOrderIdChange: (value: string) => void;
+    onOrderIdChange: (id: string) => void;
     onSearch: (id: string) => void;
 }
 
@@ -53,167 +38,279 @@ const OperatorView: React.FC<OperatorViewProps> = ({
     onOrderIdChange,
     onSearch
 }) => {
-    const currentEvents = currentResult ? operationLog[currentResult.orderId] || [] : [];
-    const currentHasFailed = currentEvents.some(e => e.status === 'FAILED');
+
+    const [isEventMenuOpen, setIsEventMenuOpen] = useState(false);
+    const eventMenuRef = useRef<HTMLDivElement>(null);
+
+    // Close menu when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (eventMenuRef.current && !eventMenuRef.current.contains(event.target as Node)) {
+                setIsEventMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // --- Audio ---
+    const scanSoundRef = useRef<HTMLAudioElement | null>(null);
+    const errorSoundRef = useRef<HTMLAudioElement | null>(null);
+
+    useEffect(() => {
+        scanSoundRef.current = new Audio('/sounds/scan.mp3');
+        errorSoundRef.current = new Audio('/sounds/error.mp3');
+    }, []);
+
+    // Play sounds based on result changes
+    useEffect(() => {
+        if (currentResult?.operationStatus === 'error' || error) {
+            errorSoundRef.current?.play().catch(() => { });
+        } else if (currentResult?.operationStatus === 'success') {
+            scanSoundRef.current?.play().catch(() => { });
+        }
+    }, [currentResult, error]);
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            onSearch(orderId);
+        }
+    };
+
+    // Helper to get latest event for an order ID
+    const getLatestEvent = (id: string) => {
+        const events = operationLog[id] || [];
+        return events[events.length - 1]; // Simply take last one
+    };
+
+    // Flatten history for display (reverse chronological)
+    const historyEntries = Object.entries(operationLog).reverse().map(([id, events]) => ({
+        id,
+        events,
+        timestamp: events[0]?.timestamp // Use first event for timestamp
+    }));
+
+    const currentHasFailed = currentResult?.operationStatus === 'fail' || currentResult?.operationStatus === 'error' || error !== null;
 
     return (
-        <div className="grid grid-cols-12 gap-8 h-[calc(100vh-100px)] animate-in slide-in-from-bottom-8 duration-700">
-            {/* Left Column */}
-            <div className="col-span-3 flex flex-col space-y-6">
-                <div className="glass-panel p-6 rounded-[40px] border border-white/10 shadow-2xl">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-slate-400 text-xs font-black uppercase tracking-widest flex items-center gap-2">
-                            <Settings className="w-4 h-4 text-sky-400" /> Event triggers
-                        </h3>
-                        <div className={`w-2 h-2 rounded-full ${apiSettings.enabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-700'}`}></div>
-                    </div>
-                    <div className="space-y-3">
-                        {(['RECEIVE', 'UNLOAD', 'SORT', 'DISPATCH'] as EventType[]).map(type => (
-                            <button
-                                key={type}
-                                onClick={() => onToggleEventType(type)}
-                                className={`w-full flex items-center justify-between p-5 rounded-3xl border transition-all ${selectedEventTypes.includes(type) ? 'bg-sky-500/20 border-sky-500/50 text-sky-400 shadow-[0_0_20px_rgba(56,189,248,0.1)]' : 'bg-slate-800/30 border-white/5 text-slate-500 hover:border-white/20'}`}
-                            >
-                                <span className="font-black text-sm tracking-widest">{type}</span>
-                                <div className={`w-7 h-7 rounded-xl border-2 flex items-center justify-center transition-all ${selectedEventTypes.includes(type) ? 'border-sky-400 bg-sky-400' : 'border-slate-600'}`}>
-                                    {selectedEventTypes.includes(type) && <CheckCircle2 className="w-5 h-5 text-slate-900" />}
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="glass-panel p-8 rounded-[40px] border border-white/10 flex-1 overflow-hidden flex flex-col shadow-2xl">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-slate-400 text-xs font-black uppercase tracking-widest flex items-center gap-2">
-                            <ClipboardList className="w-5 h-5 text-emerald-400" /> Activity History
-                        </h3>
-                        <button onClick={() => exportService.exportActivityLog(operationLog)} className="text-sky-400 hover:text-white transition-colors">
-                            <Download className="w-4 h-4" />
-                        </button>
-                    </div>
-                    <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar max-h-[400px]">
-                        {Object.entries(operationLog).reverse().map(([id, events]) => (
-                            <div key={id} className="p-5 bg-slate-900/60 rounded-[24px] border border-white/5 hover:border-sky-500/20 transition-all group">
-                                <div className="flex justify-between items-center mb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(56,189,248,0.5)] ${(events as OrderEventStatus[]).every(e => e.status === 'SUCCESS') ? 'bg-emerald-400 shadow-emerald-400/50' : 'bg-sky-400'}`}></div>
-                                        <span className="font-mono text-base text-sky-400 font-black tracking-widest uppercase">{id}</span>
-                                    </div>
-                                    <ChevronRight className="w-4 h-4 text-slate-800 group-hover:translate-x-1 transition-transform" />
-                                </div>
-                                <div className="space-y-3">
-                                    {(events as OrderEventStatus[]).map((e, idx) => (
-                                        <div key={idx} className="flex flex-col space-y-2">
-                                            <div className="flex items-center gap-2">
-                                                <div className={`px-3 py-1.5 rounded-lg border flex items-center gap-2 ${e.status === 'FAILED' ? 'bg-red-500/10 border-red-500/20' : e.status === 'SUCCESS' ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-slate-800 border-white/10'}`}>
-                                                    <span className="text-xs font-black text-slate-400 tracking-wider uppercase">{e.type}</span>
-                                                    <span className={`text-xs font-black uppercase ${e.status === 'FAILED' ? 'text-red-400' : e.status === 'SUCCESS' ? 'text-emerald-400' : 'text-slate-400'}`}>
-                                                        {e.status}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            {e.message && (
-                                                <div className={`text-[10px] font-bold p-3 rounded-xl border ${e.status === 'FAILED' ? 'bg-red-950/30 border-red-500/20 text-red-400' : 'bg-emerald-950/30 border-emerald-500/20 text-emerald-400'}`}>
-                                                    {e.message}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        ))}
-                        {Object.keys(operationLog).length === 0 && (
-                            <div className="h-full flex flex-col items-center justify-center text-slate-800 opacity-20">
-                                <Activity className="w-16 h-16 mb-2" />
-                                <p className="text-xs font-black uppercase tracking-[0.2em]">Stream Ready</p>
+        <div className="flex flex-col h-full bg-slate-950 text-slate-100 overflow-hidden font-sans selection:bg-sky-500/30">
+            {/* Top Bar: Input Area */}
+            <div className="flex-none p-6 bg-slate-900 border-b border-slate-800 shadow-xl z-20">
+                <div className="max-w-7xl mx-auto w-full flex gap-6 items-center">
+                    <div className="relative flex-1 group">
+                        <div className={`absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none transition-colors duration-300 ${loading ? 'text-sky-400' : 'text-slate-500 group-focus-within:text-sky-400'}`}>
+                            <Scan className={`w-8 h-8 ${loading ? 'animate-pulse' : ''}`} />
+                        </div>
+                        <input
+                            ref={scannerInputRef}
+                            type="text"
+                            value={orderId}
+                            onChange={(e) => onOrderIdChange(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            className="block w-full pl-20 pr-48 py-6 bg-slate-950 border-2 border-slate-800 rounded-2xl text-4xl font-bold text-white placeholder-slate-600 focus:outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-500/20 transition-all shadow-inner tracking-wide uppercase"
+                            placeholder="SCAN TRACKING LABELS..."
+                            autoComplete="off"
+                            autoFocus
+                        />
+                        {loading && (
+                            <div className="absolute inset-y-0 right-40 pr-6 flex items-center">
+                                <div className="w-8 h-8 border-4 border-sky-500 border-t-transparent rounded-full animate-spin"></div>
                             </div>
                         )}
+
+                        {/* Event Selector Dropdown */}
+                        <div className="absolute inset-y-2 right-2 flex items-center" ref={eventMenuRef}>
+                            <button
+                                onClick={() => setIsEventMenuOpen(!isEventMenuOpen)}
+                                className={`h-full px-6 rounded-xl border-2 flex items-center gap-3 transition-colors ${selectedEventTypes.length > 0
+                                    ? 'bg-sky-500/10 border-sky-500/30 text-sky-400'
+                                    : 'bg-slate-900 border-slate-700 text-slate-500 hover:text-slate-300'
+                                    }`}
+                            >
+                                <span className="font-bold tracking-wider text-sm">
+                                    {selectedEventTypes.length === 0
+                                        ? 'EVENTS'
+                                        : selectedEventTypes.length === 1
+                                            ? selectedEventTypes[0]
+                                            : `${selectedEventTypes.length} EVENTS`
+                                    }
+                                </span>
+                                <ChevronDown className={`w-4 h-4 transition-transform ${isEventMenuOpen ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            {/* Dropdown Menu */}
+                            {isEventMenuOpen && (
+                                <div className="absolute top-full right-0 mt-3 w-64 bg-slate-900 border-2 border-slate-700 rounded-2xl shadow-2xl p-2 flex flex-col gap-1 z-50 animate-in fade-in slide-in-from-top-2">
+                                    {(['RECEIVE', 'UNLOAD', 'SORT', 'DISPATCH'] as EventType[]).map(type => {
+                                        const isSelected = selectedEventTypes.includes(type);
+                                        return (
+                                            <button
+                                                key={type}
+                                                onClick={() => onToggleEventType(type)}
+                                                className={`w-full px-4 py-3 rounded-xl flex items-center justify-between transition-all ${isSelected
+                                                    ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/20'
+                                                    : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                                                    }`}
+                                            >
+                                                <span className="font-bold tracking-wider text-sm">{type}</span>
+                                                {isSelected && <Check className="w-5 h-5" />}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* Main Column */}
-            <div className="col-span-9 flex flex-col space-y-10">
-                <form onSubmit={(e) => { e.preventDefault(); onSearch(orderId); }} className="relative group">
-                    <input
-                        ref={scannerInputRef}
-                        type="text"
-                        placeholder="USE SPACE TO BATCH"
-                        value={orderId}
-                        onChange={(e) => onOrderIdChange(e.target.value)}
-                        className="w-full bg-slate-900/60 border-[3px] border-white/5 rounded-[24px] py-4 px-8 text-xl font-black text-center text-white focus:outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-500/5 transition-all placeholder:text-slate-500 uppercase tracking-widest shadow-2xl"
-                    />
-                    {loading && <RefreshCcw className="absolute right-12 top-1/2 -translate-y-1/2 w-12 h-12 text-sky-400 animate-spin" />}
-                    <div className="absolute left-12 top-1/2 -translate-y-1/2 flex items-center gap-4 pointer-events-none opacity-20 group-focus-within:opacity-100 transition-opacity">
-                        <ScanBarcode className="w-12 h-12 text-slate-400" />
+            {/* Main Workspace */}
+            <div className="flex-1 flex overflow-hidden">
+                {/* LEFT: Activity Feed */}
+                <div className="w-1/3 min-w-[400px] max-w-xl bg-slate-900/50 border-r border-slate-800 flex flex-col backdrop-blur-sm">
+                    <div className="p-4 border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-10 flex justify-between items-center">
+                        <h2 className="text-lg font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <RotateCcw className="w-5 h-5" />
+                            Activity Stream
+                        </h2>
+                        <div className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs font-mono text-slate-400">
+                            {Object.keys(operationLog).length} EVENTS
+                        </div>
                     </div>
-                </form>
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+                        {historyEntries.map(({ id, events, timestamp }, idx) => {
+                            const isError = events.some(e => e.status === 'FAILED');
+                            const isSuccess = events.every(e => e.status === 'SUCCESS');
 
-                <div className="flex-1 flex items-center justify-center">
+                            return (
+                                <div key={idx} className={`group relative p-4 rounded-xl border transition-all duration-300 ${idx === 0
+                                    ? 'bg-slate-800/80 border-slate-600 shadow-lg scale-[1.02] mb-4'
+                                    : 'bg-slate-900/40 border-slate-800/50 hover:bg-slate-800 hover:border-slate-700 text-slate-400'
+                                    }`}>
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="font-mono text-sm tracking-tight opacity-70">
+                                            {timestamp ? new Date(timestamp).toLocaleTimeString() : '--:--'}
+                                        </div>
+                                        {/* Status Badge */}
+                                        <div className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border ${isSuccess ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                            isError ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                                                'bg-slate-700 text-slate-400 border-slate-600'
+                                            }`}>
+                                            {isSuccess ? 'SUCCESS' : isError ? 'FAILED' : 'PENDING'}
+                                        </div>
+                                    </div>
+
+                                    {/* Order ID */}
+                                    <div className={`font-mono font-bold text-xl mb-1 tracking-tight ${idx === 0 ? 'text-white' : ''}`}>
+                                        {id}
+                                    </div>
+
+                                    {/* Events Logic */}
+                                    <div className="flex flex-wrap gap-1 mt-2">
+                                        {events.map((e, eIdx) => (
+                                            <span key={eIdx} className={`text-[10px] px-2 py-0.5 rounded border ${e.status === 'SUCCESS' ? 'bg-emerald-950/30 text-emerald-400 border-emerald-900/50' :
+                                                e.status === 'FAILED' ? 'bg-red-950/30 text-red-400 border-red-900/50' :
+                                                    'bg-amber-950/30 text-amber-400 border-amber-900/50'
+                                                }`}>
+                                                {e.type}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {historyEntries.length === 0 && (
+                            <div className="flex flex-col items-center justify-center h-64 text-slate-600 space-y-4">
+                                <Box className="w-16 h-16 opacity-20" />
+                                <p className="font-medium">No activity yet</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* RIGHT: Current Result Display */}
+                <div className="flex-1 relative bg-slate-950 flex flex-col justify-center items-center p-12">
+                    {/* Background Ambient Glow */}
+                    <div className={`absolute inset-0 transition-opacity duration-1000 pointer-events-none ${currentResult || error ? 'opacity-100' : 'opacity-0'}`}>
+                        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full blur-[150px] ${currentHasFailed ? 'bg-red-900/20' : 'bg-sky-900/10'
+                            }`}></div>
+                    </div>
+
+                    {/* Batch Mode Indicator */}
+                    {batchMode.active && (
+                        <div className="absolute top-4 left-4 z-30 flex flex-col gap-2">
+                            <div className={`px-6 py-3 rounded-2xl border-2 font-bold tracking-widest uppercase flex items-center gap-3 shadow-lg backdrop-blur-md ${isBatchComplete
+                                ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
+                                : 'bg-indigo-500/20 border-indigo-500/50 text-indigo-400 animate-pulse'
+                                }`}>
+                                <Box className="w-5 h-5" />
+                                <span>{isBatchComplete ? 'Batch Complete' : 'Batch Active'}</span>
+                            </div>
+                            <div className="px-4 py-2 bg-slate-900/80 rounded-xl border border-slate-700 text-xs font-mono text-slate-400">
+                                {batchMode.ids.length} items remaining
+                            </div>
+                        </div>
+                    )}
+
                     {error ? (
                         <div className="bg-red-500/10 border-8 border-red-500/30 p-24 rounded-[80px] flex flex-col items-center space-y-8 text-red-500 animate-in zoom-in-90 shadow-[0_0_100px_rgba(239,68,68,0.2)]">
-                            <AlertCircle className="w-32 h-32" />
                             <div className="text-7xl font-black uppercase tracking-tighter text-center">{error}</div>
                         </div>
-                    ) : batchMode.active ? (
-                        <div className="flex flex-col items-center space-y-10 animate-in zoom-in-95 duration-200">
-                            <div className={`border-8 p-32 px-48 rounded-[110px] relative flex flex-col items-center transition-all duration-700 ${isBatchComplete ? 'bg-emerald-500/10 border-emerald-500/30 shadow-[0_0_150px_rgba(52,211,153,0.3)]' : 'bg-sky-500/5 border-sky-500/10 shadow-[0_0_150px_rgba(56,189,248,0.2)]'}`}>
-                                <div className={`text-[18rem] leading-none font-black drop-shadow-[0_0_80px_rgba(255,255,255,0.2)] tracking-tighter transition-colors duration-700 ${isBatchComplete ? 'text-emerald-400' : 'text-white'}`}>
-                                    {batchMode.ids.length}
-                                </div>
-                                <div className={`text-4xl font-black uppercase tracking-[0.5em] mt-8 transition-colors duration-700 ${isBatchComplete ? 'text-emerald-400' : 'text-sky-400'}`}>
-                                    {isBatchComplete ? 'Orders Success' : 'Orders Batching'}
-                                </div>
-
-                                <div className={`absolute -top-10 px-12 py-4 rounded-full shadow-2xl flex items-center gap-4 border-4 transition-all duration-700 ${isBatchComplete ? 'bg-emerald-900 border-emerald-400' : 'bg-slate-900 border-sky-400'}`}>
-                                    {isBatchComplete ? <CheckCircle2 className="w-8 h-8 text-emerald-400" /> : <Layers className="w-8 h-8 text-sky-400" />}
-                                    <span className="text-white font-black text-3xl tracking-widest uppercase">
-                                        {isBatchComplete ? 'Batch Completed' : 'Multi-Task Active'}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="flex gap-6">
-                                {selectedEventTypes.map(type => (
-                                    <div key={type} className={`flex items-center gap-4 px-10 py-5 rounded-3xl border shadow-xl transition-all duration-700 ${isBatchComplete ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' : 'bg-slate-800/90 border-white/10 text-slate-300'}`}>
-                                        {isBatchComplete ? <CheckCircle2 className="w-8 h-8" /> : <RefreshCcw className="w-6 h-6 text-sky-400 animate-spin" />}
-                                        <span className="font-black uppercase tracking-[0.2em] text-xl">{type}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
                     ) : currentResult ? (
-                        <div className="flex flex-col items-center space-y-4 animate-in zoom-in-95 duration-150 w-full h-full">
-                            <div className={`${currentHasFailed ? 'bg-red-500/5 border-red-500/20' : 'bg-emerald-500/5 border-emerald-500/10'} border-[4px] p-4 pb-8 rounded-[40px] shadow-[0_0_80px_rgba(52,211,153,0.15)] relative transition-colors duration-500 flex flex-col items-center w-full flex-1`}>
-                                <div className="flex-1 flex flex-col justify-center w-full z-10">
-                                    <div className={`text-[12rem] leading-none font-black text-white drop-shadow-[0_0_70px_rgba(255,255,255,0.3)] tracking-tighter whitespace-nowrap px-10 mt-6 flex justify-center`}>
+                        <div className="relative w-full max-w-4xl z-10 animate-in fade-in zoom-in-50 duration-300">
+                            {/* Floating Status Badge (Order ID) */}
+                            <div className={`absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 border-4 ${currentHasFailed ? 'border-red-500' : 'border-emerald-500/50'} px-10 py-3 rounded-full shadow-2xl transition-colors z-50`}>
+                                <span className="font-black text-3xl tracking-[0.15em] uppercase whitespace-nowrap">
+                                    <span className={currentHasFailed ? 'text-red-500' : 'text-emerald-400'}>{currentResult.orderId.slice(0, -4)}</span>
+                                    <span className="text-yellow-400">{currentResult.orderId.slice(-4)}</span>
+                                </span>
+                            </div>
+
+                            {/* Main Content Card */}
+                            <div className={`relative bg-slate-900/80 backdrop-blur-xl rounded-[2.5rem] border-4 overflow-hidden shadow-2xl transition-all duration-500 flex-1 flex flex-col justify-center ${currentHasFailed ? 'border-red-500 shadow-[0_0_100px_rgba(220,38,38,0.2)]' : 'border-slate-700 hover:border-sky-500/30 shadow-[0_0_80px_rgba(14,165,233,0.1)]'
+                                }`}>
+                                <div className="p-8 text-center flex-1 flex flex-col justify-center min-h-[300px]">
+
+                                    {/* Print Status Badge */}
+                                    {printStatus === 'printing' && (
+                                        <div className="absolute top-6 right-6 flex items-center gap-3 bg-sky-500/20 border border-sky-500/30 px-4 py-2 rounded-full animate-in slide-in-from-top-4 fade-in duration-300 z-40">
+                                            <Printer className="w-4 h-4 text-sky-400 animate-pulse" />
+                                            <span className="text-sky-400 font-bold text-xs tracking-wider uppercase">Printing Sent</span>
+                                        </div>
+                                    )}
+
+                                    {/* Route Configuration Display - Reduced Size */}
+                                    <div className={`text-[10rem] leading-none font-black text-white drop-shadow-[0_0_70px_rgba(255,255,255,0.3)] tracking-tighter whitespace-nowrap px-4 mt-2 flex justify-center`}>
                                         <div className="flex items-center gap-8 justify-center">
                                             <span>{currentResult.route?.routeConfiguration || 'N/A'}</span>
                                         </div>
                                     </div>
 
+                                    {/* Stack Logic Display */}
                                     {currentResult.stackInfo && (
-                                        <div className="mt-4 flex flex-col items-center space-y-4">
-                                            {currentResult.stackInfo.currentCount >= currentResult.stackInfo.capacity && (
-                                                <div className="mt-8 bg-red-600 px-24 py-8 rounded-[3rem] shadow-[0_0_100px_rgba(220,38,38,0.6)] border-8 border-red-500">
-                                                    <span className="text-white font-black text-[10em] leading-none tracking-[0.1em] uppercase drop-shadow-2xl">FULL</span>
+                                        <div className="mt-4 flex flex-col items-center gap-4 animate-in zoom-in-50 duration-500">
+                                            {/* FULL INDICATOR - Static & Compact */}
+                                            {(currentResult.stackInfo.activeValue ?? currentResult.stackInfo.currentCount) >= (currentResult.stackInfo.activeCapacity ?? currentResult.stackInfo.capacity) && (
+                                                <div className="mb-2 bg-red-600 px-16 py-4 rounded-[2rem] shadow-xl border-4 border-red-500 pointer-events-none">
+                                                    <span className="text-white font-black text-[6em] leading-none tracking-[0.1em] uppercase drop-shadow-md">FULL</span>
                                                 </div>
                                             )}
 
                                             <div className="flex items-center gap-6">
-                                                <div className="text-6xl font-black text-sky-400">
+                                                {/* Stack # */}
+                                                <div className="text-5xl font-black text-sky-400">
                                                     #{String(currentResult.stackInfo.stackNumber).padStart(3, '0')}
                                                 </div>
 
-                                                <div className="w-96 h-12 bg-slate-900 rounded-xl border-4 border-slate-700 relative overflow-hidden flex items-center shadow-inner">
+                                                {/* Progress Bar (Linear) */}
+                                                <div className="w-80 h-10 bg-slate-900 rounded-xl border-4 border-slate-700 relative overflow-hidden flex items-center shadow-inner">
                                                     <div
                                                         className="h-full bg-gradient-to-r from-sky-600 to-emerald-500 transition-all duration-500 relative z-10"
-                                                        style={{ width: `${(currentResult.stackInfo.currentCount / currentResult.stackInfo.capacity) * 100}%` }}
+                                                        style={{ width: `${Math.min(((currentResult.stackInfo.activeValue || currentResult.stackInfo.currentCount) / (currentResult.stackInfo.activeCapacity || currentResult.stackInfo.capacity)) * 100, 100)}%` }}
                                                     />
                                                     <div className="absolute inset-0 flex items-center justify-center z-20">
-                                                        <span className="font-black text-xl text-white tracking-widest drop-shadow-md">
-                                                            {currentResult.stackInfo.currentCount} / {currentResult.stackInfo.capacity}
+                                                        <span className="font-black text-lg text-white tracking-widest drop-shadow-md">
+                                                            {currentResult.stackInfo.activeValue ?? currentResult.stackInfo.currentCount} / {currentResult.stackInfo.activeCapacity ?? currentResult.stackInfo.capacity} {currentResult.stackInfo.activeUnit || 'pcs'}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -222,34 +319,21 @@ const OperatorView: React.FC<OperatorViewProps> = ({
                                     )}
                                 </div>
 
-                                <div className={`absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-900 border-3 ${currentHasFailed ? 'border-red-500' : 'border-emerald-500/50'} px-8 py-2 rounded-full shadow-2xl transition-colors`}>
-                                    <span className="font-black text-2xl tracking-[0.15em] uppercase">
-                                        <span className={currentHasFailed ? 'text-red-500' : 'text-emerald-400'}>{currentResult.orderId.slice(0, -4)}</span>
-                                        <span className="text-yellow-400">{currentResult.orderId.slice(-4)}</span>
-                                    </span>
-                                </div>
-
-                                {/* Stack Full Warning */}
+                                {/* Stack Full Warning (Previous Stack) */}
                                 {currentResult.stackInfo?.isNewStack && currentResult.stackInfo.stackNumber > 1 && (
                                     <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-amber-500 text-slate-900 px-8 py-3 rounded-full font-black text-lg uppercase tracking-widest shadow-xl animate-pulse z-20">
                                         ⚠️ Stack #{String(currentResult.stackInfo.stackNumber - 1).padStart(3, '0')} FULL - Now #{String(currentResult.stackInfo.stackNumber).padStart(3, '0')}
                                     </div>
                                 )}
-
-                                {/* Result Card Content */}
-                                <div className="absolute inset-0 flex flex-col w-full h-full pointer-events-none">
-                                    <div className="absolute inset-x-8 top-1/2 -translate-y-1/2 h-full bg-sky-500/20 blur-[80px] rounded-full animate-pulse-slow"></div>
-                                </div>
                             </div>
                         </div>
                     ) : (
-                        <div className="flex flex-col items-center justify-center h-full space-y-6 opacity-20">
-                            <img
-                                src="app_logo_fixed.png"
-                                className="w-80 h-80"
-                                alt="Logo"
-                            />
-                            <div className="text-5xl font-black uppercase tracking-[0.6em] text-slate-800">Awaiting Input</div>
+                        // Default Empty State
+                        <div className="text-center space-y-8 opacity-30 animate-pulse">
+                            <Package className="w-32 h-32 mx-auto text-slate-600" />
+                            <h1 className="text-4xl font-black tracking-widest text-slate-700 uppercase">
+                                Ready to Scan
+                            </h1>
                         </div>
                     )}
                 </div>

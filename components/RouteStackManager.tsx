@@ -128,6 +128,63 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                 routeDisplayName = def.mergeInfo.components.map(c => c.route).join(' & ');
             }
 
+            // Dynamic fields calculation
+            let activeValue = stackOrders.length;
+            let activeCapacity = capacity;
+            let activeUnit = 'pcs';
+            let activeMeasure: 'count' | 'weight' | 'volume' = 'count';
+
+            // Find primary rule to display
+            if (capacityConfig.rules && capacityConfig.rules.length > 0) {
+                const primaryRule = capacityConfig.rules[0];
+                // Find the first rule that is NOT count, to prioritize weight/volume display
+                const configRules = capacityConfig.rules;
+                const displayRule = configRules.find(r => r.type !== 'count') || primaryRule;
+
+                switch (displayRule.type) {
+                    case 'weight':
+                        activeValue = Math.round(stackOrders.reduce((sum, o) => sum + (o.weight || 0), 0) * 100) / 100;
+                        activeCapacity = displayRule.value;
+                        activeUnit = 'lb';
+                        activeMeasure = 'weight';
+                        break;
+                    case 'volume':
+                        activeValue = Math.round(stackOrders.reduce((sum, o) => sum + (o.volume || 0), 0) * 100) / 100;
+                        activeCapacity = displayRule.value;
+                        activeUnit = 'ft³';
+                        activeMeasure = 'volume';
+                        break;
+                    case 'count':
+                    default:
+                        activeValue = stackOrders.length;
+                        activeCapacity = displayRule.value;
+                        activeUnit = 'pcs';
+                        activeMeasure = 'count';
+                        break;
+                }
+            }
+
+            // Calculate Dynamic Overflow State
+            // If activeValue > activeCapacity, IT IS an overflow, regardless of what the stored state says.
+            // But we should also respect the stored "isOverflow" flag (e.g. legacy or manual flag).
+            const isDynamicOverflow = activeValue > activeCapacity;
+
+            // overflowCount usually represents "items to remove". 
+            // If we are over by WEIGHT, strictly speaking, we don't know "how many items" that is.
+            // But for UI display +10 items, we might need a count.
+            // For now, let's update isOverflow logic first. 
+            // We'll keep overflowCount as item count difference as a safe fallback or difference if count-based.
+            // If strict weight overflow, we might want to flag it but maybe leave overflowCount as 0 if not item-based?
+            // Actually MergeStackCard uses overflowCount for display "+X".
+            // Let's settle: overflowCount = items over capacity (legacy) OR activeValue - activeCapacity (if dynamic)?
+            // Given Typescript says "overflowCount: number", technically it can be weight diff.
+            // But UI says "items".
+            // Let's settle on: isOverflow = true. overflowCount = numeric diff.
+            // And we rely on MeredStackCard having been updated to show {activeUnit} instead of "items".
+
+            const effectiveIsOverflow = def.isOverflow || isDynamicOverflow;
+            const effectiveOverflowCount = def.overflowCount || (isDynamicOverflow ? Math.round((activeValue - activeCapacity) * 100) / 100 : Math.max(0, stackOrders.length - capacity));
+
             return {
                 id: def.id,
                 route: routeDisplayName || 'Merged Pool',
@@ -137,34 +194,102 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                 status: def.status,
                 type: def.type,
                 mergeInfo: def.mergeInfo,
-                isOverflow: def.isOverflow,
-                overflowCount: def.overflowCount || Math.max(0, stackOrders.length - capacity),
+                isOverflow: effectiveIsOverflow,
+                overflowCount: effectiveOverflowCount,
                 overflowFromStackId: undefined,
                 importedAt: def.importedAt,
                 sourceNote: def.sourceNote,
-                isFull: stackOrders.length >= capacity
+                isFull: activeValue >= activeCapacity, // Updated to use dynamic measure
+                activeValue,
+                activeCapacity,
+                activeUnit,
+                activeMeasure
             };
         });
 
+        // Create implicit stacks for routes that don't have explicit stack definitions
+        const configRules = capacityConfig.rules || [];
+        // Determine the rule to use for SPLITTING stacks where applicable
+        const splitRule = configRules.find(r => r.enabled !== false && r.type !== 'count') || configRules[0] || { type: 'count', value: capacity };
         const newImplicitStacks: RouteStack[] = [];
+
+        // Helper function to create stack objects
+        const createImplicitStack = (route: string, stackNum: number, orders: ResolvedRouteInfo[]) => {
+            const implicitId = `IMPLICIT-${route}-${stackNum}`;
+
+            // Re-calculate display metrics
+            let activeValue = orders.length;
+            let activeCapacity = capacity;
+            let activeUnit = 'pcs';
+            let activeMeasure: 'count' | 'weight' | 'volume' = 'count';
+
+            const displayRule = configRules.find(r => r.type !== 'count') || configRules[0] || { type: 'count', value: capacity };
+
+            switch (displayRule.type) {
+                case 'weight':
+                    activeValue = Math.round(orders.reduce((sum, o) => sum + (o.weight || 0), 0) * 100) / 100;
+                    activeCapacity = displayRule.value;
+                    activeUnit = 'lb';
+                    activeMeasure = 'weight';
+                    break;
+                case 'volume':
+                    activeValue = Math.round(orders.reduce((sum, o) => sum + (o.volume || 0), 0) * 100) / 100;
+                    activeCapacity = displayRule.value;
+                    activeUnit = 'ft³';
+                    activeMeasure = 'volume';
+                    break;
+                case 'count':
+                default:
+                    activeValue = orders.length;
+                    activeCapacity = displayRule.value;
+                    activeUnit = 'pcs';
+                    activeMeasure = 'count';
+                    break;
+            }
+
+            newImplicitStacks.push({
+                id: implicitId,
+                route: route,
+                stackNumber: stackNum,
+                capacity: capacity,
+                orders: orders,
+                status: 'open',
+                type: 'normal',
+                isOverflow: false,
+                overflowCount: 0,
+                isFull: activeValue >= activeCapacity,
+                activeValue,
+                activeCapacity,
+                activeUnit,
+                activeMeasure
+            });
+        };
+
         routeOrdersMap.forEach((orders, route) => {
             if (!handledRoutes.has(route)) {
-                const stackCount = Math.ceil(orders.length / capacity);
-                for (let i = 0; i < stackCount; i++) {
-                    const stackSlice = orders.slice(i * capacity, (i + 1) * capacity);
-                    const implicitId = `IMPLICIT-${route}-${i + 1}`;
-                    newImplicitStacks.push({
-                        id: implicitId,
-                        route: route,
-                        stackNumber: i + 1,
-                        capacity: capacity,
-                        orders: stackSlice,
-                        status: 'open',
-                        type: 'normal',
-                        isOverflow: false,
-                        overflowCount: 0,
-                        isFull: stackSlice.length >= capacity
-                    });
+                let currentStackOrders: ResolvedRouteInfo[] = [];
+                let currentStackNum = 1;
+                let currentStackValue = 0;
+
+                orders.forEach(order => {
+                    let orderValue = 1;
+                    if (splitRule.type === 'weight') orderValue = order.weight || 0;
+                    else if (splitRule.type === 'volume') orderValue = order.volume || 0;
+
+                    // Check if adding this order would exceed capacity
+                    if (currentStackOrders.length > 0 && (currentStackValue + orderValue > splitRule.value)) {
+                        createImplicitStack(route, currentStackNum, currentStackOrders);
+                        currentStackNum++;
+                        currentStackOrders = [];
+                        currentStackValue = 0;
+                    }
+
+                    currentStackOrders.push(order);
+                    currentStackValue += orderValue;
+                });
+
+                if (currentStackOrders.length > 0) {
+                    createImplicitStack(route, currentStackNum, currentStackOrders);
                 }
             }
         });
@@ -176,7 +301,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
             exceptionPool: exceptions
         };
 
-    }, [history, stackDefs, capacity]);
+    }, [history, stackDefs, capacity, capacityConfig]);
 
     // --- Interaction Handlers ---
 

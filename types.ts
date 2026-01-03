@@ -31,7 +31,7 @@ export interface OrderData {
   notifications?: string;
 }
 
-export type EventType = 'RECEIVE' | 'UNLOAD' | 'SORT' | 'DISPATCH';
+export type EventType = 'RECEIVE' | 'UNLOAD' | 'SORT' | 'DISPATCH' | 'SCAN';
 export type EventStatus = 'PENDING' | 'SUCCESS' | 'FAILED';
 
 export interface OrderEventStatus {
@@ -90,6 +90,11 @@ export interface ResolvedRouteInfo extends OrderData {
     capacity: number;
     isStackFull: boolean;
     isNewStack: boolean;
+    // Dynamic rule tracking
+    activeValue?: number;     // The current value being tracked (count, weight, or volume)
+    activeCapacity?: number;  // The capacity limit for the active rule
+    activeUnit?: string;      // Display unit (e.g., 'pcs', 'lb', 'ft³')
+    activeMeasure?: 'count' | 'weight' | 'volume'; // The measure type determines the rule logic
   };
   // Overflow source tracking - set when order is moved to overflow pool
   overflowSource?: {
@@ -132,6 +137,12 @@ export interface RouteStack {
   route: string;            // Display route name
   stackNumber: number;
   orders: ResolvedRouteInfo[];
+
+  // Dynamic display fields (optional)
+  activeValue?: number;
+  activeCapacity?: number;
+  activeUnit?: string;
+  activeMeasure?: 'count' | 'weight' | 'volume';
 
   capacity: number;
 

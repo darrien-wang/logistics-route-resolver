@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RouteStack } from '../types';
+import { RouteStack, ResolvedRouteInfo } from '../types';
 import { Layers, SplitSquareHorizontal, AlertCircle, Trash2 } from 'lucide-react';
 
 interface MergedStackCardProps {
@@ -22,20 +22,30 @@ const MergedStackCard: React.FC<MergedStackCardProps> = ({
     selected
 }) => {
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-    const totalCount = stack.orders.length;
-    // Assuming effective capacity is still roughly based on standard 40? 
-    // Or sum of components?
-    // Based on user image: "40 / 40 (Overflow: +10)". 
-    // This implies capacity is fixed (e.g. 40) even for merged stack?
-    // Let's use stack.capacity.
-    const capacity = stack.capacity;
-    const overflowCount = stack.overflowCount;
-    const isOverflow = overflowCount > 0;
 
-    // Calculate percentages
-    const rawPercentage = (totalCount / capacity) * 100;
+    // Dynamic Display Logic
+    const activeValue = stack.activeValue ?? stack.orders.length;
+    const activeCapacity = stack.activeCapacity ?? stack.capacity;
+    const activeUnit = stack.activeUnit ?? 'pcs';
+    const activeMeasure = stack.activeMeasure ?? 'count';
+
+    const overflowCount = stack.overflowCount; // This is always an item count in overflow logic usually? 
+    // Wait, if overflow is weight-based, stack.overflowCount might be misleading if it's count-based.
+    // In RouteStackManager, overflowCount is still calculated as orders.length - capacity (count-based legacy).
+    // For now, let's keep overflowCount as is, since spillover logic is item-based.
+    const isOverflow = stack.isOverflow || false;
+
+    // Calculate percentages based on ACTIVE measure
+    const rawPercentage = (activeValue / activeCapacity) * 100;
     const fillPercentage = Math.min(rawPercentage, 100);
     const overflowPercentage = isOverflow ? Math.min(rawPercentage - 100, 100) : 0;
+
+    // Helper to calculate component contribution based on active measure
+    const getComponentValue = (orders: ResolvedRouteInfo[]) => {
+        if (activeMeasure === 'weight') return Math.round(orders.reduce((sum, o) => sum + (o.weight || 0), 0) * 100) / 100;
+        if (activeMeasure === 'volume') return Math.round(orders.reduce((sum, o) => sum + (o.volume || 0), 0) * 100) / 100;
+        return orders.length;
+    };
 
     // Visual stack effect (layered look)
     const renderLayer = (offset: number, opacity: number, zIndex: number) => (
@@ -52,10 +62,8 @@ const MergedStackCard: React.FC<MergedStackCardProps> = ({
 
     const handleContextMenu = (e: React.MouseEvent) => {
         if (onContextMenu) {
-            // Use parent's context menu handler
             onContextMenu(e);
         } else {
-            // Fallback to internal context menu
             e.preventDefault();
             e.stopPropagation();
             setContextMenu({ x: e.clientX, y: e.clientY });
@@ -69,7 +77,7 @@ const MergedStackCard: React.FC<MergedStackCardProps> = ({
 
     return (
         <>
-            {/* Context menu backdrop - only show if using internal context menu */}
+            {/* Context menu backdrop */}
             {!onContextMenu && contextMenu && (
                 <div
                     className="fixed inset-0 z-50"
@@ -77,7 +85,7 @@ const MergedStackCard: React.FC<MergedStackCardProps> = ({
                 />
             )}
 
-            {/* Context menu - only show if using internal context menu */}
+            {/* Context menu */}
             {!onContextMenu && contextMenu && (
                 <div
                     className="fixed z-50 bg-slate-800 border border-white/10 rounded-xl shadow-lg py-1 min-w-[120px]"
@@ -98,7 +106,6 @@ const MergedStackCard: React.FC<MergedStackCardProps> = ({
                 onClick={onClick}
                 onContextMenu={handleContextMenu}
             >
-                {/* Background Layers for Stacked Effect */}
                 {renderLayer(12, 0.3, 0)}
                 {renderLayer(6, 0.6, 1)}
 
@@ -121,11 +128,14 @@ const MergedStackCard: React.FC<MergedStackCardProps> = ({
                                 <Layers className="w-5 h-5 text-sky-400" />
                                 <span className="text-xs font-bold text-sky-400 uppercase tracking-wider">Merged Pool</span>
                             </div>
-                            {/* Source breakdown - use mergeInfo.components for correct stack numbers */}
+
+                            {/* Source breakdown */}
                             {stack.mergeInfo?.components && stack.mergeInfo.components.length > 0 ? (
                                 <div className="mt-2 space-y-1.5">
                                     {stack.mergeInfo.components.map((comp, idx) => {
-                                        const srcPercent = totalCount > 0 ? (comp.orders.length / totalCount) * 100 : 0;
+                                        const compValue = getComponentValue(comp.orders);
+                                        const srcPercent = activeValue > 0 ? (compValue / activeValue) * 100 : 0;
+
                                         return (
                                             <div key={idx} className="flex items-center gap-2">
                                                 <div className="min-w-[70px] text-xs">
@@ -133,7 +143,7 @@ const MergedStackCard: React.FC<MergedStackCardProps> = ({
                                                     <span className="text-slate-600"> #{comp.stackNumber}:</span>
                                                 </div>
                                                 <span className="text-white font-bold text-xs min-w-[50px]">
-                                                    {comp.orders.length} <span className="text-slate-600 font-normal">orders</span>
+                                                    {compValue} <span className="text-slate-600 font-normal">{activeUnit}</span>
                                                 </span>
                                                 <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
                                                     <div
@@ -146,24 +156,23 @@ const MergedStackCard: React.FC<MergedStackCardProps> = ({
                                     })}
                                 </div>
                             ) : (
-                                // Fallback: group by route (for legacy stacks without mergeInfo)
+                                // Fallback for legacy stacks
                                 (() => {
-                                    const sourceBreakdown = new Map<string, { route: string; count: number }>();
+                                    const sourceBreakdown = new Map<string, { route: string; orders: ResolvedRouteInfo[] }>();
                                     stack.orders.forEach(order => {
                                         const route = order.route?.routeConfiguration || 'Unknown';
-                                        const existing = sourceBreakdown.get(route);
-                                        if (existing) {
-                                            existing.count++;
-                                        } else {
-                                            sourceBreakdown.set(route, { route, count: 1 });
+                                        if (!sourceBreakdown.has(route)) {
+                                            sourceBreakdown.set(route, { route, orders: [] });
                                         }
+                                        sourceBreakdown.get(route)!.orders.push(order);
                                     });
                                     const sources = Array.from(sourceBreakdown.values());
 
                                     return (
                                         <div className="mt-2 space-y-1.5">
                                             {sources.map((src, idx) => {
-                                                const srcPercent = totalCount > 0 ? (src.count / totalCount) * 100 : 0;
+                                                const srcValue = getComponentValue(src.orders);
+                                                const srcPercent = activeValue > 0 ? (srcValue / activeValue) * 100 : 0;
                                                 return (
                                                     <div key={idx} className="flex items-center gap-2">
                                                         <div className="min-w-[70px] text-xs">
@@ -171,7 +180,7 @@ const MergedStackCard: React.FC<MergedStackCardProps> = ({
                                                             <span className="text-slate-600"> #1:</span>
                                                         </div>
                                                         <span className="text-white font-bold text-xs min-w-[50px]">
-                                                            {src.count} <span className="text-slate-600 font-normal">orders</span>
+                                                            {srcValue} <span className="text-slate-600 font-normal">{activeUnit}</span>
                                                         </span>
                                                         <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
                                                             <div
@@ -187,8 +196,6 @@ const MergedStackCard: React.FC<MergedStackCardProps> = ({
                                 })()
                             )}
                         </div>
-
-                        {/* Options Menu (Three dots) could go here */}
                     </div>
 
                     {/* Progress Bar Section */}
@@ -200,12 +207,12 @@ const MergedStackCard: React.FC<MergedStackCardProps> = ({
                         </div>
 
                         <div className="relative h-4 bg-slate-950 rounded-full overflow-hidden border border-white/5">
-                            {/* Base Fill - capped at 100% */}
+                            {/* Base Fill */}
                             <div
                                 className="absolute inset-y-0 left-0 bg-gradient-to-r from-sky-600 to-emerald-500 rounded-l-full transition-all duration-500"
                                 style={{ width: `${fillPercentage}%` }}
                             />
-                            {/* Overflow Fill - shown after 100% in red */}
+                            {/* Overflow Fill */}
                             {isOverflow && (
                                 <div
                                     className="absolute inset-y-0 bg-gradient-to-r from-red-600 to-red-500 rounded-r-full transition-all duration-500"
@@ -219,17 +226,17 @@ const MergedStackCard: React.FC<MergedStackCardProps> = ({
 
                         <div className="flex justify-between items-center text-sm font-medium">
                             <span className="text-slate-400">
-                                {totalCount} <span className="text-slate-600">/ {capacity}</span>
+                                {activeValue} <span className="text-slate-600">/ {activeCapacity} {activeUnit}</span>
                             </span>
                             {isOverflow && (
                                 <span className="text-red-400 flex items-center gap-1">
-                                    (Overflow: +{overflowCount})
+                                    (Overflow: +{overflowCount} items)
                                 </span>
                             )}
                         </div>
                     </div>
 
-                    {/* Actions / Badges */}
+                    {/* Actions */}
                     <div className="mt-6 flex flex-col gap-3">
                         {isOverflow ? (
                             <div
@@ -242,13 +249,13 @@ const MergedStackCard: React.FC<MergedStackCardProps> = ({
                                 </div>
                             </div>
                         ) : (
-                            <div className="p-2 border border-transparent" /> /* Spacer */
+                            <div className="p-2 border border-transparent" />
                         )}
 
                         <div className="flex gap-3">
                             <div className="flex-1 bg-slate-950/50 rounded-lg border border-white/5 flex items-center justify-center py-2">
                                 <span className="text-slate-300 font-bold text-sm">
-                                    {totalCount} ORDERS
+                                    {stack.orders.length} ORDERS
                                 </span>
                             </div>
                             <button
