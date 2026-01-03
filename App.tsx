@@ -780,7 +780,7 @@ const App: React.FC = () => {
         </button>
       </div>
 
-      <main className="flex-1 ml-24 p-10 lg:p-14 relative overflow-y-auto">
+      <main className={`flex-1 ml-24 relative ${view === 'operator' ? 'h-screen overflow-hidden p-6' : 'p-10 lg:p-14 overflow-y-auto'}`}>
         {view === 'dashboard' ? (
           <DashboardView
             apiSettings={apiSettings}
