@@ -196,28 +196,31 @@ const OperatorView: React.FC<OperatorViewProps> = ({
 
                                 {/* Stack Number Display */}
                                 {currentResult.stackInfo && (
-                                    <div className="mt-4 flex flex-col items-center space-y-2">
-
-
-
-
+                                    <div className="mt-4 flex flex-col items-center space-y-4">
                                         {currentResult.stackInfo.currentCount >= currentResult.stackInfo.capacity && (
                                             <div className="mt-8 bg-red-600 px-24 py-8 rounded-[3rem] shadow-[0_0_100px_rgba(220,38,38,0.6)] border-8 border-red-500">
                                                 <span className="text-white font-black text-[10em] leading-none tracking-[0.1em] uppercase drop-shadow-2xl">FULL</span>
                                             </div>
                                         )}
-                                        <div className="text-5xl font-black text-sky-400">
-                                            #{String(currentResult.stackInfo.stackNumber).padStart(3, '0')}
 
-                                        </div>
-                                        {/* Capacity Bar */}
-                                        <div className="w-72 bg-slate-800/50 rounded-full h-5 overflow-hidden border-2 border-white/10">
-                                            <div
-                                                className="h-full bg-gradient-to-r from-sky-500 to-emerald-500 transition-all duration-500"
-                                                style={{ width: `${(currentResult.stackInfo.currentCount / currentResult.stackInfo.capacity) * 100}%` }}
-                                            />
-                                        </div>
+                                        <div className="flex items-center gap-6">
+                                            <div className="text-6xl font-black text-sky-400">
+                                                #{String(currentResult.stackInfo.stackNumber).padStart(3, '0')}
+                                            </div>
 
+                                            {/* Enhanced Progress Bar */}
+                                            <div className="w-96 h-12 bg-slate-900 rounded-xl border-4 border-slate-700 relative overflow-hidden flex items-center shadow-inner">
+                                                <div
+                                                    className="h-full bg-gradient-to-r from-sky-600 to-emerald-500 transition-all duration-500 relative z-10"
+                                                    style={{ width: `${(currentResult.stackInfo.currentCount / currentResult.stackInfo.capacity) * 100}%` }}
+                                                />
+                                                <div className="absolute inset-0 flex items-center justify-center z-20">
+                                                    <span className="font-black text-xl text-white tracking-widest drop-shadow-md">
+                                                        {currentResult.stackInfo.currentCount} / {currentResult.stackInfo.capacity}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
 
