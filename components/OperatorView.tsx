@@ -186,43 +186,41 @@ const OperatorView: React.FC<OperatorViewProps> = ({
                     ) : currentResult ? (
                         <div className="flex flex-col items-center space-y-4 animate-in zoom-in-95 duration-150 w-full h-full">
                             <div className={`${currentHasFailed ? 'bg-red-500/5 border-red-500/20' : 'bg-emerald-500/5 border-emerald-500/10'} border-[4px] p-4 pb-8 rounded-[40px] shadow-[0_0_80px_rgba(52,211,153,0.15)] relative transition-colors duration-500 flex flex-col items-center w-full flex-1`}>
-                                <div className={`text-[12rem] leading-none font-black text-white drop-shadow-[0_0_70px_rgba(255,255,255,0.3)] tracking-tighter whitespace-nowrap px-10 mt-6`}>
-                                    <div className="flex items-center gap-8 justify-center">
-                                        <span>{currentResult.route?.routeConfiguration || 'N/A'}</span>
+                                <div className="flex-1 flex flex-col justify-center w-full z-10">
+                                    <div className={`text-[12rem] leading-none font-black text-white drop-shadow-[0_0_70px_rgba(255,255,255,0.3)] tracking-tighter whitespace-nowrap px-10 mt-6 flex justify-center`}>
+                                        <div className="flex items-center gap-8 justify-center">
+                                            <span>{currentResult.route?.routeConfiguration || 'N/A'}</span>
+                                        </div>
                                     </div>
-                                </div>
 
+                                    {currentResult.stackInfo && (
+                                        <div className="mt-4 flex flex-col items-center space-y-4">
+                                            {currentResult.stackInfo.currentCount >= currentResult.stackInfo.capacity && (
+                                                <div className="mt-8 bg-red-600 px-24 py-8 rounded-[3rem] shadow-[0_0_100px_rgba(220,38,38,0.6)] border-8 border-red-500">
+                                                    <span className="text-white font-black text-[10em] leading-none tracking-[0.1em] uppercase drop-shadow-2xl">FULL</span>
+                                                </div>
+                                            )}
 
+                                            <div className="flex items-center gap-6">
+                                                <div className="text-6xl font-black text-sky-400">
+                                                    #{String(currentResult.stackInfo.stackNumber).padStart(3, '0')}
+                                                </div>
 
-                                {/* Stack Number Display */}
-                                {currentResult.stackInfo && (
-                                    <div className="mt-4 flex flex-col items-center space-y-4">
-                                        {currentResult.stackInfo.currentCount >= currentResult.stackInfo.capacity && (
-                                            <div className="mt-8 bg-red-600 px-24 py-8 rounded-[3rem] shadow-[0_0_100px_rgba(220,38,38,0.6)] border-8 border-red-500">
-                                                <span className="text-white font-black text-[10em] leading-none tracking-[0.1em] uppercase drop-shadow-2xl">FULL</span>
-                                            </div>
-                                        )}
-
-                                        <div className="flex items-center gap-6">
-                                            <div className="text-6xl font-black text-sky-400">
-                                                #{String(currentResult.stackInfo.stackNumber).padStart(3, '0')}
-                                            </div>
-
-                                            {/* Enhanced Progress Bar */}
-                                            <div className="w-96 h-12 bg-slate-900 rounded-xl border-4 border-slate-700 relative overflow-hidden flex items-center shadow-inner">
-                                                <div
-                                                    className="h-full bg-gradient-to-r from-sky-600 to-emerald-500 transition-all duration-500 relative z-10"
-                                                    style={{ width: `${(currentResult.stackInfo.currentCount / currentResult.stackInfo.capacity) * 100}%` }}
-                                                />
-                                                <div className="absolute inset-0 flex items-center justify-center z-20">
-                                                    <span className="font-black text-xl text-white tracking-widest drop-shadow-md">
-                                                        {currentResult.stackInfo.currentCount} / {currentResult.stackInfo.capacity}
-                                                    </span>
+                                                <div className="w-96 h-12 bg-slate-900 rounded-xl border-4 border-slate-700 relative overflow-hidden flex items-center shadow-inner">
+                                                    <div
+                                                        className="h-full bg-gradient-to-r from-sky-600 to-emerald-500 transition-all duration-500 relative z-10"
+                                                        style={{ width: `${(currentResult.stackInfo.currentCount / currentResult.stackInfo.capacity) * 100}%` }}
+                                                    />
+                                                    <div className="absolute inset-0 flex items-center justify-center z-20">
+                                                        <span className="font-black text-xl text-white tracking-widest drop-shadow-md">
+                                                            {currentResult.stackInfo.currentCount} / {currentResult.stackInfo.capacity}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
 
                                 <div className={`absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-900 border-3 ${currentHasFailed ? 'border-red-500' : 'border-emerald-500/50'} px-8 py-2 rounded-full shadow-2xl transition-colors`}>
                                     <span className="font-black text-2xl tracking-[0.15em] uppercase">
@@ -239,7 +237,7 @@ const OperatorView: React.FC<OperatorViewProps> = ({
                                 )}
 
                                 {/* Result Card Content */}
-                                <div className="flex-1 relative animate-in zoom-in-95 duration-500 flex flex-col w-full mt-4 mb-2">
+                                <div className="absolute inset-0 flex flex-col w-full h-full pointer-events-none">
                                     <div className="absolute inset-x-8 top-1/2 -translate-y-1/2 h-full bg-sky-500/20 blur-[80px] rounded-full animate-pulse-slow"></div>
                                 </div>
                             </div>
