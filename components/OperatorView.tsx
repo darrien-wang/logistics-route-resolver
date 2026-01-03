@@ -98,24 +98,23 @@ const OperatorView: React.FC<OperatorViewProps> = ({
                                 <div className="flex justify-between items-center mb-4">
                                     <div className="flex items-center gap-3">
                                         <div className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(56,189,248,0.5)] ${(events as OrderEventStatus[]).every(e => e.status === 'SUCCESS') ? 'bg-emerald-400 shadow-emerald-400/50' : 'bg-sky-400'}`}></div>
-                                        <span className="font-mono text-sm text-sky-400 font-black tracking-widest uppercase">{id}</span>
+                                        <span className="font-mono text-base text-sky-400 font-black tracking-widest uppercase">{id}</span>
                                     </div>
                                     <ChevronRight className="w-4 h-4 text-slate-800 group-hover:translate-x-1 transition-transform" />
                                 </div>
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-3">
                                     {(events as OrderEventStatus[]).map((e, idx) => (
-                                        <div key={idx} className="flex flex-col space-y-1">
-                                            <div className={`flex items-center justify-between p-2 rounded-xl border whitespace-nowrap ${e.status === 'SUCCESS' ? 'bg-emerald-500/5 border-emerald-500/10' : e.status === 'FAILED' ? 'bg-red-500/5 border-red-500/10' : 'bg-amber-500/5 border-amber-500/10'}`}>
-                                                <span className="text-[9px] uppercase font-bold text-slate-600 mr-2">{e.type}</span>
-                                                <div className="flex items-center gap-1">
-                                                    <span className={`text-[10px] font-black ${e.status === 'SUCCESS' ? 'text-emerald-400' : e.status === 'FAILED' ? 'text-red-400' : 'text-amber-400'}`}>
+                                        <div key={idx} className="flex flex-col space-y-2">
+                                            <div className="flex items-center gap-2">
+                                                <div className={`px-3 py-1.5 rounded-lg border flex items-center gap-2 ${e.status === 'FAILED' ? 'bg-red-500/10 border-red-500/20' : e.status === 'SUCCESS' ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-slate-800 border-white/10'}`}>
+                                                    <span className="text-xs font-black text-slate-400 tracking-wider uppercase">{e.type}</span>
+                                                    <span className={`text-xs font-black uppercase ${e.status === 'FAILED' ? 'text-red-400' : e.status === 'SUCCESS' ? 'text-emerald-400' : 'text-slate-400'}`}>
                                                         {e.status}
                                                     </span>
-                                                    {e.status === 'PENDING' && <RefreshCcw className="w-3 h-3 text-amber-500 animate-spin" />}
                                                 </div>
                                             </div>
                                             {e.message && (
-                                                <div className={`text-[8px] font-medium px-2 py-0.5 rounded-lg border ${e.status === 'FAILED' ? 'bg-red-500/10 border-red-500/10 text-red-400' : 'bg-emerald-500/10 border-emerald-500/10 text-emerald-400'}`}>
+                                                <div className={`text-[10px] font-bold p-3 rounded-xl border ${e.status === 'FAILED' ? 'bg-red-950/30 border-red-500/20 text-red-400' : 'bg-emerald-950/30 border-emerald-500/20 text-emerald-400'}`}>
                                                     {e.message}
                                                 </div>
                                             )}
