@@ -197,10 +197,19 @@ const OperatorView: React.FC<OperatorViewProps> = ({
                                 {/* Stack Number Display */}
                                 {currentResult.stackInfo && (
                                     <div className="mt-4 flex flex-col items-center space-y-2">
-                                        <div className="text-4xl font-black text-sky-400">
-                                            #{String(currentResult.stackInfo.stackNumber).padStart(3, '0')}
-                                        </div>
 
+
+
+
+                                        {currentResult.stackInfo.currentCount >= currentResult.stackInfo.capacity && (
+                                            <div className="mt-8 bg-red-600 px-24 py-8 rounded-[3rem] shadow-[0_0_100px_rgba(220,38,38,0.6)] border-8 border-red-500">
+                                                <span className="text-white font-black text-[10em] leading-none tracking-[0.1em] uppercase drop-shadow-2xl">FULL</span>
+                                            </div>
+                                        )}
+                                        <div className="text-5xl font-black text-sky-400">
+                                            #{String(currentResult.stackInfo.stackNumber).padStart(3, '0')}
+
+                                        </div>
                                         {/* Capacity Bar */}
                                         <div className="w-72 bg-slate-800/50 rounded-full h-5 overflow-hidden border-2 border-white/10">
                                             <div
@@ -208,9 +217,7 @@ const OperatorView: React.FC<OperatorViewProps> = ({
                                                 style={{ width: `${(currentResult.stackInfo.currentCount / currentResult.stackInfo.capacity) * 100}%` }}
                                             />
                                         </div>
-                                        <div className="text-lg font-bold text-slate-400">
-                                            {currentResult.stackInfo.currentCount} / {currentResult.stackInfo.capacity}
-                                        </div>
+
                                     </div>
                                 )}
 
