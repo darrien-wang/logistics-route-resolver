@@ -185,34 +185,38 @@ const OperatorView: React.FC<OperatorViewProps> = ({
                             </div>
                         </div>
                     ) : currentResult ? (
-                        <div className="flex flex-col items-center space-y-10 animate-in zoom-in-95 duration-150 w-full h-full">
-                            <div className={`${currentHasFailed ? 'bg-red-500/5 border-red-500/20' : 'bg-emerald-500/5 border-emerald-500/10'} border-[10px] p-10 pb-20 rounded-[80px] shadow-[0_0_150px_rgba(52,211,153,0.15)] relative transition-colors duration-500 flex flex-col items-center w-full flex-1`}>
-                                <div className={`text-[12rem] leading-none font-black ${currentHasFailed ? 'text-red-400 opacity-50' : 'text-white'} drop-shadow-[0_0_70px_rgba(255,255,255,0.3)] tracking-tighter whitespace-nowrap px-10 mt-10`}>
-                                    {currentResult.route?.routeConfiguration || 'N/A'}
+                        <div className="flex flex-col items-center space-y-4 animate-in zoom-in-95 duration-150 w-full h-full">
+                            <div className={`${currentHasFailed ? 'bg-red-500/5 border-red-500/20' : 'bg-emerald-500/5 border-emerald-500/10'} border-[4px] p-4 pb-8 rounded-[40px] shadow-[0_0_80px_rgba(52,211,153,0.15)] relative transition-colors duration-500 flex flex-col items-center w-full flex-1`}>
+                                <div className={`text-[12rem] leading-none font-black text-white drop-shadow-[0_0_70px_rgba(255,255,255,0.3)] tracking-tighter whitespace-nowrap px-10 mt-6`}>
+                                    <div className="flex items-center gap-8 justify-center">
+                                        <span>{currentResult.route?.routeConfiguration || 'N/A'}</span>
+                                    </div>
                                 </div>
+
+
 
                                 {/* Stack Number Display */}
                                 {currentResult.stackInfo && (
-                                    <div className="mt-8 flex flex-col items-center space-y-4">
-                                        <div className="text-6xl font-black text-sky-400">
+                                    <div className="mt-4 flex flex-col items-center space-y-2">
+                                        <div className="text-4xl font-black text-sky-400">
                                             #{String(currentResult.stackInfo.stackNumber).padStart(3, '0')}
                                         </div>
 
                                         {/* Capacity Bar */}
-                                        <div className="w-96 bg-slate-800/50 rounded-full h-8 overflow-hidden border-2 border-white/10">
+                                        <div className="w-72 bg-slate-800/50 rounded-full h-5 overflow-hidden border-2 border-white/10">
                                             <div
                                                 className="h-full bg-gradient-to-r from-sky-500 to-emerald-500 transition-all duration-500"
                                                 style={{ width: `${(currentResult.stackInfo.currentCount / currentResult.stackInfo.capacity) * 100}%` }}
                                             />
                                         </div>
-                                        <div className="text-2xl font-bold text-slate-400">
+                                        <div className="text-lg font-bold text-slate-400">
                                             {currentResult.stackInfo.currentCount} / {currentResult.stackInfo.capacity}
                                         </div>
                                     </div>
                                 )}
 
-                                <div className={`absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 border-4 ${currentHasFailed ? 'border-red-500' : 'border-emerald-500/50'} px-12 py-4 rounded-full shadow-2xl transition-colors`}>
-                                    <span className="font-black text-4xl tracking-[0.2em] uppercase">
+                                <div className={`absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-900 border-3 ${currentHasFailed ? 'border-red-500' : 'border-emerald-500/50'} px-8 py-2 rounded-full shadow-2xl transition-colors`}>
+                                    <span className="font-black text-2xl tracking-[0.15em] uppercase">
                                         <span className={currentHasFailed ? 'text-red-500' : 'text-emerald-400'}>{currentResult.orderId.slice(0, -4)}</span>
                                         <span className="text-yellow-400">{currentResult.orderId.slice(-4)}</span>
                                     </span>
@@ -226,43 +230,8 @@ const OperatorView: React.FC<OperatorViewProps> = ({
                                 )}
 
                                 {/* Result Card Content */}
-                                <div className="flex-1 relative animate-in zoom-in-95 duration-500 flex flex-col w-full mt-12 mb-6">
-                                    <div className="absolute inset-x-8 top-1/2 -translate-y-1/2 h-full bg-sky-500/20 blur-[120px] rounded-full animate-pulse-slow"></div>
-
-                                    <div className="relative z-10 bg-slate-900/40 backdrop-blur-md border-4 border-white/5 rounded-[40px] p-10 flex flex-col items-center justify-center text-center shadow-xl flex-1">
-                                        {/* Print Status Badge */}
-                                        {printStatus === 'printing' && (
-                                            <div className="absolute top-6 right-6 flex items-center gap-3 bg-sky-500/20 border border-sky-500/30 px-4 py-2 rounded-full animate-in slide-in-from-top-4 fade-in duration-300">
-                                                <Printer className="w-4 h-4 text-sky-400 animate-pulse" />
-                                                <span className="text-sky-400 font-bold text-xs tracking-wider uppercase">Printing Sent</span>
-                                            </div>
-                                        )}
-
-                                        {currentHasFailed && (
-                                            <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-20">
-                                                <div className="bg-red-600 text-white px-8 py-2 rounded-full font-black text-xl uppercase tracking-widest shadow-xl animate-bounce">
-                                                    Process Failed
-                                                </div>
-                                                {currentEvents.find(e => e.status === 'FAILED')?.message && (
-                                                    <div className="bg-slate-900/95 backdrop-blur-md border border-red-500/50 text-red-400 px-4 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider whitespace-nowrap shadow-2xl">
-                                                        {currentEvents.find(e => e.status === 'FAILED')?.message}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="flex gap-4 mt-8 justify-center">
-                                        {selectedEventTypes.map(type => {
-                                            const status = currentEvents.find(e => e.type === type)?.status;
-                                            return (
-                                                <div key={type} className={`flex items-center gap-3 px-8 py-4 rounded-2xl border transition-all duration-500 ${status === 'SUCCESS' ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400 shadow-[0_0_30px_rgba(52,211,153,0.2)]' : status === 'FAILED' ? 'bg-red-500/10 border-red-500/40 text-red-400' : 'bg-slate-800/60 border-white/5 text-slate-500'}`}>
-                                                    {status === 'SUCCESS' ? <CheckCircle2 className="w-6 h-6" /> : status === 'FAILED' ? <AlertCircle className="w-6 h-6" /> : <RefreshCcw className="w-6 h-6 animate-spin text-amber-500" />}
-                                                    <span className="font-black uppercase tracking-[0.2em] text-lg">{type}</span>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
+                                <div className="flex-1 relative animate-in zoom-in-95 duration-500 flex flex-col w-full mt-4 mb-2">
+                                    <div className="absolute inset-x-8 top-1/2 -translate-y-1/2 h-full bg-sky-500/20 blur-[80px] rounded-full animate-pulse-slow"></div>
                                 </div>
                             </div>
                         </div>

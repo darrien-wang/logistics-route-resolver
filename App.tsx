@@ -39,6 +39,7 @@ import RouteStackManager from './components/RouteStackManager';
 import ApiConfigModal from './components/ApiConfigModal';
 import RulesManagementView from './components/RulesManagementView';
 import DashboardView from './components/DashboardView';
+import OperatorView from './components/OperatorView';
 import UpdateNotification from './components/UpdateNotification';
 import TokenExpiredModal from './components/TokenExpiredModal';
 import { MOCK_ORDERS } from './constants/mockData';
@@ -507,8 +508,8 @@ const App: React.FC = () => {
   }, [view, showApiConfig]);
 
 
-  // Operator View
-  const OperatorView = () => {
+  // Note: Using external OperatorView component from ./components/OperatorView.tsx
+  const OperatorViewInternal = () => { // REMOVE_THIS_FUNCTION
     const currentEvents = currentResult ? operationLog[currentResult.orderId] || [] : [];
     const currentHasFailed = currentEvents.some(e => e.status === 'FAILED');
 
@@ -782,7 +783,25 @@ const App: React.FC = () => {
             onFileUpload={handleFileUpload}
             onClearHistory={clearHistory}
           />
-        ) : view === 'operator' ? <OperatorView /> : view === 'stacks' ? <RouteStackManager history={history} apiSettings={apiSettings} onSettingsChange={setApiSettings} onAddTestData={handleAddTestData} /> : <RulesManagementView dataSource={dataSource} />}
+        ) : view === 'operator' ? (
+          <OperatorView
+            apiSettings={apiSettings}
+            operationLog={operationLog}
+            selectedEventTypes={selectedEventTypes}
+            orderId={orderId}
+            loading={loading}
+            error={error}
+            batchMode={batchMode}
+            isBatchComplete={isBatchComplete}
+            currentResult={currentResult}
+            printStatus={printStatus}
+            exportService={exportService}
+            scannerInputRef={scannerInputRef}
+            onToggleEventType={toggleEventType}
+            onOrderIdChange={setOrderId}
+            onSearch={handleSearch}
+          />
+        ) : view === 'stacks' ? <RouteStackManager history={history} apiSettings={apiSettings} onSettingsChange={setApiSettings} onAddTestData={handleAddTestData} /> : <RulesManagementView dataSource={dataSource} />}
 
         {view === 'operator' && (
           <button
