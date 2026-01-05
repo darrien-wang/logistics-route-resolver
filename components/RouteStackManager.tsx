@@ -75,12 +75,14 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
     const { renderableStacks, exceptionPool } = useMemo(() => {
         const resultStacks: RouteStack[] = [];
         const routeOrdersMap = new Map<string, ResolvedRouteInfo[]>();
+        const allOrdersMap = new Map<string, ResolvedRouteInfo>(); // ID lookup for rehydration
         const exceptions: ResolvedRouteInfo[] = [];
         const processedOrderIds = new Set<string>();
 
         history.forEach(order => {
             if (processedOrderIds.has(order.orderId)) return;
             processedOrderIds.add(order.orderId);
+            allOrdersMap.set(order.orderId, order);
 
             const route = order.route?.routeConfiguration;
             if (route) {
@@ -95,32 +97,22 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
             }
         });
 
-        const handledRoutes = new Set<string>();
+        // Set of Order IDs that are already assigned to an Explicit (Manual/Merged/Overflow) stack
+        const claimedOrderIds = new Set<string>();
 
+        // 1. Process Explicit Stacks (Defined in stackDefs)
         const tempStacks: RouteStack[] = stackDefs.map(def => {
             let stackOrders: ResolvedRouteInfo[] = [];
 
             if (def.manualOrders) {
-                stackOrders = [...def.manualOrders];
-            }
-
-            def.routes.forEach(route => {
-                handledRoutes.add(route);
-                const liveOrders = routeOrdersMap.get(route) || [];
-                const existingIds = new Set(stackOrders.map(o => o.orderId));
-                liveOrders.forEach(o => {
-                    if (!existingIds.has(o.orderId)) {
-                        stackOrders.push(o);
-                    }
-                });
-            });
-
-            // For merged stacks, mark component routes as handled so originals don't show
-            if (def.type === 'merged' && def.mergeInfo?.components) {
-                def.mergeInfo.components.forEach(comp => {
-                    handledRoutes.add(comp.route);
+                // Rehydrate orders from history to ensure we have the latest data
+                stackOrders = def.manualOrders.map(mo => {
+                    return allOrdersMap.get(mo.orderId) || mo; // Use live data if available, else keep manual record
                 });
             }
+
+            // Mark these orders as claimed so they don't form Implicit stacks
+            stackOrders.forEach(o => claimedOrderIds.add(o.orderId));
 
             // Derive route display name - for merged stacks use mergeInfo
             let routeDisplayName = def.routes.join(' & ');
@@ -137,7 +129,6 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
             // Find primary rule to display
             if (capacityConfig.rules && capacityConfig.rules.length > 0) {
                 const primaryRule = capacityConfig.rules[0];
-                // Find the first rule that is NOT count, to prioritize weight/volume display
                 const configRules = capacityConfig.rules;
                 const displayRule = configRules.find(r => r.type !== 'count') || primaryRule;
 
@@ -164,31 +155,14 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                 }
             }
 
-            // Calculate Dynamic Overflow State
-            // If activeValue > activeCapacity, IT IS an overflow, regardless of what the stored state says.
-            // But we should also respect the stored "isOverflow" flag (e.g. legacy or manual flag).
             const isDynamicOverflow = activeValue > activeCapacity;
-
-            // overflowCount usually represents "items to remove". 
-            // If we are over by WEIGHT, strictly speaking, we don't know "how many items" that is.
-            // But for UI display +10 items, we might need a count.
-            // For now, let's update isOverflow logic first. 
-            // We'll keep overflowCount as item count difference as a safe fallback or difference if count-based.
-            // If strict weight overflow, we might want to flag it but maybe leave overflowCount as 0 if not item-based?
-            // Actually MergeStackCard uses overflowCount for display "+X".
-            // Let's settle: overflowCount = items over capacity (legacy) OR activeValue - activeCapacity (if dynamic)?
-            // Given Typescript says "overflowCount: number", technically it can be weight diff.
-            // But UI says "items".
-            // Let's settle on: isOverflow = true. overflowCount = numeric diff.
-            // And we rely on MeredStackCard having been updated to show {activeUnit} instead of "items".
-
             const effectiveIsOverflow = def.isOverflow || isDynamicOverflow;
             const effectiveOverflowCount = def.overflowCount || (isDynamicOverflow ? Math.round((activeValue - activeCapacity) * 100) / 100 : Math.max(0, stackOrders.length - capacity));
 
             return {
                 id: def.id,
                 route: routeDisplayName || 'Merged Pool',
-                stackNumber: 1,
+                stackNumber: 1, // Explicit stacks default to 1 as they are unique containers
                 capacity: capacity,
                 orders: stackOrders,
                 status: def.status,
@@ -199,7 +173,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                 overflowFromStackId: undefined,
                 importedAt: def.importedAt,
                 sourceNote: def.sourceNote,
-                isFull: activeValue >= activeCapacity, // Updated to use dynamic measure
+                isFull: activeValue >= activeCapacity,
                 activeValue,
                 activeCapacity,
                 activeUnit,
@@ -207,13 +181,11 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
             };
         });
 
-        // Create implicit stacks for routes that don't have explicit stack definitions
+        // 2. Create IMPLICIT stacks for any orders NOT CLAIMED by explicit stacks
         const configRules = capacityConfig.rules || [];
-        // Determine the rule to use for SPLITTING stacks where applicable
         const splitRule = configRules.find(r => r.enabled !== false && r.type !== 'count') || configRules[0] || { type: 'count', value: capacity };
         const newImplicitStacks: RouteStack[] = [];
 
-        // Helper function to create stack objects
         const createImplicitStack = (route: string, stackNum: number, orders: ResolvedRouteInfo[]) => {
             const implicitId = `IMPLICIT-${route}-${stackNum}`;
 
@@ -266,12 +238,15 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
         };
 
         routeOrdersMap.forEach((orders, route) => {
-            if (!handledRoutes.has(route)) {
+            // Filter out orders that are already in explicit stacks
+            const unclaimedOrders = orders.filter(o => !claimedOrderIds.has(o.orderId));
+
+            if (unclaimedOrders.length > 0) {
                 let currentStackOrders: ResolvedRouteInfo[] = [];
                 let currentStackNum = 1;
                 let currentStackValue = 0;
 
-                orders.forEach(order => {
+                unclaimedOrders.forEach(order => {
                     let orderValue = 1;
                     if (splitRule.type === 'weight') orderValue = order.weight || 0;
                     else if (splitRule.type === 'volume') orderValue = order.volume || 0;
