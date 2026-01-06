@@ -37,4 +37,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
         }
     },
     printImage: (imageDataUrl: string, options?: any) => ipcRenderer.invoke('print-image', imageDataUrl, options),
+    printGDI: (data: { type: 'standard' | 'exception'; routeName?: string; stackNumber?: number; trackingNumber?: string; orderId?: string }) =>
+        ipcRenderer.invoke('print-gdi', data),
 })

@@ -269,7 +269,7 @@ const App: React.FC = () => {
               if (apiSettings.autoPrintLabelEnabled) {
                 console.log(`[Perf] Queueing print (${(performance.now() - t0).toFixed(0)}ms)`);
                 setPrintStatus('printing');
-                labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber);
+                labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber, uppercaseId);
                 // Reset status after a short delay to simulate completion (or use event if we had one)
                 setTimeout(() => setPrintStatus('idle'), 2000);
               }
@@ -334,7 +334,7 @@ const App: React.FC = () => {
 
               // Auto-print label on every scan (not just new stacks)
               if (apiSettings.autoPrintLabelEnabled) {
-                labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber);
+                labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber, uppercaseId);
               }
             } else {
               // EXCEPTION: No route found
@@ -391,7 +391,7 @@ const App: React.FC = () => {
 
             // Auto-print label on every scan (not just new stacks)
             if (apiSettings.autoPrintLabelEnabled) {
-              labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber);
+              labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber, targetId);
             }
           } else {
             // EXCEPTION
@@ -463,7 +463,7 @@ const App: React.FC = () => {
 
             // Auto-print label on every scan (not just new stacks)
             if (apiSettings.autoPrintLabelEnabled) {
-              labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber);
+              labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber, targetId);
             }
           } else {
             // EXCEPTION

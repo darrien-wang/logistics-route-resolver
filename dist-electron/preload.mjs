@@ -32,5 +32,6 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
       return () => electron.ipcRenderer.removeListener("update-status", handler);
     }
   },
-  printImage: (imageDataUrl, options) => electron.ipcRenderer.invoke("print-image", imageDataUrl, options)
+  printImage: (imageDataUrl, options) => electron.ipcRenderer.invoke("print-image", imageDataUrl, options),
+  printGDI: (data) => electron.ipcRenderer.invoke("print-gdi", data)
 });

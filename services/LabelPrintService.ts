@@ -5,14 +5,27 @@
  * to prevent blocking the scanning workflow.
  */
 
+export interface PrintJobPerf {
+    tEnqueue: number;
+    tDequeue?: number;
+    tGenStart?: number;
+    tGenEnd?: number;
+    tSendStart?: number;
+    tSendEnd?: number;
+    tDone?: number;
+    path?: 'GDI' | 'CANVAS' | 'IFRAME';
+}
+
 export interface PrintJob {
     id: string;
     type: 'standard' | 'exception';
     baseRouteName?: string;
     stackNumber?: number;
+    trackingNumber?: string;
     orderId?: string;
     status: 'pending' | 'printing' | 'done' | 'failed';
     timestamp: number;
+    perf?: PrintJobPerf;
 }
 
 class LabelPrintService {
@@ -21,6 +34,19 @@ class LabelPrintService {
     private enabled: boolean = false;
     private jobIdCounter: number = 0;
     private imageCache: Map<string, string> = new Map();
+    private exceptionCache: Map<string, string> = new Map(); // Cache for exception labels
+    private readonly maxCacheSize = 100; // LRU limit to prevent memory bloat
+
+    /**
+     * LRU-style cache setter - removes oldest entry if at capacity
+     */
+    private setCache(cache: Map<string, string>, key: string, value: string): void {
+        if (cache.size >= this.maxCacheSize) {
+            const oldestKey = cache.keys().next().value;
+            if (oldestKey) cache.delete(oldestKey);
+        }
+        cache.set(key, value);
+    }
 
     /**
      * Generate standard label image (10cm x 15cm at 300 DPI)
@@ -120,7 +146,7 @@ class LabelPrintService {
 
         // Return data URL instead of auto-downloading
         const dataUrl = canvas.toDataURL('image/png');
-        this.imageCache.set(fullCacheKey, dataUrl);
+        this.setCache(this.imageCache, fullCacheKey, dataUrl);
         return dataUrl;
     }
 
@@ -128,6 +154,15 @@ class LabelPrintService {
      * Generate exception label image
      */
     generateExceptionLabelImage(orderId: string): string {
+        // Cache exception labels by date + orderId
+        const today = new Date();
+        const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        const cacheKey = `exception-${orderId}-${dateStr}`;
+
+        if (this.exceptionCache.has(cacheKey)) {
+            return this.exceptionCache.get(cacheKey)!;
+        }
+
         const canvas = document.createElement('canvas');
         const width = 1181;
         const height = 1772;
@@ -142,9 +177,7 @@ class LabelPrintService {
         const rightStart = leftWidth + 60;
         const rightWidth = width - rightStart - 40;
 
-        // DATE
-        const today = new Date();
-        const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        // DATE - reuse dateStr from cache key
         ctx.fillStyle = '#666666';
         ctx.font = '56px Arial';
         ctx.textAlign = 'right';
@@ -195,22 +228,27 @@ class LabelPrintService {
         ctx.fillStyle = '#999999';
         ctx.fillText('NOTES', rightStart + rightWidth / 2, height - 50);
 
-        return canvas.toDataURL('image/png');
+        const dataUrl = canvas.toDataURL('image/png');
+        this.setCache(this.exceptionCache, cacheKey, dataUrl);
+        return dataUrl;
     }
 
 
 
-    queuePrint(baseRouteName: string, stackNumber: number): string | null {
+    queuePrint(baseRouteName: string, stackNumber: number, trackingNumber?: string): string | null {
         if (!this.enabled) return null;
 
+        const now = performance.now();
         const jobId = `print-${++this.jobIdCounter}-${Date.now()}`;
         const job: PrintJob = {
             id: jobId,
             type: 'standard',
             baseRouteName,
             stackNumber,
+            trackingNumber,
             status: 'pending',
             timestamp: Date.now(),
+            perf: { tEnqueue: now },
         };
 
         this.printQueue.push(job);
@@ -222,6 +260,7 @@ class LabelPrintService {
     queueExceptionPrint(orderId: string): string | null {
         if (!this.enabled) return null;
 
+        const now = performance.now();
         const jobId = `print-ex-${++this.jobIdCounter}-${Date.now()}`;
         const job: PrintJob = {
             id: jobId,
@@ -229,6 +268,7 @@ class LabelPrintService {
             orderId,
             status: 'pending',
             timestamp: Date.now(),
+            perf: { tEnqueue: now },
         };
 
         this.printQueue.push(job);
@@ -249,14 +289,22 @@ class LabelPrintService {
         while (this.printQueue.length > 0) {
             const job = this.printQueue.shift()!;
             job.status = 'printing';
-            const queueWait = Date.now() - job.timestamp;
-            console.log(`[Perf] Queue wait time: ${queueWait}ms`);
+            job.perf ??= { tEnqueue: performance.now() };
+            job.perf.tDequeue = performance.now();
+
+            const queueWaitMs = (job.perf.tDequeue - job.perf.tEnqueue).toFixed(0);
+            console.log(`[PrintPerf] ${job.id} queueWait=${queueWaitMs}ms`);
 
             try {
                 await this.executePrint(job);
                 job.status = 'done';
-            } catch {
+            } catch (e) {
                 job.status = 'failed';
+                console.warn(`[PrintPerf] ${job.id} failed`, e);
+            } finally {
+                job.perf.tDone = performance.now();
+                const totalMs = (job.perf.tDone - job.perf.tEnqueue).toFixed(0);
+                console.log(`[PrintPerf] ${job.id} total=${totalMs}ms path=${job.perf.path || 'UNKNOWN'}`);
             }
         }
 
@@ -264,34 +312,71 @@ class LabelPrintService {
     }
 
     /**
-     * Execute silent print using Electron API
+     * Execute silent print using GDI via Electron API
+     * Falls back to canvas-based printing if GDI is not available
      */
     private async executePrint(job: PrintJob): Promise<void> {
+        const electronAPI = typeof window !== 'undefined' && (window as any).electronAPI;
+        job.perf ??= { tEnqueue: performance.now() };
+
+        // Try GDI printing first (preferred for Windows)
+        if (electronAPI?.printGDI) {
+            job.perf.path = 'GDI';
+            const tStart = performance.now();
+            try {
+                if (job.type === 'exception' && job.orderId) {
+                    await electronAPI.printGDI({
+                        type: 'exception',
+                        orderId: job.orderId
+                    });
+                } else if (job.type === 'standard' && job.baseRouteName && job.stackNumber) {
+                    await electronAPI.printGDI({
+                        type: 'standard',
+                        routeName: job.baseRouteName,
+                        stackNumber: job.stackNumber,
+                        trackingNumber: job.trackingNumber || ''
+                    });
+                }
+                console.log(`[PrintPerf] ${job.id} gdiCall=${(performance.now() - tStart).toFixed(0)}ms`);
+                return;
+            } catch (error) {
+                console.warn('[Print] GDI print failed, falling back to canvas method:', error);
+            }
+        }
+
+        // Fallback to canvas-based image printing
+        job.perf.path = 'CANVAS';
+        job.perf.tGenStart = performance.now();
+
         return new Promise((resolve, reject) => {
             try {
                 let dataUrl: string;
                 if (job.type === 'exception' && job.orderId) {
                     dataUrl = this.generateExceptionLabelImage(job.orderId);
-                } else if ((!job.type || job.type === 'standard') && job.baseRouteName && job.stackNumber) {
+                } else if (job.type === 'standard' && job.baseRouteName && job.stackNumber) {
                     dataUrl = this.generateLabelImage(job.baseRouteName, job.stackNumber);
                 } else {
                     resolve(); return; // Invalid job, skip
                 }
 
-                const electronAPI = typeof window !== 'undefined' && (window as any).electronAPI;
+                job.perf!.tGenEnd = performance.now();
+                console.log(`[PrintPerf] ${job.id} gen=${(job.perf!.tGenEnd - job.perf!.tGenStart!).toFixed(0)}ms dataUrlLen=${dataUrl.length}`);
+
                 const electronImpl = electronAPI || (window as any).electron;
 
                 if (electronImpl?.printImage || electronImpl?.printBase64) {
                     const printFn = electronImpl.printImage || electronImpl.printBase64;
-                    const tStart = performance.now();
+                    job.perf!.tSendStart = performance.now();
                     printFn(dataUrl, { silent: true })
                         .then(() => {
-                            console.log(`[Perf] Electron IPC + Print time (${(performance.now() - tStart).toFixed(0)}ms)`);
+                            job.perf!.tSendEnd = performance.now();
+                            console.log(`[PrintPerf] ${job.id} send=${(job.perf!.tSendEnd - job.perf!.tSendStart!).toFixed(0)}ms`);
                             resolve();
                         })
                         .catch((error: Error) => reject(error));
                 } else {
-                    // Fallback to browser print dialog (not truly silent)
+                    // Fallback to browser print dialog
+                    job.perf!.path = 'IFRAME';
                     const iframe = document.createElement('iframe');
                     iframe.style.display = 'none';
                     document.body.appendChild(iframe);
@@ -325,12 +410,9 @@ class LabelPrintService {
           `);
                     iframeDoc.close();
 
-                    // Wait for image to load, then print
                     iframe.contentWindow?.focus();
                     setTimeout(() => {
                         iframe.contentWindow?.print();
-
-                        // Clean up iframe after print dialog
                         setTimeout(() => {
                             document.body.removeChild(iframe);
                             resolve();

@@ -1,6 +1,9 @@
 import require$$1$4, { ipcMain, app, BrowserWindow, session } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { exec } from "node:child_process";
+import { writeFileSync, unlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
 import require$$1 from "fs";
 import require$$0 from "constants";
 import require$$0$1 from "stream";
@@ -2224,7 +2227,7 @@ function requireJsonfile$1() {
     await universalify2.fromCallback(fs2.writeFile)(file2, str2, options);
   }
   const writeFile = universalify2.fromPromise(_writeFile);
-  function writeFileSync(file2, obj, options = {}) {
+  function writeFileSync2(file2, obj, options = {}) {
     const fs2 = options.fs || _fs;
     const str2 = stringify(obj, options);
     return fs2.writeFileSync(file2, str2, options);
@@ -2233,7 +2236,7 @@ function requireJsonfile$1() {
     readFile,
     readFileSync,
     writeFile,
-    writeFileSync
+    writeFileSync: writeFileSync2
   };
   return jsonfile$1;
 }
@@ -14970,6 +14973,193 @@ ipcMain.handle("print-image", async (_event, imageDataUrl, options = {}) => {
     throw error2;
   }
 });
+ipcMain.handle("print-gdi", async (_event, data) => {
+  return new Promise((resolve, reject) => {
+    const today = /* @__PURE__ */ new Date();
+    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    let psScript;
+    if (data.type === "exception") {
+      psScript = generateExceptionLabelScript(dateStr, data.orderId || "UNKNOWN");
+    } else {
+      psScript = generateStandardLabelScript(
+        dateStr,
+        data.routeName || "N/A",
+        data.stackNumber || 0,
+        data.trackingNumber || ""
+      );
+    }
+    const tempFile = path.join(tmpdir(), `gdi_print_${Date.now()}.ps1`);
+    try {
+      writeFileSync(tempFile, psScript, "utf-8");
+      exec(`powershell -ExecutionPolicy Bypass -File "${tempFile}"`, (error2, stdout, stderr) => {
+        try {
+          unlinkSync(tempFile);
+        } catch {
+        }
+        if (stdout.includes("PRINT_SUCCESS")) {
+          resolve({ success: true });
+        } else {
+          reject(new Error(stderr || (error2 == null ? void 0 : error2.message) || "GDI Print failed"));
+        }
+      });
+    } catch (error2) {
+      reject(error2);
+    }
+  });
+});
+function generateStandardLabelScript(dateStr, routeName, stackNumber, trackingNumber) {
+  const trackingPrefix = trackingNumber.slice(0, -4);
+  const trackingLast4 = trackingNumber.slice(-4);
+  return `
+Add-Type -AssemblyName System.Drawing
+
+$doc = New-Object System.Drawing.Printing.PrintDocument
+
+$doc.add_PrintPage({
+    param($sender, $e)
+    $g = $e.Graphics
+    
+    # Page dimensions (10cm x 15cm at ~100 DPI for screen coords)
+    $pageWidth = 394
+    $pageHeight = 591
+    $leftSection = $pageWidth * 0.55
+    $rightStart = $leftSection + 20
+    $rightWidth = $pageWidth - $rightStart - 15
+    
+    # Fonts
+    $fontDate = New-Object System.Drawing.Font("Arial", 14)
+    $fontRouteSmall = New-Object System.Drawing.Font("Arial", 36, [System.Drawing.FontStyle]::Bold)
+    $fontRouteLarge = New-Object System.Drawing.Font("Arial", 52, [System.Drawing.FontStyle]::Bold)
+    $fontTrackingNormal = New-Object System.Drawing.Font("Arial", 14)
+    $fontTrackingBold = New-Object System.Drawing.Font("Arial", 18, [System.Drawing.FontStyle]::Bold)
+    $fontStack = New-Object System.Drawing.Font("Arial", 80, [System.Drawing.FontStyle]::Bold)
+    $fontNotes = New-Object System.Drawing.Font("Arial", 10)
+    
+    $brushBlack = [System.Drawing.Brushes]::Black
+    $brushGray = [System.Drawing.Brushes]::Gray
+    
+    # 1. Date (top-right)
+    $dateSize = $g.MeasureString("${dateStr}", $fontDate)
+    $g.DrawString("${dateStr}", $fontDate, $brushGray, ($pageWidth - $dateSize.Width - 15), 8)
+    
+    # 2. Route Name (centered in top half)
+    $routeFont = $fontRouteLarge
+    $routeSize = $g.MeasureString("${routeName}", $routeFont)
+    if ($routeSize.Width -gt ($leftSection - 30)) {
+        $routeFont = $fontRouteSmall
+        $routeSize = $g.MeasureString("${routeName}", $routeFont)
+    }
+    $routeX = ($leftSection - $routeSize.Width) / 2
+    $routeY = ($pageHeight * 0.25) - ($routeSize.Height / 2)
+    $g.DrawString("${routeName}", $routeFont, $brushBlack, $routeX, $routeY)
+    
+    # 3. Tracking Number (above divider line)
+    $trackingY = ($pageHeight * 0.5) - 35
+    $prefixSize = $g.MeasureString("${trackingPrefix}", $fontTrackingNormal)
+    $last4Size = $g.MeasureString("${trackingLast4}", $fontTrackingBold)
+    $totalWidth = $prefixSize.Width + $last4Size.Width
+    $trackingX = ($leftSection - $totalWidth) / 2
+    
+    # Draw prefix (normal)
+    $g.DrawString("${trackingPrefix}", $fontTrackingNormal, $brushGray, $trackingX, $trackingY)
+    # Draw last 4 (bold, larger)
+    $g.DrawString("${trackingLast4}", $fontTrackingBold, $brushBlack, ($trackingX + $prefixSize.Width), ($trackingY - 2))
+    
+    # 4. Divider line (full width)
+    $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::Black, 2)
+    $g.DrawLine($pen, 8, ($pageHeight * 0.5), ($pageWidth - 8), ($pageHeight * 0.5))
+    
+    # 5. Stack Number (centered in bottom half)
+    $stackText = "${stackNumber}"
+    $stackSize = $g.MeasureString($stackText, $fontStack)
+    $stackX = ($leftSection - $stackSize.Width) / 2
+    $stackY = ($pageHeight * 0.75) - ($stackSize.Height / 2)
+    $g.DrawString($stackText, $fontStack, $brushBlack, $stackX, $stackY)
+    
+    # 6. Notes box (dashed rectangle, bottom-right section)
+    $notesBoxTop = ($pageHeight * 0.5) + 15
+    $notesBoxHeight = ($pageHeight * 0.5) - 50
+    $dashPen = New-Object System.Drawing.Pen([System.Drawing.Color]::Gray, 1)
+    $dashPen.DashStyle = [System.Drawing.Drawing2D.DashStyle]::Dash
+    $g.DrawRectangle($dashPen, $rightStart, $notesBoxTop, $rightWidth, $notesBoxHeight)
+    
+    # 7. "NOTES" label
+    $notesLabelSize = $g.MeasureString("NOTES", $fontNotes)
+    $g.DrawString("NOTES", $fontNotes, $brushGray, ($rightStart + ($rightWidth - $notesLabelSize.Width) / 2), ($pageHeight - 20))
+    
+    $e.HasMorePages = $false
+})
+
+$doc.Print()
+Write-Host "PRINT_SUCCESS"
+`;
+}
+function generateExceptionLabelScript(dateStr, orderId) {
+  return `
+Add-Type -AssemblyName System.Drawing
+
+$doc = New-Object System.Drawing.Printing.PrintDocument
+
+$doc.add_PrintPage({
+    param($sender, $e)
+    $g = $e.Graphics
+    
+    $pageWidth = 394
+    $pageHeight = 591
+    $leftSection = $pageWidth * 0.55
+    $rightStart = $leftSection + 20
+    $rightWidth = $pageWidth - $rightStart - 15
+    
+    $fontDate = New-Object System.Drawing.Font("Arial", 14)
+    $fontException = New-Object System.Drawing.Font("Arial", 22, [System.Drawing.FontStyle]::Bold)
+    $fontOrderId = New-Object System.Drawing.Font("Arial", 24, [System.Drawing.FontStyle]::Bold)
+    $fontNoRoute = New-Object System.Drawing.Font("Arial", 32, [System.Drawing.FontStyle]::Bold)
+    $fontNotes = New-Object System.Drawing.Font("Arial", 10)
+    
+    $brushBlack = [System.Drawing.Brushes]::Black
+    $brushGray = [System.Drawing.Brushes]::Gray
+    $brushRed = [System.Drawing.Brushes]::DarkRed
+    
+    # Date
+    $dateSize = $g.MeasureString("${dateStr}", $fontDate)
+    $g.DrawString("${dateStr}", $fontDate, $brushGray, ($pageWidth - $dateSize.Width - 15), 8)
+    
+    # "EXCEPTION" label
+    $excSize = $g.MeasureString("EXCEPTION", $fontException)
+    $g.DrawString("EXCEPTION", $fontException, $brushRed, (($leftSection - $excSize.Width) / 2), ($pageHeight * 0.12))
+    
+    # Order ID
+    $orderSize = $g.MeasureString("${orderId}", $fontOrderId)
+    $orderX = ($leftSection - $orderSize.Width) / 2
+    if ($orderX -lt 5) { $orderX = 5 }
+    $g.DrawString("${orderId}", $fontOrderId, $brushBlack, $orderX, ($pageHeight * 0.32))
+    
+    # Divider
+    $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::Black, 2)
+    $g.DrawLine($pen, 8, ($pageHeight * 0.5), ($pageWidth - 8), ($pageHeight * 0.5))
+    
+    # "NO ROUTE"
+    $noRouteSize = $g.MeasureString("NO ROUTE", $fontNoRoute)
+    $g.DrawString("NO ROUTE", $fontNoRoute, $brushGray, (($leftSection - $noRouteSize.Width) / 2), ($pageHeight * 0.68))
+    
+    # Notes box
+    $notesBoxTop = ($pageHeight * 0.5) + 15
+    $notesBoxHeight = ($pageHeight * 0.5) - 50
+    $dashPen = New-Object System.Drawing.Pen([System.Drawing.Color]::Gray, 1)
+    $dashPen.DashStyle = [System.Drawing.Drawing2D.DashStyle]::Dash
+    $g.DrawRectangle($dashPen, $rightStart, $notesBoxTop, $rightWidth, $notesBoxHeight)
+    
+    # "NOTES" label
+    $notesLabelSize = $g.MeasureString("NOTES", $fontNotes)
+    $g.DrawString("NOTES", $fontNotes, $brushGray, ($rightStart + ($rightWidth - $notesLabelSize.Width) / 2), ($pageHeight - 20))
+    
+    $e.HasMorePages = $false
+})
+
+$doc.Print()
+Write-Host "PRINT_SUCCESS"
+`;
+}
 app.whenReady().then(() => {
   createWindow();
   if (app.isPackaged && win) {
