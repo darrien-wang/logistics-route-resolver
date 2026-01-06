@@ -37,7 +37,7 @@ export class ExcelExportService implements IExportService {
    */
   async exportActivityLog(log: Record<string, OrderEventStatus[]>): Promise<void> {
     // Flatten log to array
-    const rows: { orderId: string; type: string; status: string; timestamp: number }[] = [];
+    const rows: { orderId: string; type: string; status: string; timestamp: string }[] = [];
     Object.entries(log).forEach(([orderId, events]) => {
       events.forEach(event => {
         rows.push({

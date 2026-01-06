@@ -79,7 +79,7 @@ export const exceptionColumns: ColumnConfig<ResolvedRouteInfo>[] = [
 /**
  * Activity log export columns
  */
-export const activityLogColumns: ColumnConfig<{ orderId: string; type: string; status: string; timestamp: number }>[] = [
+export const activityLogColumns: ColumnConfig<{ orderId: string; type: string; status: string; timestamp: string }>[] = [
     { header: 'Order ID', field: 'orderId', formatter: 'string' },
     { header: 'Event Type', field: 'type', formatter: 'string' },
     { header: 'Status', field: 'status', formatter: 'string' },

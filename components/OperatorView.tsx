@@ -86,8 +86,8 @@ const OperatorView: React.FC<OperatorViewProps> = ({
     // Flatten history for display (reverse chronological)
     const historyEntries = Object.entries(operationLog).reverse().map(([id, events]) => ({
         id,
-        events,
-        timestamp: events[0]?.timestamp // Use first event for timestamp
+        events: events as OrderEventStatus[],
+        timestamp: (events as OrderEventStatus[])[0]?.timestamp // Use first event for timestamp
     }));
 
     const currentHasFailed = currentResult?.operationStatus === 'fail' || currentResult?.operationStatus === 'error' || error !== null;

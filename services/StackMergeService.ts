@@ -70,6 +70,7 @@ class StackMergeService {
         const primaryComponent: MergedStackComponent = {
             stackId: primary.id,
             route: primary.route,
+            stackNumber: primary.stackNumber,
             orders: [...primary.orders],
             overflowCount: primary.overflowCount
         };
@@ -77,6 +78,7 @@ class StackMergeService {
         const secondaryComponent: MergedStackComponent = {
             stackId: secondary.id,
             route: secondary.route,
+            stackNumber: secondary.stackNumber,
             orders: [...secondary.orders],
             overflowCount: secondary.overflowCount
         };
@@ -102,7 +104,6 @@ class StackMergeService {
                 components: components,
                 mergedAt: new Date().toISOString()
             },
-            isImported: primary.isImported || secondary.isImported,
             importedAt: primary.importedAt || secondary.importedAt,
             overflowFromStackId: undefined
         };

@@ -148,8 +148,8 @@ const RouteStackCard: React.FC<RouteStackCardProps> = ({ stack, onClick, onConte
         const imageData = generateLabelImage(stack.route, stack.stackNumber);
 
         // Use Electron IPC to print
-        if (window.electron?.printBase64) {
-            window.electron.printBase64(imageData, printer);
+        if ((window as any).electron?.printBase64) {
+            (window as any).electron.printBase64(imageData, printer);
         } else {
             // Fallback for web mode
             const link = document.createElement('a');
