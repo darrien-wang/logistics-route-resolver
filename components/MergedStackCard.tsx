@@ -10,6 +10,7 @@ interface MergedStackCardProps {
     onResolveOverflow: (e: React.MouseEvent) => void;
     onDelete?: () => void;
     selected?: boolean;
+    hasOverflow?: boolean; // True if this stack already has an associated overflow pool
 }
 
 const MergedStackCard: React.FC<MergedStackCardProps> = ({
@@ -19,7 +20,8 @@ const MergedStackCard: React.FC<MergedStackCardProps> = ({
     onSplit,
     onResolveOverflow,
     onDelete,
-    selected
+    selected,
+    hasOverflow
 }) => {
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
@@ -258,13 +260,20 @@ const MergedStackCard: React.FC<MergedStackCardProps> = ({
                                     {stack.orders.length} ORDERS
                                 </span>
                             </div>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); onSplit(e); }}
-                                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-white/5 font-bold text-sm transition-colors flex items-center gap-2"
-                            >
-                                <SplitSquareHorizontal className="w-4 h-4" />
-                                SPLIT
-                            </button>
+                            {hasOverflow ? (
+                                <div className="px-4 py-2 bg-slate-900 text-slate-600 rounded-lg border border-white/5 font-bold text-sm flex items-center gap-2 cursor-not-allowed" title="Cannot split: has overflow pool. Use Undo instead.">
+                                    <SplitSquareHorizontal className="w-4 h-4" />
+                                    SPLIT
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onSplit(e); }}
+                                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-white/5 font-bold text-sm transition-colors flex items-center gap-2"
+                                >
+                                    <SplitSquareHorizontal className="w-4 h-4" />
+                                    SPLIT
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

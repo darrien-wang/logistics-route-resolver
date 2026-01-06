@@ -662,6 +662,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                             onResolveOverflow={() => handleResolveOverflow(stack)}
                             onDelete={() => handleDeleteStack(stack)}
                             selected={selectedStackIds.has(stack.id)}
+                            hasOverflow={stackDefs.some(s => s.type === 'overflow' && s.id.startsWith(`OVERFLOW-${stack.id}-`))}
                         />
                     ) : (
                         <RouteStackCard
