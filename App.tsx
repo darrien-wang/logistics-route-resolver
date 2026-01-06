@@ -58,6 +58,7 @@ const App: React.FC = () => {
   const [currentResult, setCurrentResult] = useState<ResolvedRouteInfo | null>(null);
   const [showApiConfig, setShowApiConfig] = useState(false);
   const [showTokenExpired, setShowTokenExpired] = useState(false);
+  const [appVersion, setAppVersion] = useState<string>('');
 
   const [batchMode, setBatchMode] = useState<{ active: boolean; ids: string[] }>({ active: false, ids: [] });
   const [selectedEventTypes, setSelectedEventTypes] = useState<EventType[]>([]);
@@ -135,6 +136,16 @@ const App: React.FC = () => {
     // Check token expiration on app mount (only if API is enabled)
     if (apiSettings.enabled && isTokenExpired()) {
       setShowTokenExpired(true);
+    }
+
+    // Get app version from Electron API
+    const electronAPI = (window as any).electronAPI;
+    if (electronAPI?.updater?.getAppVersion) {
+      electronAPI.updater.getAppVersion().then((version: string) => {
+        setAppVersion(version || 'dev');
+      }).catch(() => setAppVersion('dev'));
+    } else {
+      setAppVersion('dev');
     }
   }, []);
 
@@ -801,7 +812,22 @@ const App: React.FC = () => {
             <Layers className="w-7 h-7" />
           </button>
         </div>
-        <button onClick={() => setShowApiConfig(true)} className="mt-auto p-4 text-slate-600 hover:text-sky-400 transition-colors">
+
+        {/* Version Number - Click to update */}
+        <button
+          onClick={() => {
+            const electronAPI = (window as any).electronAPI;
+            if (electronAPI?.updater?.checkForUpdates) {
+              electronAPI.updater.checkForUpdates();
+            }
+          }}
+          className="mt-auto mb-2 text-slate-600 hover:text-sky-400 transition-colors text-xs font-mono"
+          title="Click to check for updates"
+        >
+          v{appVersion}
+        </button>
+
+        <button onClick={() => setShowApiConfig(true)} className="p-4 text-slate-600 hover:text-sky-400 transition-colors">
           <Settings className="w-7 h-7" />
         </button>
       </div>

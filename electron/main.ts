@@ -246,17 +246,17 @@ $doc.add_PrintPage({
     $routeY = ($pageHeight * 0.25) - ($routeSize.Height / 2)
     $g.DrawString("${routeName}", $routeFont, $brushBlack, $routeX, $routeY)
     
-    # 3. Tracking Number (above divider line)
+    # 3. Tracking Number (above divider line) - prefix normal, last 4 bold
     $trackingY = ($pageHeight * 0.5) - 35
     $prefixSize = $g.MeasureString("${trackingPrefix}", $fontTrackingNormal)
     $last4Size = $g.MeasureString("${trackingLast4}", $fontTrackingBold)
-    $totalWidth = $prefixSize.Width + $last4Size.Width
+    $totalWidth = $prefixSize.Width + $last4Size.Width - 8
     $trackingX = ($leftSection - $totalWidth) / 2
     
-    # Draw prefix (normal)
-    $g.DrawString("${trackingPrefix}", $fontTrackingNormal, $brushGray, $trackingX, $trackingY)
-    # Draw last 4 (bold, larger)
-    $g.DrawString("${trackingLast4}", $fontTrackingBold, $brushBlack, ($trackingX + $prefixSize.Width), ($trackingY - 2))
+    # Draw prefix (normal, black)
+    $g.DrawString("${trackingPrefix}", $fontTrackingNormal, $brushBlack, $trackingX, $trackingY)
+    # Draw last 4 (bold, larger, black) - tightly after prefix
+    $g.DrawString("${trackingLast4}", $fontTrackingBold, $brushBlack, ($trackingX + $prefixSize.Width - 8), ($trackingY - 2))
     
     # 4. Divider line (full width)
     $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::Black, 2)
@@ -269,12 +269,12 @@ $doc.add_PrintPage({
     $stackY = ($pageHeight * 0.75) - ($stackSize.Height / 2)
     $g.DrawString($stackText, $fontStack, $brushBlack, $stackX, $stackY)
     
-    # 6. Notes box (dashed rectangle, bottom-right section)
-    $notesBoxTop = ($pageHeight * 0.5) + 15
-    $notesBoxHeight = ($pageHeight * 0.5) - 50
-    $dashPen = New-Object System.Drawing.Pen([System.Drawing.Color]::Gray, 1)
+    # 6. Notes box (dashed rectangle, right side - from top to bottom)
+    $notesBoxTop = 20
+    $notesBoxHeight = $pageHeight - 60
+    $dashPen = New-Object System.Drawing.Pen([System.Drawing.Color]::Gray, 2)
     $dashPen.DashStyle = [System.Drawing.Drawing2D.DashStyle]::Dash
-    $g.DrawRectangle($dashPen, $rightStart, $notesBoxTop, $rightWidth, $notesBoxHeight)
+    $g.DrawRectangle($dashPen, [int]$rightStart, [int]$notesBoxTop, [int]$rightWidth, [int]$notesBoxHeight)
     
     # 7. "NOTES" label
     $notesLabelSize = $g.MeasureString("NOTES", $fontNotes)
@@ -365,5 +365,11 @@ app.whenReady().then(() => {
     // Only enable auto-updater in packaged app
     if (app.isPackaged && win) {
         setupAutoUpdater(win)
+    } else {
+        // Provide fallback handlers for dev mode
+        ipcMain.handle('get-app-version', () => 'dev')
+        ipcMain.handle('check-for-updates', () => null)
+        ipcMain.handle('download-update', () => false)
+        ipcMain.handle('install-update', () => { /* no-op */ })
     }
 })
