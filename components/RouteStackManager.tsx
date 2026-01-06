@@ -373,7 +373,6 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
             .filter(o => orderIds.includes(o.orderId))
             .map(o => {
                 const orderRoute = o.route?.routeConfiguration || sourceStack.route;
-                // Look up stack number from mergeInfo, fallback to sourceStack.stackNumber
                 const stackNum = routeStackLookup.get(orderRoute) || sourceStack.stackNumber;
 
                 return {
@@ -386,39 +385,90 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                 };
             });
 
-        const newOverflowDef: StackDefinition = {
-            id: `OVERFLOW-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            type: 'overflow',
-            status: 'open',
-            routes: [],
-            manualOrders: overflowOrders,
-            isOverflow: true,
-            importedAt: movedAt,
-            sourceNote: `Overflow from ${sourceStack.route}`
-        };
+        // Check if an overflow stack already exists FOR THIS SPECIFIC SOURCE STACK
+        // We match by the source stack ID (stored in the overflow stack's ID pattern)
+        const existingOverflowStackIndex = stackDefs.findIndex(
+            s => s.type === 'overflow' && s.id.startsWith(`OVERFLOW-${sourceStackId}-`)
+        );
 
-        // Update source stack to REMOVE the moved orders, and add new overflow stack
-        setStackDefs(prev => {
-            const movedOrderIds = new Set(orderIds);
+        // Generate a short ID for display (last 4 chars of timestamp or random part)
+        const shortId = sourceStackId.includes('-') ? sourceStackId.split('-').pop()?.slice(-4) : sourceStackId.slice(-4);
 
-            return prev.map(def => {
-                // Find the source stack and remove the moved orders from it
-                if (def.id === sourceStackId && def.manualOrders) {
-                    const remainingOrders = def.manualOrders.filter(o => !movedOrderIds.has(o.orderId));
-                    // Recalculate overflow count based on remaining orders
-                    const newOverflowCount = Math.max(0, remainingOrders.length - capacity);
+        if (existingOverflowStackIndex >= 0) {
+            // MERGE into existing overflow stack for this source
+            setStackDefs(prev => {
+                const movedOrderIds = new Set(orderIds);
 
-                    return {
-                        ...def,
-                        manualOrders: remainingOrders,
-                        overflowCount: newOverflowCount  // Update overflow count
-                    };
-                }
-                return def;
-            }).concat(newOverflowDef);
-        });
+                // 1. Remove from source
+                const nextDefs = prev.map(def => {
+                    if (def.id === sourceStackId && def.manualOrders) {
+                        const remainingOrders = def.manualOrders.filter(o => !movedOrderIds.has(o.orderId));
+                        const newOverflowCount = Math.max(0, remainingOrders.length - capacity);
+                        return {
+                            ...def,
+                            manualOrders: remainingOrders,
+                            overflowCount: newOverflowCount
+                        };
+                    }
+                    return def;
+                });
+
+                // 2. Add to existing overflow stack for this source
+                return nextDefs.map((def, idx) => {
+                    if (idx === existingOverflowStackIndex && def.manualOrders) {
+                        return {
+                            ...def,
+                            manualOrders: [...def.manualOrders, ...overflowOrders],
+                        };
+                    }
+                    return def;
+                });
+            });
+
+        } else {
+            // CREATE NEW overflow stack for this specific source
+            // Build a meaningful sourceNote with route + original stack numbers
+            let sourceLabel = sourceStack.route;
+            if (sourceStack.type === 'merged' && sourceStack.mergeInfo?.components) {
+                // Show each component with its original stack number: "SD-002 #1 & SD-003 #2"
+                sourceLabel = sourceStack.mergeInfo.components
+                    .map(c => `${c.route} #${c.stackNumber}`)
+                    .join(' & ');
+            }
+
+            const newOverflowDef: StackDefinition = {
+                id: `OVERFLOW-${sourceStackId}-${Date.now()}`,
+                type: 'overflow',
+                status: 'open',
+                routes: [],
+                manualOrders: overflowOrders,
+                isOverflow: true,
+                importedAt: movedAt,
+                sourceNote: sourceLabel  // e.g., "SD-002 #1 & SD-003 #2"
+            };
+
+            // Update source stack to REMOVE the moved orders, and append new overflow stack
+            setStackDefs(prev => {
+                const movedOrderIds = new Set(orderIds);
+
+                return prev.map(def => {
+                    if (def.id === sourceStackId && def.manualOrders) {
+                        const remainingOrders = def.manualOrders.filter(o => !movedOrderIds.has(o.orderId));
+                        const newOverflowCount = Math.max(0, remainingOrders.length - capacity);
+
+                        return {
+                            ...def,
+                            manualOrders: remainingOrders,
+                            overflowCount: newOverflowCount
+                        };
+                    }
+                    return def;
+                }).concat(newOverflowDef);
+            });
+        }
         setSpilloverStack(null);
     };
+
 
     const handleImport = async (file: File) => {
         try {

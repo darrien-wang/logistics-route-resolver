@@ -246,9 +246,9 @@ const RouteStackCard: React.FC<RouteStackCardProps> = ({ stack, onClick, onConte
                                             Legacy
                                         </span>
                                     </div>
-                                    {/* Stack number */}
-                                    <div className="text-sm font-medium text-slate-500 uppercase tracking-widest">
-                                        Stack #{stack.stackNumber}
+                                    {/* Source Info - show where the overflow came from */}
+                                    <div className="text-sm font-medium text-yellow-600/80 uppercase tracking-widest">
+                                        {stack.sourceNote || `Stack #${stack.stackNumber}`}
                                     </div>
                                     {/* Source breakdown - each source stack shown separately */}
                                     {sources.length > 0 && (

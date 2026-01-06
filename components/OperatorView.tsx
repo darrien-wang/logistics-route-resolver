@@ -238,17 +238,24 @@ const OperatorView: React.FC<OperatorViewProps> = ({
 
                     {/* Batch Mode Indicator */}
                     {batchMode.active && (
-                        <div className="absolute top-4 left-4 z-30 flex flex-col gap-2">
-                            <div className={`px-6 py-3 rounded-2xl border-2 font-bold tracking-widest uppercase flex items-center gap-3 shadow-lg backdrop-blur-md ${isBatchComplete
-                                ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
-                                : 'bg-indigo-500/20 border-indigo-500/50 text-indigo-400 animate-pulse'
+                        <div className="absolute top-8 left-1/2 -translate-x-1/2 z-30 flex flex-col gap-3 items-center pointer-events-none">
+                            <div className={`px-8 py-4 rounded-2xl border-[3px] font-black tracking-widest uppercase flex items-center gap-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] backdrop-blur-md transition-all duration-500 ${isBatchComplete
+                                ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400 scale-125'
+                                : 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300'
                                 }`}>
-                                <Box className="w-5 h-5" />
-                                <span>{isBatchComplete ? 'Batch Complete' : 'Batch Active'}</span>
+                                <Box className={`w-6 h-6 ${!isBatchComplete && 'animate-bounce'}`} />
+                                <span className="text-lg drop-shadow-lg">{isBatchComplete ? 'Batch Complete' : 'Batch Active'}</span>
                             </div>
-                            <div className="px-4 py-2 bg-slate-900/80 rounded-xl border border-slate-700 text-xs font-mono text-slate-400">
-                                {batchMode.ids.length} items remaining
-                            </div>
+                            {!isBatchComplete && (
+                                <div className="px-6 py-2 bg-slate-900/90 rounded-full border border-slate-700 text-sm font-mono text-slate-400 shadow-xl backdrop-blur-sm">
+                                    <span className="text-white font-bold">{batchMode.ids.length}</span> items remaining
+                                </div>
+                            )}
+                            {isBatchComplete && (
+                                <div className="px-6 py-2 bg-emerald-900/90 rounded-full border border-emerald-500/30 text-sm font-bold text-emerald-400 shadow-xl backdrop-blur-sm animate-in slide-in-from-top-2">
+                                    ALL ITEMS SCANNED
+                                </div>
+                            )}
                         </div>
                     )}
 
