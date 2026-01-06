@@ -56,6 +56,7 @@ export interface ApiSettings {
   autoPrintLabelEnabled: boolean;
   stackCapacity: number;  // Legacy - kept for backward compatibility
   stackCapacityConfig?: StackCapacityConfig;
+  tokenUpdatedAt?: string; // ISO timestamp of when token was last updated
 }
 
 // Multi-dimensional stack capacity types

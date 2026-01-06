@@ -260,8 +260,11 @@ const OperatorView: React.FC<OperatorViewProps> = ({
                     )}
 
                     {error ? (
-                        <div className="bg-red-500/10 border-8 border-red-500/30 p-24 rounded-[80px] flex flex-col items-center space-y-8 text-red-500 animate-in zoom-in-90 shadow-[0_0_100px_rgba(239,68,68,0.2)]">
-                            <div className="text-7xl font-black uppercase tracking-tighter text-center">{error}</div>
+                        <div className={`${error === 'TOKEN EXPIRED' ? 'bg-amber-500/10 border-amber-500/30' : 'bg-red-500/10 border-red-500/30'} border-8 p-24 rounded-[80px] flex flex-col items-center space-y-8 animate-in zoom-in-90 shadow-[0_0_100px_rgba(239,68,68,0.2)]`}>
+                            <div className={`text-7xl font-black uppercase tracking-tighter text-center ${error === 'TOKEN EXPIRED' ? 'text-amber-400' : 'text-red-500'}`}>{error}</div>
+                            {error === 'TOKEN EXPIRED' && (
+                                <div className="text-2xl text-amber-300 font-bold animate-pulse">Please update your token in Settings</div>
+                            )}
                         </div>
                     ) : currentResult ? (
                         <div className="relative w-full max-w-4xl z-10 animate-in fade-in zoom-in-50 duration-300">

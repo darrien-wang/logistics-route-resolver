@@ -149,12 +149,23 @@ const ApiConfigModal: React.FC<ApiConfigModalProps> = ({
                 </div>
 
                 <div className="p-6 pt-4 flex-shrink-0">
+                    {/* Token Last Updated Display */}
+                    {apiSettings.tokenUpdatedAt && (
+                        <div className="bg-slate-800/50 border border-white/5 rounded-xl p-3 mb-4 text-center">
+                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">Token Last Updated: </span>
+                            <span className="text-xs font-mono text-sky-400">{new Date(apiSettings.tokenUpdatedAt).toLocaleString()}</span>
+                        </div>
+                    )}
                     <div className="flex gap-4">
                         <button
-                            onClick={onClose}
+                            onClick={() => {
+                                // Update tokenUpdatedAt when saving
+                                onSettingsChange({ ...apiSettings, tokenUpdatedAt: new Date().toISOString() });
+                                onClose();
+                            }}
                             className="flex-1 bg-sky-500 text-white font-black uppercase py-3 rounded-xl shadow-xl shadow-sky-500/20 hover:scale-[1.02] active:scale-95 transition-all"
                         >
-                            Save Configurations
+                            Save & Refresh Token
                         </button>
                     </div>
                 </div>

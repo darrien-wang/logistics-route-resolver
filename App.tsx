@@ -109,6 +109,19 @@ const App: React.FC = () => {
     }
   }, [apiSettings]);
 
+  // Token expiration helper (check if older than 24 hours OR empty)
+  const isTokenExpired = useCallback(() => {
+    // Check if tokens are empty
+    if (!apiSettings.wpglbAuth?.trim() || !apiSettings.authorization?.trim()) return true;
+    // Check if never set
+    if (!apiSettings.tokenUpdatedAt) return true;
+    // Check if older than 24 hours
+    const lastUpdated = new Date(apiSettings.tokenUpdatedAt).getTime();
+    const now = Date.now();
+    const hoursElapsed = (now - lastUpdated) / (1000 * 60 * 60);
+    return hoursElapsed >= 24;
+  }, [apiSettings.tokenUpdatedAt, apiSettings.wpglbAuth, apiSettings.authorization]);
+
   // Initialize services on mount
   useEffect(() => {
     voiceService.setEnabled(apiSettings.voiceEnabled ?? true);
@@ -117,6 +130,11 @@ const App: React.FC = () => {
       routeStackService.setCapacityConfig(apiSettings.stackCapacityConfig);
     } else {
       routeStackService.setCapacity(apiSettings.stackCapacity ?? 40);
+    }
+
+    // Check token expiration on app mount (only if API is enabled)
+    if (apiSettings.enabled && isTokenExpired()) {
+      setShowTokenExpired(true);
     }
   }, []);
 
@@ -165,6 +183,14 @@ const App: React.FC = () => {
     if (!searchId.trim()) return;
     const ids = searchId.trim().split(/[\s,;]+/).filter(id => id.length > 0);
     if (ids.length === 0) return;
+
+    // Block operations if token is expired (and API is enabled)
+    if (apiSettings.enabled && isTokenExpired()) {
+      setError('TOKEN EXPIRED');
+      setCurrentResult(null);
+      setShowTokenExpired(true);
+      return;
+    }
 
     setLoading(true);
     setError(null);
