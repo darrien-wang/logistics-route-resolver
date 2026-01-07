@@ -40,3 +40,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
     printGDI: (data: { type: 'standard' | 'exception'; routeName?: string; stackNumber?: number; trackingNumber?: string; orderId?: string }) =>
         ipcRenderer.invoke('print-gdi', data),
 })
+
+// --------- Expose LAN Sync API ---------
+contextBridge.exposeInMainWorld('electron', {
+    // Start sync server (Host mode)
+    startSyncServer: (port?: number) => ipcRenderer.invoke('start-sync-server', port),
+
+    // Stop sync server
+    stopSyncServer: () => ipcRenderer.invoke('stop-sync-server'),
+
+    // Broadcast state to all clients
+    broadcastSyncState: (state: any) => ipcRenderer.invoke('broadcast-sync-state', state),
+
+    // Sync state to specific client
+    syncStateToClient: (clientId: string, state: any) => ipcRenderer.invoke('sync-state-to-client', clientId, state),
+
+    // Get server status
+    getSyncServerStatus: () => ipcRenderer.invoke('get-sync-server-status'),
+
+    // Listen for messages from server (client actions)
+    onSyncServerMessage: (callback: (data: any) => void) => {
+        const handler = (_event: any, data: any) => callback(data);
+        ipcRenderer.on('sync-server-message', handler);
+        return () => ipcRenderer.removeListener('sync-server-message', handler);
+    }
+})

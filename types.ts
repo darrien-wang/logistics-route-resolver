@@ -183,3 +183,53 @@ export interface RouteStackState {
   exceptionPool: ResolvedRouteInfo[];
   defaultCapacity: number;
 }
+
+// --- LAN Sync Types ---
+export interface SyncServerInfo {
+  port: number;
+  localIp: string;
+  url: string;
+}
+
+export interface SyncServerStatus {
+  running: boolean;
+  clientCount: number;
+  clients?: string[];
+}
+
+export interface SyncServerMessage {
+  event: string;
+  data: any;
+  clientId: string;
+}
+
+// --- Electron API Types ---
+declare global {
+  interface Window {
+    electron?: {
+      startSyncServer: (port?: number) => Promise<SyncServerInfo>;
+      stopSyncServer: () => Promise<void>;
+      broadcastSyncState: (state: any) => Promise<void>;
+      syncStateToClient: (clientId: string, state: any) => Promise<void>;
+      getSyncServerStatus: () => Promise<SyncServerStatus>;
+      onSyncServerMessage: (callback: (data: SyncServerMessage) => void) => () => void;
+    };
+    electronAPI?: {
+      updater: {
+        checkForUpdates: () => Promise<any>;
+        downloadUpdate: () => Promise<boolean>;
+        installUpdate: () => Promise<void>;
+        getAppVersion: () => Promise<string>;
+        onUpdateStatus: (callback: (status: any) => void) => () => void;
+      };
+      printImage: (imageDataUrl: string, options?: any) => Promise<any>;
+      printGDI: (data: {
+        type: 'standard' | 'exception';
+        routeName?: string;
+        stackNumber?: number;
+        trackingNumber?: string;
+        orderId?: string;
+      }) => Promise<any>;
+    };
+  }
+}

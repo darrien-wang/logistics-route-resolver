@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Database,
     Download,
@@ -8,8 +8,12 @@ import {
     RefreshCcw,
     Activity,
     Package,
-    Save
+    Save,
+    Wifi,
+    WifiOff,
+    Server
 } from 'lucide-react';
+import { lanSyncService, type ConnectionStatus } from '../services/LanSyncService';
 import { ResolvedRouteInfo, OrderEventStatus, EventType, ApiSettings } from '../types';
 import { FlexibleDataSource } from '../services/RouteService';
 import { ExcelExportService } from '../services/ExportService';
@@ -40,6 +44,28 @@ const DashboardView: React.FC<DashboardViewProps> = ({
     onFileUpload,
     onClearHistory
 }) => {
+    const [syncStatus, setSyncStatus] = useState<ConnectionStatus>({
+        connected: false,
+        mode: 'standalone',
+    });
+
+    useEffect(() => {
+        // Get initial status
+        const initialStatus = lanSyncService.getStatus();
+        setSyncStatus(initialStatus);
+
+        // Subscribe to status updates
+        const handleStatusChange = (status: ConnectionStatus) => {
+            setSyncStatus(status);
+        };
+
+        lanSyncService.on('status', handleStatusChange);
+
+        return () => {
+            lanSyncService.off('status', handleStatusChange);
+        };
+    }, []);
+
     return (
         <div className="flex flex-col space-y-8 animate-in fade-in duration-500">
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -51,6 +77,23 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                     <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest ${apiSettings.enabled ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-slate-800 border-white/5 text-slate-500'}`}>
                         <Database className="w-3 h-3" /> {apiSettings.enabled ? 'Remote Engine ON' : 'Local Only'}
                     </div>
+                    {syncStatus.connected && (
+                        <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest ${
+                            syncStatus.mode === 'host'
+                                ? 'bg-blue-500/10 border-blue-500/20 text-blue-400'
+                                : 'bg-green-500/10 border-green-500/20 text-green-400'
+                        }`}>
+                            {syncStatus.mode === 'host' ? (
+                                <>
+                                    <Server className="w-3 h-3" /> Host ({syncStatus.clientCount || 0})
+                                </>
+                            ) : (
+                                <>
+                                    <Wifi className="w-3 h-3" /> Client
+                                </>
+                            )}
+                        </div>
+                    )}
                 </div>
                 <div className="flex items-center gap-3">
                     <button onClick={onShowApiConfig} className="bg-slate-800 p-3 px-5 rounded-xl border border-white/5 flex items-center gap-2 hover:bg-slate-700 transition-colors"><Key className="w-4 h-4" /> API Config</button>

@@ -1,11 +1,17 @@
 /**
  * RouteStackService - Tracks stack counts per route with multi-dimensional capacity
- * 
+ *
  * Manages virtual stacks for each route, automatically creating new stacks
  * when capacity rules are satisfied.
+ *
+ * Supports LAN synchronization in Host/Client mode:
+ * - Host mode: Processes all logic and broadcasts state updates
+ * - Client mode: Read-only, sends actions to host and receives state updates
+ * - Standalone mode: Works independently without sync
  */
 
 import { StackCapacityConfig, StackCapacityRule, DEFAULT_CAPACITY_CONFIG } from '../types';
+import type { SyncMode } from './LanSyncService';
 
 export interface RouteStackInfo {
     stackNumber: number;
@@ -30,9 +36,27 @@ interface RouteState {
     scannedOrderIds: Set<string>;
 }
 
+export interface SerializedRouteState {
+    currentStackNumber: number;
+    currentStackCount: number;
+    currentStackWeight: number;
+    currentStackVolume: number;
+    scannedOrderIds: string[];
+}
+
+export interface SerializedStackServiceState {
+    routeStates: Record<string, SerializedRouteState>;
+    capacityConfig: StackCapacityConfig;
+    timestamp: number;
+}
+
+type StateChangeCallback = (state: SerializedStackServiceState) => void;
+
 class RouteStackService {
     private routeStates: Map<string, RouteState> = new Map();
     private capacityConfig: StackCapacityConfig = DEFAULT_CAPACITY_CONFIG;
+    private syncMode: SyncMode = 'standalone';
+    private stateChangeCallbacks: Set<StateChangeCallback> = new Set();
 
     /**
      * Add an order to a route's stack and return updated stack info
@@ -92,6 +116,11 @@ class RouteStackService {
         }
 
         this.routeStates.set(routeName, state);
+
+        // Notify state change if in host mode
+        if (isNewOrder) {
+            this.notifyStateChange();
+        }
 
         // Get the legacy capacity value for backward compatibility
         const countRule = this.capacityConfig.rules.find(r => r.type === 'count');
@@ -297,6 +326,113 @@ class RouteStackService {
      */
     getAllStates(): Map<string, RouteState> {
         return new Map(this.routeStates);
+    }
+
+    // ===== LAN Sync Methods =====
+
+    /**
+     * Set synchronization mode
+     */
+    setSyncMode(mode: SyncMode): void {
+        this.syncMode = mode;
+        console.log(`[RouteStackService] Sync mode set to: ${mode}`);
+    }
+
+    /**
+     * Get current synchronization mode
+     */
+    getSyncMode(): SyncMode {
+        return this.syncMode;
+    }
+
+    /**
+     * Register callback for state changes (used by Host to broadcast updates)
+     */
+    onStateChange(callback: StateChangeCallback): void {
+        this.stateChangeCallbacks.add(callback);
+    }
+
+    /**
+     * Unregister state change callback
+     */
+    offStateChange(callback: StateChangeCallback): void {
+        this.stateChangeCallbacks.delete(callback);
+    }
+
+    /**
+     * Notify all registered callbacks of state change
+     */
+    private notifyStateChange(): void {
+        if (this.syncMode === 'host') {
+            const state = this.serializeState();
+            this.stateChangeCallbacks.forEach(callback => callback(state));
+        }
+    }
+
+    /**
+     * Serialize current state for transmission
+     */
+    serializeState(): SerializedStackServiceState {
+        const routeStates: Record<string, SerializedRouteState> = {};
+
+        this.routeStates.forEach((state, routeName) => {
+            routeStates[routeName] = {
+                currentStackNumber: state.currentStackNumber,
+                currentStackCount: state.currentStackCount,
+                currentStackWeight: state.currentStackWeight,
+                currentStackVolume: state.currentStackVolume,
+                scannedOrderIds: Array.from(state.scannedOrderIds),
+            };
+        });
+
+        return {
+            routeStates,
+            capacityConfig: this.capacityConfig,
+            timestamp: Date.now(),
+        };
+    }
+
+    /**
+     * Deserialize and apply state from remote (Client mode)
+     */
+    applyRemoteState(serialized: SerializedStackServiceState): void {
+        if (this.syncMode !== 'client') {
+            console.warn('[RouteStackService] Cannot apply remote state - not in client mode');
+            return;
+        }
+
+        // Clear current state
+        this.routeStates.clear();
+
+        // Apply remote state
+        Object.entries(serialized.routeStates).forEach(([routeName, serializedState]) => {
+            this.routeStates.set(routeName, {
+                currentStackNumber: serializedState.currentStackNumber,
+                currentStackCount: serializedState.currentStackCount,
+                currentStackWeight: serializedState.currentStackWeight,
+                currentStackVolume: serializedState.currentStackVolume,
+                scannedOrderIds: new Set(serializedState.scannedOrderIds),
+            });
+        });
+
+        // Apply capacity config
+        this.capacityConfig = serialized.capacityConfig;
+
+        console.log('[RouteStackService] Applied remote state update');
+    }
+
+    /**
+     * Check if can execute locally (Host or Standalone mode)
+     */
+    canExecuteLocally(): boolean {
+        return this.syncMode === 'host' || this.syncMode === 'standalone';
+    }
+
+    /**
+     * Check if in client mode (read-only)
+     */
+    isClientMode(): boolean {
+        return this.syncMode === 'client';
     }
 }
 

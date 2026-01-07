@@ -5,6 +5,7 @@ import { exec } from 'node:child_process'
 import { writeFileSync, unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { setupAutoUpdater } from './updater'
+import { HostServer } from './HostServer'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -22,6 +23,7 @@ process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.
 
 
 let win: BrowserWindow | null
+let hostServer: HostServer | null = null
 
 function createWindow() {
     win = new BrowserWindow({
@@ -375,4 +377,96 @@ app.whenReady().then(() => {
         ipcMain.handle('download-update', () => false)
         ipcMain.handle('install-update', () => { /* no-op */ })
     }
+
+    // LAN Sync Server IPC Handlers
+    setupLanSyncHandlers()
 })
+
+// Setup LAN Sync IPC handlers
+function setupLanSyncHandlers() {
+    // Start sync server (Host mode)
+    ipcMain.handle('start-sync-server', async (_event, port: number = 3000) => {
+        try {
+            if (hostServer?.isRunning()) {
+                throw new Error('Server is already running')
+            }
+
+            hostServer = new HostServer({ port })
+
+            // Setup message handler to relay client actions to renderer
+            hostServer.onMessage((event, data, clientId) => {
+                if (win && !win.isDestroyed()) {
+                    win.webContents.send('sync-server-message', {
+                        event,
+                        data,
+                        clientId
+                    })
+                }
+            })
+
+            const serverInfo = await hostServer.start()
+            return serverInfo
+        } catch (error: any) {
+            console.error('[Main] Failed to start sync server:', error)
+            throw error
+        }
+    })
+
+    // Stop sync server
+    ipcMain.handle('stop-sync-server', async () => {
+        try {
+            if (!hostServer) {
+                return
+            }
+
+            await hostServer.stop()
+            hostServer = null
+        } catch (error: any) {
+            console.error('[Main] Failed to stop sync server:', error)
+            throw error
+        }
+    })
+
+    // Broadcast state update to all clients
+    ipcMain.handle('broadcast-sync-state', (_event, state: any) => {
+        try {
+            if (!hostServer?.isRunning()) {
+                console.warn('[Main] Cannot broadcast - server not running')
+                return
+            }
+
+            hostServer.broadcastStateUpdate(state)
+        } catch (error: any) {
+            console.error('[Main] Failed to broadcast state:', error)
+            throw error
+        }
+    })
+
+    // Sync state to specific client
+    ipcMain.handle('sync-state-to-client', (_event, clientId: string, state: any) => {
+        try {
+            if (!hostServer?.isRunning()) {
+                console.warn('[Main] Cannot sync to client - server not running')
+                return
+            }
+
+            hostServer.syncStateToClient(clientId, state)
+        } catch (error: any) {
+            console.error('[Main] Failed to sync to client:', error)
+            throw error
+        }
+    })
+
+    // Get server status
+    ipcMain.handle('get-sync-server-status', () => {
+        if (!hostServer) {
+            return { running: false, clientCount: 0 }
+        }
+
+        return {
+            running: hostServer.isRunning(),
+            clientCount: hostServer.getClientCount(),
+            clients: hostServer.getConnectedClients()
+        }
+    })
+}

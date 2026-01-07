@@ -14,7 +14,8 @@ import {
   ClipboardList,
   Layers,
   Download,
-  Printer
+  Printer,
+  Wifi
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { OrderData, ResolvedRouteInfo, ZipRouteRecord, EventType, OrderEventStatus, ApiSettings, DEFAULT_CAPACITY_CONFIG } from './types';
@@ -35,11 +36,13 @@ import { ExcelExportService } from './services/ExportService';
 import { routeStackService } from './services/RouteStackService';
 import { voiceService } from './services/VoiceService';
 import { labelPrintService } from './services/LabelPrintService';
+import { lanSyncService, SYNC_EVENTS } from './services/LanSyncService';
 import RouteStackManager from './components/RouteStackManager';
 import ApiConfigModal from './components/ApiConfigModal';
 import RulesManagementView from './components/RulesManagementView';
 import DashboardView from './components/DashboardView';
 import OperatorView from './components/OperatorView';
+import NetworkSettingsView from './components/NetworkSettingsView';
 import UpdateNotification from './components/UpdateNotification';
 import TokenExpiredModal from './components/TokenExpiredModal';
 import { MOCK_ORDERS } from './constants/mockData';
@@ -49,7 +52,7 @@ const API_CONFIG_KEY = 'LOGISTICS_API_CONFIG';
 
 
 const App: React.FC = () => {
-  const [view, setView] = useState<'dashboard' | 'operator' | 'rules' | 'stacks'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'operator' | 'rules' | 'stacks' | 'network'>('dashboard');
   const [orderId, setOrderId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -147,6 +150,54 @@ const App: React.FC = () => {
     } else {
       setAppVersion('dev');
     }
+  }, []);
+
+  // LAN Sync integration
+  useEffect(() => {
+    // Setup Host mode: broadcast state changes to clients
+    const handleStateChange = (state: any) => {
+      if (window.electron?.broadcastSyncState) {
+        window.electron.broadcastSyncState(state);
+      }
+    };
+
+    routeStackService.onStateChange(handleStateChange);
+
+    // Setup Host mode: listen for scan actions from clients
+    const cleanup = window.electron?.onSyncServerMessage?.((message: any) => {
+      if (message.event === SYNC_EVENTS.ACTION_SCAN) {
+        // Execute scan action on behalf of client
+        const { orderId, routeName, dimensions } = message.data;
+        handleSearch(orderId);
+      } else if (message.event === 'client:connected') {
+        // Send full state sync to newly connected client
+        const currentState = routeStackService.serializeState();
+        if (window.electron?.syncStateToClient) {
+          window.electron.syncStateToClient(message.clientId, currentState);
+        }
+      }
+    });
+
+    // Setup Client mode: listen for state updates from host
+    const handleSyncState = (state: any) => {
+      routeStackService.applyRemoteState(state);
+      // TODO: Update UI to reflect new state
+    };
+
+    const handleStateUpdate = (state: any) => {
+      routeStackService.applyRemoteState(state);
+      // TODO: Update UI to reflect new state
+    };
+
+    lanSyncService.on(SYNC_EVENTS.SYNC_STATE, handleSyncState);
+    lanSyncService.on(SYNC_EVENTS.STATE_UPDATE, handleStateUpdate);
+
+    return () => {
+      routeStackService.offStateChange(handleStateChange);
+      lanSyncService.off(SYNC_EVENTS.SYNC_STATE, handleSyncState);
+      lanSyncService.off(SYNC_EVENTS.STATE_UPDATE, handleStateUpdate);
+      if (cleanup) cleanup();
+    };
   }, []);
 
   const isBatchComplete = useMemo(() => {
@@ -811,6 +862,9 @@ const App: React.FC = () => {
           <button onClick={() => setView('stacks')} className={`p-4 rounded-2xl transition-all ${view === 'stacks' ? 'bg-sky-500/20 text-sky-400 shadow-lg shadow-sky-500/10' : 'text-slate-600 hover:text-slate-400'}`}>
             <Layers className="w-7 h-7" />
           </button>
+          <button onClick={() => setView('network')} className={`p-4 rounded-2xl transition-all ${view === 'network' ? 'bg-sky-500/20 text-sky-400 shadow-lg shadow-sky-500/10' : 'text-slate-600 hover:text-slate-400'}`}>
+            <Wifi className="w-7 h-7" />
+          </button>
         </div>
 
         {/* Version Number - Click to update */}
@@ -864,7 +918,13 @@ const App: React.FC = () => {
             onOrderIdChange={setOrderId}
             onSearch={handleSearch}
           />
-        ) : view === 'stacks' ? <RouteStackManager history={history} apiSettings={apiSettings} onSettingsChange={setApiSettings} onAddTestData={handleAddTestData} /> : <RulesManagementView dataSource={dataSource} />}
+        ) : view === 'stacks' ? (
+          <RouteStackManager history={history} apiSettings={apiSettings} onSettingsChange={setApiSettings} onAddTestData={handleAddTestData} />
+        ) : view === 'network' ? (
+          <NetworkSettingsView />
+        ) : (
+          <RulesManagementView dataSource={dataSource} />
+        )}
 
 
 
