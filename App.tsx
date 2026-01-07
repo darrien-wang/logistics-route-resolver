@@ -15,7 +15,8 @@ import {
   Layers,
   Download,
   Printer,
-  Wifi
+  Wifi,
+  Filter
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { OrderData, ResolvedRouteInfo, ZipRouteRecord, EventType, OrderEventStatus, ApiSettings, DEFAULT_CAPACITY_CONFIG } from './types';
@@ -37,6 +38,7 @@ import { routeStackService } from './services/RouteStackService';
 import { voiceService } from './services/VoiceService';
 import { labelPrintService } from './services/LabelPrintService';
 import { lanSyncService, SYNC_EVENTS } from './services/LanSyncService';
+import { printMappingConditionService } from './services/PrintMappingConditionService';
 import RouteStackManager from './components/RouteStackManager';
 import ApiConfigModal from './components/ApiConfigModal';
 import RulesManagementView from './components/RulesManagementView';
@@ -45,6 +47,7 @@ import OperatorView from './components/OperatorView';
 import NetworkSettingsView from './components/NetworkSettingsView';
 import UpdateNotification from './components/UpdateNotification';
 import TokenExpiredModal from './components/TokenExpiredModal';
+import PrintConditionManager from './components/PrintConditionManager';
 import { MOCK_ORDERS } from './constants/mockData';
 
 const STORAGE_KEY = 'LOGISTICS_ACTIVITY_STREAM';
@@ -61,6 +64,7 @@ const App: React.FC = () => {
   const [currentResult, setCurrentResult] = useState<ResolvedRouteInfo | null>(null);
   const [showApiConfig, setShowApiConfig] = useState(false);
   const [showTokenExpired, setShowTokenExpired] = useState(false);
+  const [showPrintConditions, setShowPrintConditions] = useState(false);
   const [appVersion, setAppVersion] = useState<string>('');
 
   const [batchMode, setBatchMode] = useState<{ active: boolean; ids: string[] }>({ active: false, ids: [] });
@@ -280,6 +284,29 @@ const App: React.FC = () => {
           const uppercaseId = id.toUpperCase();
           const cachedOrder = orderDataMap.get(uppercaseId);
 
+          // Print Condition Pool Check - before route resolution
+          if (printMappingConditionService.isEnabled()) {
+            const checkResult = printMappingConditionService.checkOrder(uppercaseId, cachedOrder?.zipCode);
+            if (!checkResult.allowed) {
+              console.log(`[PrintCondition] Order ${uppercaseId} filtered: ${checkResult.reason}`);
+              // Print exception label and skip
+              if (apiSettings.autoPrintLabelEnabled) {
+                labelPrintService.queueExceptionPrint(uppercaseId);
+              }
+              // Record to history as filtered exception
+              const exceptionResult: ResolvedRouteInfo = {
+                orderId: uppercaseId,
+                address: cachedOrder?.deliveryAddress || '',
+                date: new Date().toLocaleDateString(),
+                resolvedAt: new Date().toISOString(),
+                exceptionReason: `FILTERED: ${checkResult.reason}`,
+              };
+              setHistory(prev => [exceptionResult, ...prev.filter(h => h.orderId !== uppercaseId)].slice(0, 500));
+              handleEventInitiated(uppercaseId, [{ type: 'SCAN', status: 'FAILED', timestamp: new Date().toISOString(), message: 'Condition not met' }]);
+              continue; // Skip further processing
+            }
+          }
+
           // Build initial data from cache
           const initialData: OrderData = {
             orderId: uppercaseId,
@@ -414,6 +441,32 @@ const App: React.FC = () => {
       } else {
         setBatchMode({ active: false, ids: [] });
         const targetId = ids[0].toUpperCase();
+
+        // Print Condition Pool Check - before route resolution (single order)
+        if (printMappingConditionService.isEnabled()) {
+          const checkResult = printMappingConditionService.checkOrder(targetId);
+          if (!checkResult.allowed) {
+            console.log(`[PrintCondition] Order ${targetId} filtered: ${checkResult.reason}`);
+            // Print exception label
+            if (apiSettings.autoPrintLabelEnabled) {
+              labelPrintService.queueExceptionPrint(targetId);
+            }
+            // Show as filtered exception
+            const exceptionResult: ResolvedRouteInfo = {
+              orderId: targetId,
+              address: '',
+              date: new Date().toLocaleDateString(),
+              resolvedAt: new Date().toISOString(),
+              exceptionReason: `FILTERED: ${checkResult.reason}`,
+            };
+            setCurrentResult(exceptionResult);
+            setHistory(prev => [exceptionResult, ...prev.filter(h => h.orderId !== targetId)].slice(0, 50));
+            handleEventInitiated(targetId, [{ type: 'SCAN', status: 'FAILED', timestamp: new Date().toISOString(), message: 'Condition not met' }]);
+            setOrderId('');
+            setLoading(false);
+            return; // Exit early
+          }
+        }
 
         // Check if UNLOAD is selected - use separate flow for unload, but still resolve route
         if (selectedEventTypes.includes('UNLOAD')) {
@@ -884,6 +937,18 @@ const App: React.FC = () => {
         <button onClick={() => setShowApiConfig(true)} className="p-4 text-slate-600 hover:text-sky-400 transition-colors">
           <Settings className="w-7 h-7" />
         </button>
+
+        {/* Print Condition Filter Button */}
+        <button
+          onClick={() => setShowPrintConditions(true)}
+          className={`p-4 rounded-2xl transition-all ${printMappingConditionService.isEnabled()
+              ? 'bg-emerald-500/20 text-emerald-400'
+              : 'text-slate-600 hover:text-slate-400'
+            }`}
+          title="Print Mapping Conditions"
+        >
+          <Filter className="w-7 h-7" />
+        </button>
       </div>
 
       <main className={`flex-1 ml-24 relative ${view === 'operator' ? 'h-screen overflow-hidden p-6' : 'p-10 lg:p-14 overflow-y-auto'}`}>
@@ -939,6 +1004,11 @@ const App: React.FC = () => {
           isOpen={showTokenExpired}
           onClose={() => setShowTokenExpired(false)}
           onOpenSettings={() => setShowApiConfig(true)}
+        />
+
+        <PrintConditionManager
+          isOpen={showPrintConditions}
+          onClose={() => setShowPrintConditions(false)}
         />
 
         {/* Update Notification */}
