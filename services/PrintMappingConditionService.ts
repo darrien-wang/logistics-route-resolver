@@ -272,6 +272,29 @@ class PrintMappingConditionService {
         };
         return placeholders[type] || '';
     }
+
+    /**
+     * Serialize state for LAN Sync
+     */
+    serializeState(): { conditions: MappingCondition[]; enabled: boolean } {
+        return {
+            conditions: this.conditions,
+            enabled: this.enabled
+        };
+    }
+
+    /**
+     * Apply remote state from LAN Sync (Client mode)
+     */
+    applyRemoteState(state: { conditions: MappingCondition[]; enabled: boolean }): void {
+        if (state.conditions) {
+            this.conditions = state.conditions;
+        }
+        if (typeof state.enabled === 'boolean') {
+            this.enabled = state.enabled;
+        }
+        console.log(`[PrintCondition] Applied remote state: ${this.conditions.length} conditions, enabled=${this.enabled}`);
+    }
 }
 
 export const printMappingConditionService = new PrintMappingConditionService();

@@ -163,6 +163,7 @@ const App: React.FC = () => {
       routeStacks: routeStackService.serializeState(),
       history: history.slice(0, 100), // Limit to last 100 entries
       operationLog,
+      printConditions: printMappingConditionService.serializeState(),
       timestamp: Date.now(),
     });
 
@@ -206,6 +207,9 @@ const App: React.FC = () => {
       if (fullState.operationLog) {
         setOperationLog(fullState.operationLog);
       }
+      if (fullState.printConditions) {
+        printMappingConditionService.applyRemoteState(fullState.printConditions);
+      }
     };
 
     const handleStateUpdate = (fullState: any) => {
@@ -218,6 +222,9 @@ const App: React.FC = () => {
       }
       if (fullState.operationLog) {
         setOperationLog(fullState.operationLog);
+      }
+      if (fullState.printConditions) {
+        printMappingConditionService.applyRemoteState(fullState.printConditions);
       }
     };
 
@@ -239,6 +246,7 @@ const App: React.FC = () => {
         routeStacks: routeStackService.serializeState(),
         history: history.slice(0, 100),
         operationLog,
+        printConditions: printMappingConditionService.serializeState(),
         timestamp: Date.now(),
       };
       window.electron.broadcastSyncState(fullState);
