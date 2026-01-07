@@ -4,7 +4,9 @@
       "Bash(npm install:*)",
       "Bash(dir:*)",
       "Bash(powershell -Command \"Get-Content types.ts | Measure-Object -Line\")",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(npm run release:*)",
+      "Bash(timeout:*)"
     ]
   }
 }

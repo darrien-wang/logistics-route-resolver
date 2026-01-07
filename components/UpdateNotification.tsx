@@ -9,22 +9,6 @@ type UpdateStatus =
     | { status: 'downloaded'; version?: string }
     | { status: 'error'; message: string };
 
-interface ElectronAPI {
-    updater: {
-        checkForUpdates: () => Promise<any>;
-        downloadUpdate: () => Promise<boolean>;
-        installUpdate: () => void;
-        getAppVersion: () => Promise<string>;
-        onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
-    };
-}
-
-declare global {
-    interface Window {
-        electronAPI?: ElectronAPI;
-    }
-}
-
 const UpdateNotification: React.FC = () => {
     const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
     const [dismissed, setDismissed] = useState(false);
