@@ -270,15 +270,16 @@ $doc.add_PrintPage({
     $g.DrawString($stackText, $fontStack, $brushBlack, $stackX, $stackY)
     
     # 6. Notes box (dashed rectangle, right side - from top to bottom)
-    $notesBoxTop = 20
-    $notesBoxHeight = $pageHeight - 60
-    $dashPen = New-Object System.Drawing.Pen([System.Drawing.Color]::Gray, 2)
-    $dashPen.DashStyle = [System.Drawing.Drawing2D.DashStyle]::Dash
+    $notesBoxTop = 40
+    $notesBoxHeight = $pageHeight - 80
+    $dashPen = New-Object System.Drawing.Pen([System.Drawing.Color]::Black, 2)
+    $dashPen.DashPattern = @(6, 4)
     $g.DrawRectangle($dashPen, [int]$rightStart, [int]$notesBoxTop, [int]$rightWidth, [int]$notesBoxHeight)
     
-    # 7. "NOTES" label
+    # 7. "NOTES" label (centered at bottom of notes box)
     $notesLabelSize = $g.MeasureString("NOTES", $fontNotes)
-    $g.DrawString("NOTES", $fontNotes, $brushGray, ($rightStart + ($rightWidth - $notesLabelSize.Width) / 2), ($pageHeight - 20))
+    $notesLabelX = $rightStart + ($rightWidth - $notesLabelSize.Width) / 2
+    $g.DrawString("NOTES", $fontNotes, $brushGray, $notesLabelX, ($pageHeight - 30))
     
     $e.HasMorePages = $false
 })
