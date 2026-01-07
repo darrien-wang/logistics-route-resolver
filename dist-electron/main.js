@@ -31163,7 +31163,7 @@ app.whenReady().then(() => {
   setupLanSyncHandlers();
 });
 function setupLanSyncHandlers() {
-  ipcMain.handle("start-sync-server", async (_event, port = 3e3) => {
+  ipcMain.handle("start-sync-server", async (_event, port = 14059) => {
     try {
       if (hostServer == null ? void 0 : hostServer.isRunning()) {
         console.log("[Main] Server already running, restarting...");

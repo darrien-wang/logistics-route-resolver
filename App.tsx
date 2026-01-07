@@ -156,12 +156,22 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // LAN Sync integration
+  // LAN Sync integration - Full state synchronization
   useEffect(() => {
+    // Create full state snapshot for broadcasting
+    const createFullStateSnapshot = () => ({
+      routeStacks: routeStackService.serializeState(),
+      history: history.slice(0, 100), // Limit to last 100 entries
+      operationLog,
+      timestamp: Date.now(),
+    });
+
     // Setup Host mode: broadcast state changes to clients
-    const handleStateChange = (state: any) => {
-      if (window.electron?.broadcastSyncState) {
-        window.electron.broadcastSyncState(state);
+    const handleStateChange = () => {
+      if (window.electron?.broadcastSyncState && lanSyncService.isHost()) {
+        const fullState = createFullStateSnapshot();
+        window.electron.broadcastSyncState(fullState);
+        console.log('[LanSync] Broadcasting full state to clients');
       }
     };
 
@@ -171,26 +181,44 @@ const App: React.FC = () => {
     const cleanup = window.electron?.onSyncServerMessage?.((message: any) => {
       if (message.event === SYNC_EVENTS.ACTION_SCAN) {
         // Execute scan action on behalf of client
-        const { orderId, routeName, dimensions } = message.data;
+        const { orderId } = message.data;
+        console.log(`[LanSync] Processing remote scan from client: ${orderId}`);
         handleSearch(orderId);
       } else if (message.event === 'client:connected') {
         // Send full state sync to newly connected client
-        const currentState = routeStackService.serializeState();
+        console.log(`[LanSync] New client connected: ${message.clientId}`);
+        const fullState = createFullStateSnapshot();
         if (window.electron?.syncStateToClient) {
-          window.electron.syncStateToClient(message.clientId, currentState);
+          window.electron.syncStateToClient(message.clientId, fullState);
         }
       }
     });
 
-    // Setup Client mode: listen for state updates from host
-    const handleSyncState = (state: any) => {
-      routeStackService.applyRemoteState(state);
-      // TODO: Update UI to reflect new state
+    // Setup Client mode: receive and apply full state from Host
+    const handleSyncState = (fullState: any) => {
+      console.log('[LanSync] Received full state sync from Host');
+      if (fullState.routeStacks) {
+        routeStackService.applyRemoteState(fullState.routeStacks);
+      }
+      if (fullState.history) {
+        setHistory(fullState.history);
+      }
+      if (fullState.operationLog) {
+        setOperationLog(fullState.operationLog);
+      }
     };
 
-    const handleStateUpdate = (state: any) => {
-      routeStackService.applyRemoteState(state);
-      // TODO: Update UI to reflect new state
+    const handleStateUpdate = (fullState: any) => {
+      console.log('[LanSync] Received state update from Host');
+      if (fullState.routeStacks) {
+        routeStackService.applyRemoteState(fullState.routeStacks);
+      }
+      if (fullState.history) {
+        setHistory(fullState.history);
+      }
+      if (fullState.operationLog) {
+        setOperationLog(fullState.operationLog);
+      }
     };
 
     lanSyncService.on(SYNC_EVENTS.SYNC_STATE, handleSyncState);
@@ -202,7 +230,28 @@ const App: React.FC = () => {
       lanSyncService.off(SYNC_EVENTS.STATE_UPDATE, handleStateUpdate);
       if (cleanup) cleanup();
     };
-  }, []);
+  }, [history, operationLog]);
+
+  // Manual broadcast function for HOST mode
+  const broadcastState = useCallback(() => {
+    if (lanSyncService.isHost() && window.electron?.broadcastSyncState) {
+      const fullState = {
+        routeStacks: routeStackService.serializeState(),
+        history: history.slice(0, 100),
+        operationLog,
+        timestamp: Date.now(),
+      };
+      window.electron.broadcastSyncState(fullState);
+      console.log('[LanSync] Manual state broadcast triggered');
+    }
+  }, [history, operationLog]);
+
+  // Auto-broadcast state when history or operationLog changes (HOST mode only)
+  useEffect(() => {
+    if (lanSyncService.isHost()) {
+      broadcastState();
+    }
+  }, [history, operationLog, broadcastState]);
 
   const isBatchComplete = useMemo(() => {
     if (!batchMode.active || batchMode.ids.length === 0) return false;
@@ -249,6 +298,21 @@ const App: React.FC = () => {
     if (!searchId.trim()) return;
     const ids = searchId.trim().split(/[\s,;]+/).filter(id => id.length > 0);
     if (ids.length === 0) return;
+
+    // CLIENT MODE: Send scan action to Host instead of processing locally
+    if (lanSyncService.isClient() && lanSyncService.isConnected()) {
+      console.log(`[LanSync] CLIENT mode: Sending scan to Host: ${ids.join(', ')}`);
+      for (const id of ids) {
+        lanSyncService.sendScanAction({
+          orderId: id.toUpperCase(),
+          routeName: '', // Will be resolved by Host
+          timestamp: Date.now(),
+        });
+      }
+      // Clear input and wait for Host to broadcast result
+      setOrderId('');
+      return;
+    }
 
     // Block operations if token is expired (and API is enabled)
     if (apiSettings.enabled && isTokenExpired()) {
@@ -942,8 +1006,8 @@ const App: React.FC = () => {
         <button
           onClick={() => setShowPrintConditions(true)}
           className={`p-4 rounded-2xl transition-all ${printMappingConditionService.isEnabled()
-              ? 'bg-emerald-500/20 text-emerald-400'
-              : 'text-slate-600 hover:text-slate-400'
+            ? 'bg-emerald-500/20 text-emerald-400'
+            : 'text-slate-600 hover:text-slate-400'
             }`}
           title="Print Mapping Conditions"
         >

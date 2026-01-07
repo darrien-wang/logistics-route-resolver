@@ -6,7 +6,7 @@ import type { SyncServerInfo, SyncServerStatus } from '../types';
 const NetworkSettingsView: React.FC = () => {
     const [syncMode, setSyncMode] = useState<SyncMode>('standalone');
     const [hostIp, setHostIp] = useState('');
-    const [hostPort, setHostPort] = useState('3000');
+    const [hostPort, setHostPort] = useState('14059');
     const [serverInfo, setServerInfo] = useState<SyncServerInfo | null>(null);
     const [serverStatus, setServerStatus] = useState<SyncServerStatus | null>(null);
     const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({

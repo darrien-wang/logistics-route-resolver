@@ -391,7 +391,7 @@ app.whenReady().then(() => {
 // Setup LAN Sync IPC handlers
 function setupLanSyncHandlers() {
     // Start sync server (Host mode)
-    ipcMain.handle('start-sync-server', async (_event, port: number = 3000) => {
+    ipcMain.handle('start-sync-server', async (_event, port: number = 14059) => {
         try {
             // If server is already running, stop it first
             if (hostServer?.isRunning()) {

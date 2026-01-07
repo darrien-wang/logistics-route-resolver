@@ -113,7 +113,7 @@ class LanSyncService {
      */
     private async startClientMode(): Promise<void> {
         const hostIp = this.config.hostIp || 'localhost';
-        const hostPort = this.config.hostPort || 3000;
+        const hostPort = this.config.hostPort || 14059;
         const url = `http://${hostIp}:${hostPort}`;
 
         console.log(`[LanSync] Connecting to Host at ${url}...`);
