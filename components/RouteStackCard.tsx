@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Package, Printer, CheckCircle, Database, Trash2 } from 'lucide-react';
 import { RouteStack } from '../types';
 import LabelPrintDialog from './LabelPrintDialog';
+import { labelPrintService } from '../services/LabelPrintService';
 
 interface RouteStackCardProps {
     stack: RouteStack;
@@ -31,14 +32,15 @@ const generateLabelImage = (route: string | undefined | null, stackNumber: numbe
     const rightStart = leftWidth + 60;
     const rightWidth = width - rightStart - 40;
 
-    // ===== DATE in top-right corner (small text) =====
+    // ===== DATE - Centered above divider =====
     const today = new Date();
-    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    ctx.fillStyle = '#666666';
+    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')} ${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
+    ctx.fillStyle = '#000000';
     ctx.font = '56px Arial';
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'top';
-    ctx.fillText(dateStr, width - 60, 25);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    // Position at 50% height - 30px (padding)
+    ctx.fillText(dateStr, leftWidth / 2, height * 0.5 - 30);
 
     // ===== Top half: Route name - centered and auto-sized =====
     const routeText = route || ''; // Handle missing route
@@ -144,19 +146,10 @@ const RouteStackCard: React.FC<RouteStackCardProps> = ({ stack, onClick, onConte
         onDelete?.();
     };
 
-    const handleConfirmPrint = (printer: string) => {
-        const imageData = generateLabelImage(stack.route, stack.stackNumber);
-
-        // Use Electron IPC to print
-        if ((window as any).electron?.printBase64) {
-            (window as any).electron.printBase64(imageData, printer);
-        } else {
-            // Fallback for web mode
-            const link = document.createElement('a');
-            link.download = `STACK_${stack.route}_${stack.stackNumber}.png`;
-            link.href = imageData;
-            link.click();
-        }
+    const handleConfirmPrint = (_printer: string) => {
+        // Use LabelPrintService to handle printing (supports both GDI and Canvas fallback)
+        // Pass force=true to print even if auto-print is disabled
+        labelPrintService.queuePrint(stack.route, stack.stackNumber, '', true);
         setShowDialog(false);
     };
 

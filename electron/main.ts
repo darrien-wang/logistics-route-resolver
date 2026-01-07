@@ -155,7 +155,7 @@ interface GDIPrintData {
 ipcMain.handle('print-gdi', async (_event, data: GDIPrintData) => {
     return new Promise((resolve, reject) => {
         const today = new Date();
-        const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')} ${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
 
         let psScript: string;
 
@@ -231,9 +231,11 @@ $doc.add_PrintPage({
     $brushBlack = [System.Drawing.Brushes]::Black
     $brushGray = [System.Drawing.Brushes]::Gray
     
-    # 1. Date (top-right)
+    # 1. Date (Centered above Tracking Number)
     $dateSize = $g.MeasureString("${dateStr}", $fontDate)
-    $g.DrawString("${dateStr}", $fontDate, $brushGray, ($pageWidth - $dateSize.Width - 15), 8)
+    $dateX = ($leftSection - $dateSize.Width) / 2
+    $dateY = ($pageHeight * 0.5) - 75
+    $g.DrawString("${dateStr}", $fontDate, $brushBlack, $dateX, $dateY)
     
     # 2. Route Name (centered in top half)
     $routeFont = $fontRouteLarge

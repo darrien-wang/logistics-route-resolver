@@ -55,7 +55,7 @@ class LabelPrintService {
     generateLabelImage(baseRouteName: string, stackNumber: number): string {
         const cacheKey = `${baseRouteName}-${stackNumber}`;
         const today = new Date();
-        const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')} ${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
         const fullCacheKey = `${cacheKey}-${dateStr}`;
 
         if (this.imageCache.has(fullCacheKey)) {
@@ -79,12 +79,13 @@ class LabelPrintService {
         const rightStart = leftWidth + 60;
         const rightWidth = width - rightStart - 40;
 
-        // DATE in top-right corner
-        ctx.fillStyle = '#666666';
+        // DATE - Centered above divider (where tracking number would be)
+        ctx.fillStyle = '#000000';
         ctx.font = '56px Arial';
-        ctx.textAlign = 'right';
-        ctx.textBaseline = 'top';
-        ctx.fillText(dateStr, width - 60, 25);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        // Position at 50% height - 30px (padding) - similar to GDI relative position
+        ctx.fillText(dateStr, leftWidth / 2, height * 0.5 - 30);
 
         // Top half: Route name - centered and auto-sized
         ctx.fillStyle = '#000000';
@@ -156,7 +157,7 @@ class LabelPrintService {
     generateExceptionLabelImage(orderId: string): string {
         // Cache exception labels by date + orderId
         const today = new Date();
-        const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')} ${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
         const cacheKey = `exception-${orderId}-${dateStr}`;
 
         if (this.exceptionCache.has(cacheKey)) {
@@ -235,11 +236,13 @@ class LabelPrintService {
 
 
 
-    queuePrint(baseRouteName: string, stackNumber: number, trackingNumber?: string): string | null {
-        if (!this.enabled) return null;
+    queuePrint(baseRouteName: string, stackNumber: number, trackingNumber?: string, force: boolean = false): string | null {
+        if (!this.enabled && !force) return null;
 
         const now = performance.now();
         const jobId = `print-${++this.jobIdCounter}-${Date.now()}`;
+        console.log(`[LabelPrintService] Queuing print job ${jobId} (force=${force})`);
+
         const job: PrintJob = {
             id: jobId,
             type: 'standard',
@@ -257,11 +260,13 @@ class LabelPrintService {
         return jobId;
     }
 
-    queueExceptionPrint(orderId: string): string | null {
-        if (!this.enabled) return null;
+    queueExceptionPrint(orderId: string, force: boolean = false): string | null {
+        if (!this.enabled && !force) return null;
 
         const now = performance.now();
         const jobId = `print-ex-${++this.jobIdCounter}-${Date.now()}`;
+        console.log(`[LabelPrintService] Queuing exception print job ${jobId} (force=${force})`);
+
         const job: PrintJob = {
             id: jobId,
             type: 'exception',
