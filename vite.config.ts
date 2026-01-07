@@ -5,11 +5,14 @@ import electron from 'vite-plugin-electron/simple';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
+  const port = parseInt(process.env.PORT || process.env.VITE_PORT || '3000');
+
   return {
     base: './',
     server: {
-      port: 3000,
+      port: port,
       host: '0.0.0.0',
+      strictPort: false, // Allow auto port increment if port is busy
       proxy: {
         '/api-remote': {
           target: 'https://dms.wpglb.com',

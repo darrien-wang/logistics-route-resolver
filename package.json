@@ -9,6 +9,9 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
+    "dev:host": "set PORT=3000&& vite",
+    "dev:client": "set PORT=3001&& vite",
+    "dev:client2": "set PORT=3002&& vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "electron:dev": "vite",

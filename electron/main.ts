@@ -60,7 +60,13 @@ function createWindow() {
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
-app.on('window-all-closed', () => {
+app.on('window-all-closed', async () => {
+    // Cleanup sync server
+    if (hostServer?.isRunning()) {
+        await hostServer.stop()
+        hostServer = null
+    }
+
     if (process.platform !== 'darwin') {
         app.quit()
         win = null
@@ -387,8 +393,11 @@ function setupLanSyncHandlers() {
     // Start sync server (Host mode)
     ipcMain.handle('start-sync-server', async (_event, port: number = 3000) => {
         try {
+            // If server is already running, stop it first
             if (hostServer?.isRunning()) {
-                throw new Error('Server is already running')
+                console.log('[Main] Server already running, restarting...')
+                await hostServer.stop()
+                hostServer = null
             }
 
             hostServer = new HostServer({ port })

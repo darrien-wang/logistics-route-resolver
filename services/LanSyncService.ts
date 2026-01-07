@@ -122,9 +122,35 @@ class LanSyncService {
             reconnection: true,
             reconnectionDelay: 1000,
             reconnectionAttempts: 5,
+            timeout: 10000, // 10 second connection timeout
         });
 
-        this.setupClientEventHandlers();
+        // Wait for connection to succeed or fail
+        return new Promise((resolve, reject) => {
+            if (!this.socket) {
+                reject(new Error('Failed to create socket'));
+                return;
+            }
+
+            const timeoutId = setTimeout(() => {
+                reject(new Error('Connection timeout - could not reach host'));
+            }, 10000);
+
+            this.socket.once('connect', () => {
+                clearTimeout(timeoutId);
+                console.log('[LanSync] Successfully connected to Host');
+                resolve();
+            });
+
+            this.socket.once('connect_error', (error) => {
+                clearTimeout(timeoutId);
+                console.error('[LanSync] Connection error:', error);
+                reject(new Error(`Failed to connect: ${error.message}`));
+            });
+
+            // Setup all event handlers
+            this.setupClientEventHandlers();
+        });
     }
 
     /**

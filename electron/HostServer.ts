@@ -7,7 +7,7 @@
 
 import { Server, Socket } from 'socket.io';
 import { createServer } from 'http';
-import { internalIpV4 } from 'internal-ip';
+import { networkInterfaces } from 'os';
 
 export interface HostServerConfig {
     port: number;
@@ -26,6 +26,27 @@ const SYNC_EVENTS = {
     CONNECTION: 'connection',
     DISCONNECT: 'disconnect',
 } as const;
+
+/**
+ * Get local IP address from network interfaces
+ */
+function getLocalIpAddress(): string {
+    const nets = networkInterfaces();
+
+    for (const name of Object.keys(nets)) {
+        const netInfos = nets[name];
+        if (!netInfos) continue;
+
+        for (const net of netInfos) {
+            // Skip over non-IPv4 and internal (i.e. 127.0.0.1) addresses
+            if (net.family === 'IPv4' && !net.internal) {
+                return net.address;
+            }
+        }
+    }
+
+    return 'localhost';
+}
 
 export class HostServer {
     private io: Server | null = null;
@@ -55,23 +76,32 @@ export class HostServer {
                 origin: '*',
                 methods: ['GET', 'POST'],
             },
+            transports: ['websocket', 'polling'], // Allow both transports
+            allowEIO3: true, // Support older clients
+        });
+
+        // Add error handling
+        this.io.engine.on('connection_error', (err) => {
+            console.error('[HostServer] Connection error:', err);
         });
 
         // Setup connection handler
         this.setupConnectionHandler();
 
-        // Start listening
+        // Start listening on all network interfaces
         await new Promise<void>((resolve, reject) => {
-            this.httpServer!.listen(this.config.port, () => {
-                console.log(`[HostServer] Listening on port ${this.config.port}`);
+            this.httpServer!.listen(this.config.port, '0.0.0.0', () => {
+                console.log(`[HostServer] Listening on 0.0.0.0:${this.config.port}`);
+                console.log(`[HostServer] Server is ready to accept connections`);
                 resolve();
             }).on('error', (err: Error) => {
+                console.error(`[HostServer] Failed to start server:`, err);
                 reject(err);
             });
         });
 
         // Get local IP address
-        const localIp = await internalIpV4() || 'localhost';
+        const localIp = getLocalIpAddress();
         const url = `http://${localIp}:${this.config.port}`;
 
         console.log(`[HostServer] Server started at ${url}`);
@@ -90,9 +120,12 @@ export class HostServer {
     private setupConnectionHandler(): void {
         if (!this.io) return;
 
+        console.log('[HostServer] Connection handler setup complete, waiting for connections...');
+
         this.io.on('connection', (socket: Socket) => {
             const clientId = socket.id;
-            console.log(`[HostServer] Client connected: ${clientId}`);
+            console.log(`[HostServer] ✅ Client connected: ${clientId}`);
+            console.log(`[HostServer] Total clients: ${this.connectedClients.size + 1}`);
 
             // Store client connection
             this.connectedClients.set(clientId, socket);
