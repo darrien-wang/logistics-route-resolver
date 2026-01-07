@@ -85,13 +85,13 @@ const UpdateNotification: React.FC = () => {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <div className="font-bold text-white text-sm flex items-center gap-2">
-                                    新版本可用
+                                    Update Available
                                     <span className="px-2 py-0.5 bg-sky-500/20 rounded-full text-[10px] font-bold text-sky-400">
                                         v{updateStatus.version}
                                     </span>
                                 </div>
                                 <div className="text-xs text-slate-400 mt-1">
-                                    点击下载以获取最新功能和修复
+                                    Click download to get latest features
                                 </div>
                                 <div className="flex gap-2 mt-3">
                                     <button
@@ -99,7 +99,7 @@ const UpdateNotification: React.FC = () => {
                                         className="flex-1 bg-sky-500 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-sky-400 transition-all flex items-center justify-center gap-2 shadow-lg shadow-sky-500/20"
                                     >
                                         <Download className="w-4 h-4" />
-                                        下载更新
+                                        Download Update
                                     </button>
                                 </div>
                             </div>
@@ -113,14 +113,14 @@ const UpdateNotification: React.FC = () => {
                                 <RefreshCcw className="w-6 h-6 text-amber-400 animate-spin" />
                             </div>
                             <div className="flex-1 min-w-0">
-                                <div className="font-bold text-white text-sm">正在下载更新...</div>
+                                <div className="font-bold text-white text-sm">Downloading update...</div>
                                 <div className="w-full bg-slate-800 rounded-full h-2.5 mt-3 overflow-hidden">
                                     <div
                                         className="bg-gradient-to-r from-sky-500 to-purple-500 h-2.5 rounded-full transition-all duration-300"
                                         style={{ width: `${updateStatus.percent}%` }}
                                     />
                                 </div>
-                                <div className="text-xs text-slate-400 mt-2 font-mono">{updateStatus.percent}% 完成</div>
+                                <div className="text-xs text-slate-400 mt-2 font-mono">{updateStatus.percent}% Complete</div>
                             </div>
                         </>
                     )}
@@ -132,16 +132,16 @@ const UpdateNotification: React.FC = () => {
                                 <CheckCircle2 className="w-6 h-6 text-emerald-400" />
                             </div>
                             <div className="flex-1 min-w-0">
-                                <div className="font-bold text-white text-sm">更新已就绪 ✨</div>
+                                <div className="font-bold text-white text-sm">Update Ready ✨</div>
                                 <div className="text-xs text-slate-400 mt-1">
-                                    重启应用以完成安装
+                                    Restart to install updates
                                 </div>
                                 <button
                                     onClick={handleInstall}
                                     className="mt-3 w-full bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-emerald-400 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
                                 >
                                     <RefreshCcw className="w-4 h-4" />
-                                    立即重启
+                                    Restart Now
                                 </button>
                             </div>
                         </>
@@ -154,13 +154,13 @@ const UpdateNotification: React.FC = () => {
                                 <AlertCircle className="w-6 h-6 text-red-400" />
                             </div>
                             <div className="flex-1 min-w-0">
-                                <div className="font-bold text-white text-sm">更新检查失败</div>
+                                <div className="font-bold text-white text-sm">Update Failed</div>
                                 <div className="text-xs text-red-400/80 mt-1 truncate">{updateStatus.message}</div>
                                 <button
                                     onClick={handleCheckManually}
                                     className="mt-3 text-xs text-sky-400 hover:text-sky-300 transition-colors"
                                 >
-                                    重试
+                                    Retry
                                 </button>
                             </div>
                         </>
@@ -178,7 +178,7 @@ const UpdateNotification: React.FC = () => {
                 {/* Current version footer */}
                 {appVersion && (
                     <div className="mt-3 pt-3 border-t border-white/5 text-[10px] text-slate-600 text-center font-mono">
-                        当前版本: v{appVersion}
+                        Current Version: v{appVersion}
                     </div>
                 )}
             </div>
