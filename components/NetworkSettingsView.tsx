@@ -58,7 +58,7 @@ const NetworkSettingsView: React.FC = () => {
         setError(null);
 
         try {
-            const port = parseInt(hostPort) || 3000;
+            const port = parseInt(hostPort) || 14059;
             const info = await window.electron!.startSyncServer(port);
             setServerInfo(info);
 
@@ -71,6 +71,12 @@ const NetworkSettingsView: React.FC = () => {
             });
 
             setSyncMode('host');
+            // Directly update connectionStatus to trigger UI refresh
+            setConnectionStatus({
+                connected: true,
+                mode: 'host',
+                clientCount: 0,
+            });
             setError(null);
 
             // Poll server status
@@ -94,7 +100,7 @@ const NetworkSettingsView: React.FC = () => {
         setError(null);
 
         try {
-            const port = parseInt(hostPort) || 3000;
+            const port = parseInt(hostPort) || 14059;
             await lanSyncService.initialize({
                 mode: 'client',
                 hostIp: hostIp.trim(),
@@ -102,6 +108,12 @@ const NetworkSettingsView: React.FC = () => {
             });
 
             setSyncMode('client');
+            // Directly update connectionStatus to trigger UI refresh
+            setConnectionStatus({
+                connected: true,
+                mode: 'client',
+                hostIp: hostIp.trim(),
+            });
             setError(null);
         } catch (err: any) {
             setError(err.message || 'Failed to connect to host');
@@ -311,6 +323,37 @@ const NetworkSettingsView: React.FC = () => {
             {connectionStatus.connected && (
                 <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-xl p-6">
                     <h2 className="text-xl font-semibold text-white mb-4">Controls</h2>
+
+                    {/* Host Server Info - Always show when in host mode */}
+                    {connectionStatus.mode === 'host' && (
+                        <div className="mb-6">
+                            <div className="flex items-center gap-2 text-slate-300 mb-2">
+                                <Server className="w-5 h-5 text-sky-400" />
+                                <span className="font-medium">Host Server</span>
+                            </div>
+                            <div className="bg-gradient-to-r from-sky-500/10 to-emerald-500/10 border border-sky-500/20 rounded-lg p-4">
+                                {serverInfo ? (
+                                    <>
+                                        <p className="text-slate-300 mb-2">
+                                            <span className="text-slate-500">Server URL: </span>
+                                            <span className="font-mono text-lg text-sky-400 font-bold">{serverInfo.url}</span>
+                                        </p>
+                                        <p className="text-slate-300">
+                                            <span className="text-slate-500">Host IP: </span>
+                                            <span className="font-mono text-emerald-400">{serverInfo.localIp}</span>
+                                            <span className="text-slate-500 ml-2">Port: </span>
+                                            <span className="font-mono text-emerald-400">{serverInfo.port}</span>
+                                        </p>
+                                        <p className="text-slate-500 text-xs mt-2">
+                                            Clients can connect using this address
+                                        </p>
+                                    </>
+                                ) : (
+                                    <p className="text-slate-500 text-sm">Loading server info...</p>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     {connectionStatus.mode === 'host' && serverStatus && (
                         <div className="mb-6">
