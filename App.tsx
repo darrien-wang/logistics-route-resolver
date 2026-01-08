@@ -126,8 +126,10 @@ const App: React.FC = () => {
   const { broadcastState } = useLanSync({
     history,
     operationLog,
+    stackDefs,
     setHistory,
     setOperationLog,
+    setStackDefs,
     handleSearch
   });
 

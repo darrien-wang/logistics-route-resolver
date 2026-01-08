@@ -7,16 +7,20 @@ import { printMappingConditionService } from '../services/PrintMappingConditionS
 export interface UseLanSyncProps {
     history: ResolvedRouteInfo[];
     operationLog: Record<string, OrderEventStatus[]>;
+    stackDefs: any[];
     setHistory: React.Dispatch<React.SetStateAction<ResolvedRouteInfo[]>>;
     setOperationLog: React.Dispatch<React.SetStateAction<Record<string, OrderEventStatus[]>>>;
+    setStackDefs: React.Dispatch<React.SetStateAction<any[]>>;
     handleSearch: (orderId: string) => Promise<void>;
 }
 
 export const useLanSync = ({
     history,
     operationLog,
+    stackDefs,
     setHistory,
     setOperationLog,
+    setStackDefs,
     handleSearch
 }: UseLanSyncProps) => {
 
@@ -25,9 +29,10 @@ export const useLanSync = ({
         routeStacks: routeStackService.serializeState(),
         history: history.slice(0, 100), // Limit to last 100 entries
         operationLog,
+        stackDefs, // Include imported stack definitions
         printConditions: printMappingConditionService.serializeState(),
         timestamp: Date.now(),
-    }), [history, operationLog]);
+    }), [history, operationLog, stackDefs]);
 
     // Manual broadcast function for HOST mode
     const broadcastState = useCallback(() => {
@@ -80,6 +85,9 @@ export const useLanSync = ({
             if (fullState.operationLog) {
                 setOperationLog(fullState.operationLog);
             }
+            if (fullState.stackDefs) {
+                setStackDefs(fullState.stackDefs);
+            }
             if (fullState.printConditions) {
                 printMappingConditionService.applyRemoteState(fullState.printConditions);
             }
@@ -96,6 +104,9 @@ export const useLanSync = ({
             if (fullState.operationLog) {
                 setOperationLog(fullState.operationLog);
             }
+            if (fullState.stackDefs) {
+                setStackDefs(fullState.stackDefs);
+            }
             if (fullState.printConditions) {
                 printMappingConditionService.applyRemoteState(fullState.printConditions);
             }
@@ -110,14 +121,14 @@ export const useLanSync = ({
             lanSyncService.off(SYNC_EVENTS.STATE_UPDATE, handleStateUpdate);
             if (cleanup) cleanup();
         };
-    }, [createFullStateSnapshot, handleSearch, setHistory, setOperationLog]);
+    }, [createFullStateSnapshot, handleSearch, setHistory, setOperationLog, setStackDefs]);
 
-    // Auto-broadcast state when history or operationLog changes (HOST mode only)
+    // Auto-broadcast state when history, operationLog, or stackDefs changes (HOST mode only)
     useEffect(() => {
         if (lanSyncService.isHost()) {
             broadcastState();
         }
-    }, [history, operationLog, broadcastState]);
+    }, [history, operationLog, stackDefs, broadcastState]);
 
     return { broadcastState };
 };
