@@ -97,6 +97,8 @@ const App: React.FC = () => {
 
   const scannerInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const processingQueueRef = useRef<string[]>([]);
+  const isProcessingRef = useRef<boolean>(false);
 
   const dataSource = useMemo(() => new FlexibleDataSource(), []);
   const exportService = useMemo(() => new ExcelExportService(), []);
@@ -303,9 +305,8 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSearch = useCallback(async (searchId: string) => {
-    if (!searchId.trim()) return;
-    const ids = searchId.trim().split(/[\s,;]+/).filter(id => id.length > 0);
+  const handleSearchInternal = useCallback(async (searchId: string) => {
+    const ids = searchId.split(/[\s,;]+/).filter(id => id.length > 0);
     if (ids.length === 0) return;
 
     // CLIENT MODE: Send scan action to Host instead of processing locally
@@ -675,7 +676,41 @@ const App: React.FC = () => {
       setLoading(false);
       if (view === 'operator' && !showApiConfig) setTimeout(() => scannerInputRef.current?.focus(), 50);
     }
-  }, [dataSource, view, selectedEventTypes, handleEventInitiated, handleEventFinished, apiSettings, showApiConfig]);
+  }, [dataSource, view, selectedEventTypes, handleEventInitiated, handleEventFinished, apiSettings, showApiConfig, isTokenExpired, history]);
+
+  // Queue processing function - processes one scan at a time to prevent race conditions
+  const processNextInQueue = useCallback(async () => {
+    if (isProcessingRef.current || processingQueueRef.current.length === 0) {
+      return;
+    }
+
+    isProcessingRef.current = true;
+    const searchId = processingQueueRef.current.shift()!;
+
+    try {
+      await handleSearchInternal(searchId);
+    } finally {
+      isProcessingRef.current = false;
+
+      // Process next item in queue if any
+      if (processingQueueRef.current.length > 0) {
+        setTimeout(() => processNextInQueue(), 0);
+      }
+    }
+  }, [handleSearchInternal]);
+
+  // Main search handler - adds scans to queue for sequential processing
+  const handleSearch = useCallback(async (searchId: string) => {
+    if (!searchId.trim()) return;
+
+    // Add to queue
+    processingQueueRef.current.push(searchId.trim());
+
+    // Start processing if not already processing
+    if (!isProcessingRef.current) {
+      processNextInQueue();
+    }
+  }, [processNextInQueue]);
 
   const handleAddTestData = useCallback((testOrders: ResolvedRouteInfo[]) => {
     setHistory(prev => {

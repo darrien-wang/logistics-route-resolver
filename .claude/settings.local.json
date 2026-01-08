@@ -10,7 +10,8 @@
       "Bash(npm run dev:host:*)",
       "Bash(npm run dev:client:*)",
       "Bash(npm run dev:client2:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(cat:*)"
     ]
   }
 }

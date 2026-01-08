@@ -73,7 +73,14 @@ const OperatorView: React.FC<OperatorViewProps> = ({
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter') {
-            onSearch(orderId);
+            e.preventDefault(); // Prevent any default form submission behavior
+            const currentValue = orderId.trim();
+            if (currentValue) {
+                // Clear input IMMEDIATELY before processing to prevent barcode combination
+                onOrderIdChange('');
+                // Then trigger search with the captured value
+                onSearch(currentValue);
+            }
         }
     };
 
