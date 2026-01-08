@@ -127,6 +127,7 @@ const App: React.FC = () => {
     history,
     operationLog,
     stackDefs,
+    apiSettings,
     setHistory,
     setOperationLog,
     setStackDefs,
@@ -312,6 +313,7 @@ const App: React.FC = () => {
           <OperatorView
             apiSettings={apiSettings}
             operationLog={operationLog}
+            history={history}
             selectedEventTypes={selectedEventTypes}
             orderId={orderId}
             loading={loading}

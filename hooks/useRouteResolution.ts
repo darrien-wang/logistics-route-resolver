@@ -41,6 +41,11 @@ export interface UseRouteResolutionProps {
     scannerInputRef?: React.RefObject<HTMLInputElement>;
 }
 
+export interface SearchOptions {
+    isRemoteScan?: boolean;
+    clientId?: string;
+}
+
 export const useRouteResolution = ({
     apiSettings,
     operationLog,
@@ -62,7 +67,9 @@ export const useRouteResolution = ({
     const [printStatus, setPrintStatus] = useState<'idle' | 'printing'>('idle');
     const [batchMode, setBatchMode] = useState<{ active: boolean; ids: string[] }>({ active: false, ids: [] });
 
-    const processingQueueRef = useRef<string[]>([]);
+    // Queue item type with options
+    type QueueItem = { searchId: string; options?: SearchOptions };
+    const processingQueueRef = useRef<QueueItem[]>([]);
     const isProcessingRef = useRef<boolean>(false);
 
     const handleEventInitiated = useCallback((id: string, events: OrderEventStatus[]) => {
@@ -79,7 +86,7 @@ export const useRouteResolution = ({
         });
     }, [setOperationLog]);
 
-    const handleSearchInternal = useCallback(async (searchId: string) => {
+    const handleSearchInternal = useCallback(async (searchId: string, options?: SearchOptions) => {
         const ids = searchId.split(/[\s,;]+/).filter(id => id.length > 0);
         if (ids.length === 0) return;
 
@@ -96,8 +103,13 @@ export const useRouteResolution = ({
         if (lanSyncService.isClient() && lanSyncService.isConnected()) {
             console.log(`[LanSync] CLIENT mode: Sending scan to Host: ${ids.join(', ')}`);
             for (const id of ids) {
+                const upperId = id.toUpperCase();
+                // Register pending print so we can print locally when result comes back
+                if (apiSettings.autoPrintLabelEnabled) {
+                    lanSyncService.registerPendingPrint(upperId);
+                }
                 lanSyncService.sendScanAction({
-                    orderId: id.toUpperCase(),
+                    orderId: upperId,
                     routeName: '', // Will be resolved by Host
                     timestamp: Date.now(),
                 });
@@ -137,7 +149,7 @@ export const useRouteResolution = ({
                         if (!checkResult.allowed) {
                             console.log(`[PrintCondition] Order ${uppercaseId} filtered: ${checkResult.reason}`);
                             // Print exception label and skip
-                            if (apiSettings.autoPrintLabelEnabled) {
+                            if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
                                 labelPrintService.queueExceptionPrint(uppercaseId);
                             }
                             // Record to history as filtered exception
@@ -147,6 +159,7 @@ export const useRouteResolution = ({
                                 date: new Date().toLocaleDateString(),
                                 resolvedAt: new Date().toISOString(),
                                 exceptionReason: `FILTERED: ${checkResult.reason}`,
+                                scannedBy: options?.clientId,
                             };
                             setHistory(prev => [exceptionResult, ...prev.filter(h => h.orderId !== uppercaseId)]);
                             handleEventInitiated(uppercaseId, [{ type: 'SCAN', status: 'FAILED', timestamp: new Date().toISOString(), message: 'Condition not met' }]);
@@ -203,8 +216,8 @@ export const useRouteResolution = ({
                                 }
                             }
 
-                            // Auto-print label on every scan
-                            if (apiSettings.autoPrintLabelEnabled) {
+                            // Auto-print label on every scan (skip for remote scans - client will print)
+                            if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
                                 console.log(`[Perf] Queueing print (${(performance.now() - t0).toFixed(0)}ms)`);
                                 setPrintStatus('printing');
                                 labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber, uppercaseId);
@@ -212,12 +225,14 @@ export const useRouteResolution = ({
                                 setTimeout(() => setPrintStatus('idle'), 2000);
                             }
                         } else {
-                            if (apiSettings.autoPrintLabelEnabled) {
+                            if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
                                 labelPrintService.queueExceptionPrint(uppercaseId);
                             }
                             if (apiSettings.voiceEnabled) voiceService.playError();
                         }
 
+                        // Add scannedBy for remote scan tracking
+                        if (options?.clientId) result.scannedBy = options.clientId;
                         setHistory(prev => [result, ...prev.filter(h => h.orderId !== result.orderId)]);
 
                         // Execute unload separately
@@ -272,18 +287,20 @@ export const useRouteResolution = ({
                                 }
                             }
 
-                            // Auto-print label on every scan (not just new stacks)
-                            if (apiSettings.autoPrintLabelEnabled) {
+                            // Auto-print label on every scan (skip for remote scans - client will print)
+                            if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
                                 labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber, uppercaseId);
                             }
                         } else {
                             // EXCEPTION: No route found
-                            if (apiSettings.autoPrintLabelEnabled) {
+                            if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
                                 labelPrintService.queueExceptionPrint(uppercaseId);
                             }
                             if (apiSettings.voiceEnabled) voiceService.playError();
                         }
 
+                        // Add scannedBy for remote scan tracking
+                        if (options?.clientId) result.scannedBy = options.clientId;
                         setHistory(prev => [result, ...prev.filter(h => h.orderId !== result.orderId)]);
                     }
                 }
@@ -299,8 +316,8 @@ export const useRouteResolution = ({
                     const checkResult = printMappingConditionService.checkOrder(targetId);
                     if (!checkResult.allowed) {
                         console.log(`[PrintCondition] Order ${targetId} filtered: ${checkResult.reason}`);
-                        // Print exception label
-                        if (apiSettings.autoPrintLabelEnabled) {
+                        // Print exception label (skip for remote scans)
+                        if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
                             labelPrintService.queueExceptionPrint(targetId);
                         }
                         // Show as filtered exception
@@ -310,6 +327,7 @@ export const useRouteResolution = ({
                             date: new Date().toLocaleDateString(),
                             resolvedAt: new Date().toISOString(),
                             exceptionReason: `FILTERED: ${checkResult.reason}`,
+                            scannedBy: options?.clientId,
                         };
                         setCurrentResult(exceptionResult);
                         setHistory(prev => [exceptionResult, ...prev.filter(h => h.orderId !== targetId)]);
@@ -357,19 +375,21 @@ export const useRouteResolution = ({
                             }
                         }
 
-                        // Auto-print label on every scan (not just new stacks)
-                        if (apiSettings.autoPrintLabelEnabled) {
+                        // Auto-print label on every scan (skip for remote scans - client will print)
+                        if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
                             labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber, targetId);
                         }
                     } else {
                         // EXCEPTION
-                        if (apiSettings.autoPrintLabelEnabled) {
+                        if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
                             labelPrintService.queueExceptionPrint(targetId);
                         }
                         if (apiSettings.voiceEnabled) voiceService.playError();
                     }
 
                     setCurrentResult(result);
+                    // Add scannedBy for remote scan tracking
+                    if (options?.clientId) result.scannedBy = options.clientId;
                     setHistory(prev => [result, ...prev.filter(h => h.orderId !== result.orderId)]);
 
                     // Execute unload separately
@@ -430,19 +450,21 @@ export const useRouteResolution = ({
                             }
                         }
 
-                        // Auto-print label on every scan (not just new stacks)
-                        if (apiSettings.autoPrintLabelEnabled) {
+                        // Auto-print label on every scan (skip for remote scans - client will print)
+                        if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
                             labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber, targetId);
                         }
                     } else {
                         // EXCEPTION
-                        if (apiSettings.autoPrintLabelEnabled) {
+                        if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
                             labelPrintService.queueExceptionPrint(targetId);
                         }
                         if (apiSettings.voiceEnabled) voiceService.playError();
                     }
 
                     setCurrentResult(result);
+                    // Add scannedBy for remote scan tracking
+                    if (options?.clientId) result.scannedBy = options.clientId;
                     setHistory(prev => [result, ...prev.filter(h => h.orderId !== result.orderId)]);
                     setOrderId('');
                 }
@@ -459,6 +481,7 @@ export const useRouteResolution = ({
         }
     }, [dataSource, view, selectedEventTypes, handleEventInitiated, handleEventFinished, apiSettings, isTokenExpired, history, setHistory, setOperationLog, setShowTokenExpired, scannerInputRef]);
 
+
     // Queue processing function - processes one scan at a time to prevent race conditions
     const processNextInQueue = useCallback(async () => {
         if (isProcessingRef.current || processingQueueRef.current.length === 0) {
@@ -466,10 +489,10 @@ export const useRouteResolution = ({
         }
 
         isProcessingRef.current = true;
-        const searchId = processingQueueRef.current.shift()!;
+        const item = processingQueueRef.current.shift()!;
 
         try {
-            await handleSearchInternal(searchId);
+            await handleSearchInternal(item.searchId, item.options);
         } finally {
             isProcessingRef.current = false;
 
@@ -481,11 +504,11 @@ export const useRouteResolution = ({
     }, [handleSearchInternal]);
 
     // Main search handler - adds scans to queue for sequential processing
-    const handleSearch = useCallback(async (searchId: string) => {
+    const handleSearch = useCallback(async (searchId: string, options?: SearchOptions) => {
         if (!searchId.trim()) return;
 
-        // Add to queue
-        processingQueueRef.current.push(searchId.trim());
+        // Add to queue with options
+        processingQueueRef.current.push({ searchId: searchId.trim(), options });
 
         // Start processing if not already processing
         if (!isProcessingRef.current) {

@@ -109,6 +109,8 @@ export interface ResolvedRouteInfo extends OrderData {
     movedAt: string;
   };
   isPlaceholder?: boolean;
+  // LAN Sync: Track which client scanned this order (undefined means local/Host)
+  scannedBy?: string;
 }
 
 // Middleware interface for data processing

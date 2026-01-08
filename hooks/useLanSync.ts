@@ -1,23 +1,27 @@
 import React, { useEffect, useCallback } from 'react';
-import { RouteStackState, ResolvedRouteInfo, OrderEventStatus, PrintMappingConditionState } from '../types';
+import { RouteStackState, ResolvedRouteInfo, OrderEventStatus, PrintMappingConditionState, ApiSettings } from '../types';
 import { lanSyncService, SYNC_EVENTS } from '../services/LanSyncService';
 import { routeStackService } from '../services/RouteStackService';
 import { printMappingConditionService } from '../services/PrintMappingConditionService';
+import { labelPrintService } from '../services/LabelPrintService';
+import { SearchOptions } from './useRouteResolution';
 
 export interface UseLanSyncProps {
     history: ResolvedRouteInfo[];
     operationLog: Record<string, OrderEventStatus[]>;
     stackDefs: any[];
+    apiSettings: ApiSettings;
     setHistory: React.Dispatch<React.SetStateAction<ResolvedRouteInfo[]>>;
     setOperationLog: React.Dispatch<React.SetStateAction<Record<string, OrderEventStatus[]>>>;
     setStackDefs: React.Dispatch<React.SetStateAction<any[]>>;
-    handleSearch: (orderId: string) => Promise<void>;
+    handleSearch: (orderId: string, options?: SearchOptions) => Promise<void>;
 }
 
 export const useLanSync = ({
     history,
     operationLog,
     stackDefs,
+    apiSettings,
     setHistory,
     setOperationLog,
     setStackDefs,
@@ -63,10 +67,14 @@ export const useLanSync = ({
         // Setup Host mode: listen for scan actions from clients
         const cleanup = window.electron?.onSyncServerMessage?.((message: any) => {
             if (message.event === SYNC_EVENTS.ACTION_SCAN) {
-                // Execute scan action on behalf of client
+                // Execute scan action on behalf of client (skip printing - client will print locally)
                 const { orderId } = message.data;
-                console.log(`[LanSync] Processing remote scan from client: ${orderId}`);
-                handleSearch(orderId);
+                const clientId = message.clientId;
+                console.log(`[LanSync] Processing remote scan from client ${clientId}: ${orderId}`);
+
+                // Pass isRemoteScan=true to skip printing on Host
+                // The Host will process and update state, then broadcast
+                handleSearch(orderId, { isRemoteScan: true, clientId });
             } else if (message.event === 'client:connected') {
                 // Send full state sync to newly connected client
                 console.log(`[LanSync] New client connected: ${message.clientId}`);
@@ -117,6 +125,33 @@ export const useLanSync = ({
             }
             if (fullState.history) {
                 setHistory(fullState.history);
+
+                // CLIENT MODE: Process pending prints
+                // Check if any orders we scanned are now in history with route info
+                const pendingPrints = lanSyncService.getPendingPrints();
+                if (lanSyncService.isClient() && apiSettings.autoPrintLabelEnabled && pendingPrints.length > 0) {
+                    const historyArray = fullState.history as ResolvedRouteInfo[];
+                    pendingPrints.forEach(orderId => {
+                        const result = historyArray.find(h => h.orderId === orderId);
+                        if (result) {
+                            if (result.route?.routeConfiguration && result.stackInfo) {
+                                // Found matching order with route - print locally
+                                console.log(`[LanSync] Client printing for scanned order: ${orderId}`);
+                                labelPrintService.queuePrint(
+                                    result.route.routeConfiguration,
+                                    result.stackInfo.stackNumber,
+                                    orderId
+                                );
+                            } else if (result.exceptionReason) {
+                                // Exception - print exception label
+                                console.log(`[LanSync] Client printing exception for: ${orderId}`);
+                                labelPrintService.queueExceptionPrint(orderId);
+                            }
+                            // Remove from pending
+                            lanSyncService.clearPendingPrint(orderId);
+                        }
+                    });
+                }
             }
             if (fullState.operationLog) {
                 setOperationLog(fullState.operationLog);
@@ -139,7 +174,7 @@ export const useLanSync = ({
             lanSyncService.off(SYNC_EVENTS.STATE_UPDATE, handleStateUpdate);
             if (cleanup) cleanup();
         };
-    }, [createFullStateSnapshot, handleSearch, setHistory, setOperationLog, setStackDefs]);
+    }, [createFullStateSnapshot, handleSearch, setHistory, setOperationLog, setStackDefs, apiSettings.autoPrintLabelEnabled]);
 
     // Auto-broadcast state when history, operationLog, or stackDefs changes (HOST mode only)
     useEffect(() => {

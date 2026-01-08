@@ -6,6 +6,7 @@ import { ExcelExportService } from '../services/ExportService';
 interface OperatorViewProps {
     apiSettings: ApiSettings;
     operationLog: Record<string, OrderEventStatus[]>;
+    history: ResolvedRouteInfo[];
     selectedEventTypes: EventType[];
     orderId: string;
     loading: boolean;
@@ -24,6 +25,7 @@ interface OperatorViewProps {
 const OperatorView: React.FC<OperatorViewProps> = ({
     apiSettings,
     operationLog,
+    history,
     selectedEventTypes,
     orderId,
     loading,
@@ -91,11 +93,16 @@ const OperatorView: React.FC<OperatorViewProps> = ({
     };
 
     // Flatten history for display (reverse chronological)
-    const historyEntries = Object.entries(operationLog).reverse().map(([id, events]) => ({
-        id,
-        events: events as OrderEventStatus[],
-        timestamp: (events as OrderEventStatus[])[0]?.timestamp // Use first event for timestamp
-    }));
+    const historyEntries = Object.entries(operationLog).reverse().map(([id, events]) => {
+        // Find the matching history entry to get scannedBy
+        const historyEntry = history.find(h => h.orderId === id);
+        return {
+            id,
+            events: events as OrderEventStatus[],
+            timestamp: (events as OrderEventStatus[])[0]?.timestamp, // Use first event for timestamp
+            scannedBy: historyEntry?.scannedBy
+        };
+    });
 
     const currentHasFailed = currentResult?.operationStatus === 'fail' || currentResult?.operationStatus === 'error' || error !== null;
 
@@ -185,7 +192,7 @@ const OperatorView: React.FC<OperatorViewProps> = ({
                         </div>
                     </div>
                     <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
-                        {historyEntries.map(({ id, events, timestamp }, idx) => {
+                        {historyEntries.map(({ id, events, timestamp, scannedBy }, idx) => {
                             const isError = events.some(e => e.status === 'FAILED');
                             const isSuccess = events.every(e => e.status === 'SUCCESS');
 
@@ -211,6 +218,14 @@ const OperatorView: React.FC<OperatorViewProps> = ({
                                     <div className={`font-mono font-bold text-xl mb-1 tracking-tight ${idx === 0 ? 'text-white' : ''}`}>
                                         {id}
                                     </div>
+
+                                    {/* Scanned By indicator (for remote clients) */}
+                                    {scannedBy && (
+                                        <div className="text-[10px] text-purple-400 font-medium mb-1 flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 bg-purple-400 rounded-full"></span>
+                                            Client: {scannedBy.slice(-8)}
+                                        </div>
+                                    )}
 
                                     {/* Events Logic */}
                                     <div className="flex flex-wrap gap-1 mt-2">

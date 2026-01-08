@@ -63,6 +63,9 @@ class LanSyncService {
         mode: 'standalone',
     };
 
+    // Track pending prints for CLIENT mode - orders that need to be printed when result comes back
+    private pendingPrints: Set<string> = new Set();
+
     /**
      * Initialize the sync service with configuration
      */
@@ -314,6 +317,42 @@ class LanSyncService {
      */
     isClient(): boolean {
         return this.mode === 'client';
+    }
+
+    /**
+     * Register an order as needing to print when result comes back (CLIENT mode)
+     */
+    registerPendingPrint(orderId: string): void {
+        if (this.mode === 'client') {
+            console.log(`[LanSync] Registering pending print for: ${orderId}`);
+            this.pendingPrints.add(orderId.toUpperCase());
+        }
+    }
+
+    /**
+     * Check if an order is pending print and remove it if so (returns true if it was pending)
+     */
+    consumePendingPrint(orderId: string): boolean {
+        const upperOrderId = orderId.toUpperCase();
+        if (this.pendingPrints.has(upperOrderId)) {
+            this.pendingPrints.delete(upperOrderId);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Get all pending print order IDs
+     */
+    getPendingPrints(): string[] {
+        return Array.from(this.pendingPrints);
+    }
+
+    /**
+     * Clear pending print for an order
+     */
+    clearPendingPrint(orderId: string): void {
+        this.pendingPrints.delete(orderId.toUpperCase());
     }
 }
 
