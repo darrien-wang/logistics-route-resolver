@@ -41,7 +41,9 @@ const App: React.FC = () => {
     operationLog,
     setOperationLog,
     apiSettings,
-    setApiSettings
+    setApiSettings,
+    stackDefs,
+    setStackDefs
   } = useAppPersistence();
 
   const scannerInputRef = useRef<HTMLInputElement>(null);
@@ -328,6 +330,8 @@ const App: React.FC = () => {
             onSettingsChange={setApiSettings}
             onAddTestData={handleAddTestData}
             onImportOrders={handleImportOrders}
+            stackDefs={stackDefs}
+            setStackDefs={setStackDefs}
           />
         ) : view === 'network' ? (
           <NetworkSettingsView />

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Settings, Layers, Upload, Download, RotateCcw, RotateCw, Search, X } from 'lucide-react';
-import { RouteStack, ResolvedRouteInfo, StackCapacityConfig, DEFAULT_CAPACITY_CONFIG, ApiSettings, StackStatus, StackType } from '../types';
+import { RouteStack, ResolvedRouteInfo, StackCapacityConfig, DEFAULT_CAPACITY_CONFIG, ApiSettings, StackStatus, StackType, StackDefinition } from '../types';
 import RouteStackCard from './RouteStackCard';
 import MergedStackCard from './MergedStackCard';
 import ExceptionPool from './ExceptionPool';
@@ -9,6 +9,7 @@ import CapacityRuleEditor from './CapacityRuleEditor';
 import SpilloverModal from './SpilloverModal';
 import { stackMergeService, historyService } from '../services/StackMergeService';
 import { stackExportService } from '../services/StackExportService';
+import { routeStackService } from '../services/RouteStackService';
 import { ExcelExportService } from '../services/ExportService';
 import ExportConfigModal from './ExportConfigModal';
 import StackSelectorModal from './StackSelectorModal';
@@ -19,32 +20,25 @@ interface RouteStackManagerProps {
     onSettingsChange: (settings: ApiSettings) => void;
     onAddTestData?: (testOrders: ResolvedRouteInfo[]) => void;
     onImportOrders?: (orders: ResolvedRouteInfo[]) => void;
+    stackDefs: StackDefinition[];
+    setStackDefs: React.Dispatch<React.SetStateAction<StackDefinition[]>>;
 }
 
 type FilterMode = 'all' | 'full' | 'notFull' | 'overflow' | 'merged';
-
-interface StackDefinition {
-    id: string;
-    type: StackType;
-    status: StackStatus;
-    routes: string[];
-    mergeInfo?: RouteStack['mergeInfo'];
-    isOverflow?: boolean;
-    overflowCount?: number;
-    importedAt?: string;
-    sourceNote?: string;
-    manualOrders?: ResolvedRouteInfo[];
-}
 
 const RouteStackManager: React.FC<RouteStackManagerProps> = ({
     history,
     apiSettings,
     onSettingsChange,
     onAddTestData,
-    onImportOrders
+    onImportOrders,
+    stackDefs,
+    setStackDefs
 }) => {
     // --- State ---
-    const [stackDefs, setStackDefs] = useState<StackDefinition[]>([]);
+    // stackDefs is now managed by parent (App.tsx / Persistence Hook)
+    // const [stackDefs, setStackDefs] = useState<StackDefinition[]>([]);
+
     const [selectedStackIds, setSelectedStackIds] = useState<Set<string>>(new Set());
     const [selectedDetailStack, setSelectedDetailStack] = useState<{ title: string; orders: ResolvedRouteInfo[]; mergeInfo?: { components: any[] } } | null>(null);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -75,8 +69,8 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
     useEffect(() => {
         // Update currentState whenever stackDefs changes (but don't push to history)
         // This ensures redo works correctly after operations like spillover
-        if (stackDefs.length > 0 || historyService['currentState'] !== null) {
-            historyService['currentState'] = JSON.parse(JSON.stringify(stackDefs));
+        if ((stackDefs && stackDefs.length > 0) || historyService['currentState'] !== null) {
+            historyService['currentState'] = JSON.parse(JSON.stringify(stackDefs || []));
         }
     }, [stackDefs]);
 
@@ -115,7 +109,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
         const claimedOrderIds = new Set<string>();
 
         // 1. Process Explicit Stacks (Defined in stackDefs)
-        const tempStacks: RouteStack[] = stackDefs.map(def => {
+        const tempStacks: RouteStack[] = (stackDefs || []).map(def => {
             let stackOrders: ResolvedRouteInfo[] = [];
 
             if (def.manualOrders) {
@@ -256,29 +250,108 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
             const unclaimedOrders = orders.filter(o => !claimedOrderIds.has(o.orderId));
 
             if (unclaimedOrders.length > 0) {
-                let currentStackOrders: ResolvedRouteInfo[] = [];
+                // VISUAL ACCUMULATION LOGIC:
+                // Check if there is an existing ACTIVE explicit stack we can append to
+                const explicitStacks = tempStacks
+                    .filter(s => s.route === route)
+                    .sort((a, b) => a.stackNumber - b.stackNumber);
+
                 let currentStackNum = 1;
-                let currentStackValue = 0;
 
-                unclaimedOrders.forEach(order => {
-                    let orderValue = 1;
-                    if (splitRule.type === 'weight') orderValue = order.weight || 0;
-                    else if (splitRule.type === 'volume') orderValue = order.volume || 0;
+                if (explicitStacks.length > 0) {
+                    const lastExplicitStack = explicitStacks[explicitStacks.length - 1];
+                    currentStackNum = lastExplicitStack.stackNumber + 1; // Default next stack number
 
-                    // Check if adding this order would exceed capacity
-                    if (currentStackOrders.length > 0 && (currentStackValue + orderValue > splitRule.value)) {
-                        createImplicitStack(route, currentStackNum, currentStackOrders);
-                        currentStackNum++;
-                        currentStackOrders = [];
-                        currentStackValue = 0;
+                    console.log(`[StackMerge] Unclaimed orders for ${route}: ${unclaimedOrders.length}`, {
+                        explicitStackId: lastExplicitStack.id,
+                        status: lastExplicitStack.status,
+                        isFull: lastExplicitStack.isFull,
+                        activeValue: lastExplicitStack.activeValue,
+                        orders: lastExplicitStack.orders.length
+                    });
+
+                    // Try to merge into the last explicit stack if it's open/active
+                    // Relaxed check: Allow 'active' OR 'open' as long as not locked/full
+                    if ((lastExplicitStack.status === 'active' || lastExplicitStack.status === 'open') && !lastExplicitStack.isFull) {
+                        const remainingCapacity = splitRule.value;
+                        let currentVal = 0;
+
+                        // Calculate current value of explicit stack
+                        if (splitRule.type === 'weight') {
+                            currentVal = lastExplicitStack.orders.reduce((sum, o) => sum + (o.weight || 0), 0);
+                        } else if (splitRule.type === 'volume') {
+                            currentVal = lastExplicitStack.orders.reduce((sum, o) => sum + (o.volume || 0), 0);
+                        } else {
+                            currentVal = lastExplicitStack.orders.length;
+                        }
+
+                        // Try to fit unclaimed orders
+                        const ordersToMerge: ResolvedRouteInfo[] = [];
+                        const remainingOrders: ResolvedRouteInfo[] = [];
+
+                        unclaimedOrders.forEach(order => {
+                            let orderValue = 1;
+                            if (splitRule.type === 'weight') orderValue = order.weight || 0;
+                            else if (splitRule.type === 'volume') orderValue = order.volume || 0;
+
+                            if (currentVal + orderValue <= remainingCapacity) {
+                                currentVal += orderValue;
+                                ordersToMerge.push(order);
+                            } else {
+                                remainingOrders.push(order);
+                            }
+                        });
+
+                        // Apply merge
+                        if (ordersToMerge.length > 0) {
+                            lastExplicitStack.orders.push(...ordersToMerge);
+
+                            // Re-calculate active metrics for the stack
+                            if (lastExplicitStack.activeMeasure === 'weight') {
+                                lastExplicitStack.activeValue = Math.round(lastExplicitStack.orders.reduce((sum, o) => sum + (o.weight || 0), 0) * 100) / 100;
+                            } else if (lastExplicitStack.activeMeasure === 'volume') {
+                                lastExplicitStack.activeValue = Math.round(lastExplicitStack.orders.reduce((sum, o) => sum + (o.volume || 0), 0) * 100) / 100;
+                            } else {
+                                lastExplicitStack.activeValue = lastExplicitStack.orders.length;
+                            }
+
+                            // Check if it became full
+                            if ((lastExplicitStack.activeValue || 0) >= (lastExplicitStack.activeCapacity || remainingCapacity)) {
+                                lastExplicitStack.isFull = true;
+                            }
+                        }
+
+                        // Continue with remaining orders
+                        unclaimedOrders.length = 0; // Clear original array
+                        unclaimedOrders.push(...remainingOrders); // Replace with remaining
                     }
+                }
 
-                    currentStackOrders.push(order);
-                    currentStackValue += orderValue;
-                });
+                // Create implicit stacks for any remaining orders
+                if (unclaimedOrders.length > 0) {
+                    let currentStackOrders: ResolvedRouteInfo[] = [];
+                    let currentStackValue = 0;
 
-                if (currentStackOrders.length > 0) {
-                    createImplicitStack(route, currentStackNum, currentStackOrders);
+                    unclaimedOrders.forEach(order => {
+                        let orderValue = 1;
+                        if (splitRule.type === 'weight') orderValue = order.weight || 0;
+                        else if (splitRule.type === 'volume') orderValue = order.volume || 0;
+
+                        // Check if adding this order would exceed capacity
+                        if (currentStackOrders.length > 0 && (currentStackValue + orderValue > splitRule.value)) {
+                            createImplicitStack(route, currentStackNum, currentStackOrders);
+                            currentStackNum++;
+                            currentStackOrders = [];
+                            currentStackValue = 0;
+                        }
+
+                        currentStackOrders.push(order);
+                        currentStackValue += orderValue;
+                    });
+
+                    if (currentStackOrders.length > 0) {
+                        createImplicitStack(route, currentStackNum, currentStackOrders);
+                    }
                 }
             }
         });
@@ -500,6 +573,17 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                 importedStacks = stackExportService.importStacks(text);
             }
 
+            // Hydrate RouteStackService with imported orders to ensure accumulation works
+            importedStacks.forEach(stack => {
+                stack.orders.forEach(order => {
+                    routeStackService.addToStack(
+                        stack.route,
+                        order.orderId,
+                        { weight: order.weight, volume: order.volume }
+                    );
+                });
+            });
+
             const newDefs: StackDefinition[] = importedStacks.map(s => ({
                 id: s.id,
                 type: s.type,
@@ -531,6 +615,17 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                 const text = await file.text();
                 importedStacks = stackExportService.importStacks(text);
             }
+
+            // Hydrate RouteStackService with imported orders to ensure accumulation works
+            importedStacks.forEach(stack => {
+                stack.orders.forEach(order => {
+                    routeStackService.addToStack(
+                        stack.route,
+                        order.orderId,
+                        { weight: order.weight, volume: order.volume }
+                    );
+                });
+            });
 
             // Extract all orders and mark them as placeholders
             const allPlaceholderOrders: ResolvedRouteInfo[] = [];

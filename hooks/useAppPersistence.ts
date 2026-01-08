@@ -60,10 +60,23 @@ export const useAppPersistence = () => {
         }
     }, []);
 
+    // Stack Logic: Initialize from LocalStorage
+    // We persist imported stacks so they don't disappear on refresh/re-mount
+    const [stackDefs, setStackDefs] = useState<any[]>(() => {
+        const saved = localStorage.getItem('LOGISTICS_STACK_DEFS');
+        return saved ? JSON.parse(saved) : [];
+    });
+
+    useEffect(() => {
+        localStorage.setItem('LOGISTICS_STACK_DEFS', JSON.stringify(stackDefs));
+    }, [stackDefs]);
+
     return {
         operationLog,
         setOperationLog,
         apiSettings,
-        setApiSettings
+        setApiSettings,
+        stackDefs,
+        setStackDefs
     };
 };

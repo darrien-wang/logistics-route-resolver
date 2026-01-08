@@ -241,4 +241,18 @@ declare global {
       }) => Promise<any>;
     };
   }
+}// --- Stack Definition (for persistence) ---
+export interface StackDefinition {
+  id: string;
+  type: StackType;
+  status: StackStatus;
+  routes: string[];
+  manualOrders?: ResolvedRouteInfo[];
+  mergeInfo?: {
+    components: MergedStackComponent[];
+  };
+  isOverflow?: boolean;
+  overflowCount?: number;
+  importedAt?: string;
+  sourceNote?: string;
 }
