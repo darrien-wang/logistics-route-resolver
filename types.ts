@@ -8,6 +8,11 @@ export interface ZipRouteRecord {
   route2Configuration: string;
 }
 
+export interface PrintMappingConditionState {
+  conditions: any[]; // Using any[] for now as the full type isn't critical for this fix
+  isEnabled: boolean;
+}
+
 export interface OrderData {
   orderId: string;
   date: string;
