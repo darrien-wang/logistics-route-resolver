@@ -26,6 +26,7 @@ export interface ScanAction {
         volume: number;
     };
     timestamp: number;
+    clientName?: string;
 }
 
 export interface StateSnapshot {
@@ -240,8 +241,9 @@ class LanSyncService {
             return;
         }
 
-        console.log('[LanSync] Sending scan action to Host:', action);
-        this.socket.emit(SYNC_EVENTS.ACTION_SCAN, action);
+        const actionWithIdentity = { ...action, clientName: this.clientName };
+        console.log('[LanSync] Sending scan action to Host:', actionWithIdentity);
+        this.socket.emit(SYNC_EVENTS.ACTION_SCAN, actionWithIdentity);
     }
 
     /**

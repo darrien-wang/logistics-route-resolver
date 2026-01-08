@@ -223,7 +223,11 @@ const OperatorView: React.FC<OperatorViewProps> = ({
                                     {scannedBy && (
                                         <div className="text-[10px] text-purple-400 font-medium mb-1 flex items-center gap-1">
                                             <span className="w-1.5 h-1.5 bg-purple-400 rounded-full"></span>
-                                            Client: {scannedBy.slice(-8)}
+                                            {/* If it looks like a raw ID (long string with no 'Client-' prefix unless it is default), format it */}
+                                            {scannedBy.length > 20 && !scannedBy.startsWith('Client-') ?
+                                                `Client: ${scannedBy.slice(-8)}` :
+                                                scannedBy
+                                            }
                                         </div>
                                     )}
 

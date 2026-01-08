@@ -120,6 +120,7 @@ const NetworkSettingsView: React.FC = () => {
                 connected: true,
                 mode: 'client',
                 hostIp: hostIp.trim(),
+                clientName: name,
             });
             setError(null);
         } catch (err: any) {

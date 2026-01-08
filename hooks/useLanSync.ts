@@ -68,13 +68,14 @@ export const useLanSync = ({
         const cleanup = window.electron?.onSyncServerMessage?.((message: any) => {
             if (message.event === SYNC_EVENTS.ACTION_SCAN) {
                 // Execute scan action on behalf of client (skip printing - client will print locally)
-                const { orderId } = message.data;
+                const { orderId, clientName } = message.data;
                 const clientId = message.clientId;
-                console.log(`[LanSync] Processing remote scan from client ${clientId}: ${orderId}`);
+                console.log(`[LanSync] Processing remote scan from client ${clientName || clientId}: ${orderId}`);
 
                 // Pass isRemoteScan=true to skip printing on Host
+                // Use clientName if available for better display, otherwise fallback to ID
                 // The Host will process and update state, then broadcast
-                handleSearch(orderId, { isRemoteScan: true, clientId });
+                handleSearch(orderId, { isRemoteScan: true, clientId: clientName || clientId });
             } else if (message.event === 'client:connected') {
                 // Send full state sync to newly connected client
                 console.log(`[LanSync] New client connected: ${message.clientId}`);
