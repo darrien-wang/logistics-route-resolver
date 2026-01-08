@@ -275,9 +275,10 @@ const NetworkSettingsView: React.FC = () => {
                                             type="text"
                                             value={hostIp}
                                             onChange={(e) => setHostIp(e.target.value)}
-                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-sky-500"
+                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-sky-500 relative z-10"
                                             placeholder="192.168.1.100"
                                             disabled={loading}
+                                            autoComplete="off"
                                         />
                                     </div>
 
@@ -289,9 +290,10 @@ const NetworkSettingsView: React.FC = () => {
                                             type="number"
                                             value={hostPort}
                                             onChange={(e) => setHostPort(e.target.value)}
-                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-sky-500"
+                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-sky-500 relative z-10"
                                             placeholder="3000"
                                             disabled={loading}
+                                            autoComplete="off"
                                         />
                                     </div>
 

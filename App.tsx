@@ -147,6 +147,7 @@ const App: React.FC = () => {
       // Clear all state to match first-launch state
       setOperationLog({});
       setHistory([]);
+      setStackDefs([]); // Also clear imported stacks
       setCurrentResult(null);
       setError(null);
       setBatchMode({ active: false, ids: [] });
@@ -362,7 +363,6 @@ const App: React.FC = () => {
         {/* Update Notification */}
         <UpdateNotification />
       </main>
-      <UpdateNotification />
     </div>
   );
 };
