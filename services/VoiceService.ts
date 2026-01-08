@@ -1,99 +1,116 @@
 /**
- * VoiceService - Text-to-speech announcements using Web Speech API
+ * VoiceService - Audio feedback using Web Audio API
  * 
- * Provides voice feedback for route scanning operations.
+ * Provides beep sounds for status feedback:
+ * - Success (Route found): Single "beep"
+ * - Failure/Alert (Stack full, Error): Triple "beep-beep-beep"
  */
 
 class VoiceService {
     private enabled: boolean = true;
-    private synth: SpeechSynthesis;
-    private voice: SpeechSynthesisVoice | null = null;
+    private audioContext: AudioContext | null = null;
 
     constructor() {
-        this.synth = window.speechSynthesis;
-        this.initVoice();
-    }
-
-    /**
-     * Initialize Chinese voice (prefer zh-CN)
-     */
-    private initVoice(): void {
-        const loadVoices = () => {
-            const voices = this.synth.getVoices();
-            // Try to find Chinese voice
-            this.voice = voices.find(v => v.lang.startsWith('zh')) || null;
-        };
-
-        loadVoices();
-        // Voices may load asynchronously
-        if (this.synth.onvoiceschanged !== undefined) {
-            this.synth.onvoiceschanged = loadVoices;
+        // Initialize AudioContext on user interaction if needed, 
+        // but here we try to instantiate it. Browsers might block auto-play 
+        // until interaction, but typically ok in this app context.
+        try {
+            this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        } catch (e) {
+            console.error('Web Audio API not supported', e);
         }
     }
 
+    private getContext(): AudioContext | null {
+        if (!this.audioContext) {
+            try {
+                this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+            } catch (e) {
+                return null;
+            }
+        }
+        if (this.audioContext.state === 'suspended') {
+            this.audioContext.resume();
+        }
+        return this.audioContext;
+    }
+
     /**
-     * Speak text with configured voice
+     * Play a tone
+     * @param frequency Hz
+     * @param duration seconds
+     * @param type oscillator type
+     * @param startTime delay in seconds
      */
-    private speak(text: string): void {
+    private playTone(frequency: number, duration: number, type: OscillatorType = 'sine', startTime: number = 0) {
         if (!this.enabled) return;
+        const ctx = this.getContext();
+        if (!ctx) return;
 
-        // Cancel any ongoing speech
-        this.synth.cancel();
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
 
-        const utterance = new SpeechSynthesisUtterance(text);
+        oscillator.type = type;
+        oscillator.frequency.value = frequency;
 
-        if (this.voice) {
-            utterance.voice = this.voice;
-        }
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
 
-        utterance.lang = 'zh-CN';
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
-        utterance.volume = 1.0;
+        const now = ctx.currentTime + startTime;
 
-        this.synth.speak(utterance);
+        // Envelope to avoid clicking
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(0.5, now + 0.01);
+        gainNode.gain.linearRampToValueAtTime(0, now + duration);
+
+        oscillator.start(now);
+        oscillator.stop(now + duration);
     }
 
     /**
-     * Announce route and stack number
-     * Example: "路线 SD-007 第2栈"
+     * Play Success Beep (Single "Bee")
+     */
+    playSuccess(): void {
+        // 880Hz (A5) for 0.15s
+        this.playTone(880, 0.15, 'sine');
+    }
+
+    /**
+     * Play Error/Alert Beep (Triple "Bee-Bee-Bee")
+     */
+    playError(): void {
+        // 440Hz (A4) - 3 quick beeps
+        this.playTone(440, 0.1, 'square', 0);
+        this.playTone(440, 0.1, 'square', 0.2);
+        this.playTone(440, 0.1, 'square', 0.4);
+    }
+
+    /**
+     * Legacy compatibility: Announce route -> Success Beep
      */
     announceRoute(routeName: string, stackNumber: number): void {
-        const text = `路线 ${routeName} 第${stackNumber}栈`;
-        this.speak(text);
+        this.playSuccess();
     }
 
     /**
-     * Announce stack full warning
-     * Example: "注意！SD-007 第1栈已满，进入第2栈"
+     * Legacy compatibility: Stack Full -> Error/Alert Beep (Attention needed)
      */
     announceStackFull(routeName: string, oldStackNumber: number, newStackNumber: number): void {
-        const text = `注意！${routeName} 第${oldStackNumber}栈已满，进入第${newStackNumber}栈`;
-        this.speak(text);
+        this.playError();
     }
 
-    /**
-     * Enable or disable voice announcements
-     */
     setEnabled(enabled: boolean): void {
         this.enabled = enabled;
-        if (!enabled) {
-            this.synth.cancel();  // Stop any ongoing speech
-        }
     }
 
-    /**
-     * Check if voice is enabled
-     */
     isEnabled(): boolean {
         return this.enabled;
     }
 
-    /**
-     * Stop any ongoing speech
-     */
     stop(): void {
-        this.synth.cancel();
+        if (this.audioContext) {
+            this.audioContext.suspend();
+        }
     }
 }
 

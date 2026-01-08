@@ -78,19 +78,23 @@ export const createRemoteLookupMiddleware = (settings: ApiSettings): ProcessingM
 
       const result = await response.json();
       if (result.success && result.rows && result.rows.length > 0) {
-        const orderRow = result.rows[0];
-        const deliveryAddress = orderRow.deliveryAddress || "";
+        // STRICT MATCHING: Only accept if the returned tracking number matches exactly
+        const orderRow = result.rows.find((r: any) => r.trackingNumber?.toUpperCase() === context.orderId.toUpperCase());
 
-        // Extract Zip Code - pick the LAST match to avoid picking up street numbers (e.g. 10319) at the start
-        const allMatches = deliveryAddress.match(/\b\d{5}(-\d{4})?\b/g);
-        const extractedZip = allMatches ? allMatches[allMatches.length - 1] : context.zipCode;
+        if (orderRow) {
+          const deliveryAddress = orderRow.deliveryAddress || "";
 
-        return {
-          ...context,
-          address: deliveryAddress || context.address,
-          zipCode: extractedZip,
-          weight: parseFloat(orderRow.ordersWeight) || context.weight,
-        };
+          // Extract Zip Code - pick the LAST match to avoid picking up street numbers (e.g. 10319) at the start
+          const allMatches = deliveryAddress.match(/\b\d{5}(-\d{4})?\b/g);
+          const extractedZip = allMatches ? allMatches[allMatches.length - 1] : context.zipCode;
+
+          return {
+            ...context,
+            address: deliveryAddress || context.address,
+            zipCode: extractedZip,
+            weight: parseFloat(orderRow.ordersWeight) || context.weight,
+          };
+        }
       }
     } catch (error) {
       console.error("Remote lookup failed, falling back to local processing", error);

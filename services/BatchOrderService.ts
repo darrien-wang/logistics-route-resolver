@@ -143,7 +143,11 @@ async function fetchOrdersChunk(
                 raw: row
             };
 
-            results.set(row.trackingNumber.toUpperCase(), orderResult);
+            // STRICT MATCHING: Only add if this result was explicitly requested (case-insensitive)
+            // The API might return partial matches, so we filter them out to be safe
+            if (trackingNumbers.some(tn => tn.toUpperCase() === row.trackingNumber.toUpperCase())) {
+                results.set(row.trackingNumber.toUpperCase(), orderResult);
+            }
         }
     }
 
