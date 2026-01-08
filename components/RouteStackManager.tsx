@@ -54,6 +54,9 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
     // Custom Stack / Move Logic
     const [moveTargetModal, setMoveTargetModal] = useState<{ isOpen: boolean; sourceIds: string[] }>({ isOpen: false, sourceIds: [] });
 
+    // Drag and drop state
+    const [isDragging, setIsDragging] = useState(false);
+
 
 
     // Ref for file input
@@ -422,7 +425,31 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
 
     const handleSplitStack = (stack: RouteStack) => {
         historyService.pushState(stackDefs);
-        setStackDefs(prev => prev.filter(d => d.id !== stack.id));
+
+        // If this is a merged stack, restore the original component stacks
+        if (stack.type === 'merged' && stack.mergeInfo?.components) {
+            // Recreate stackDefs from the merge components
+            const restoredDefs: StackDefinition[] = stack.mergeInfo.components.map(comp => ({
+                id: comp.stackId,
+                type: 'normal' as StackType,
+                status: 'open' as StackStatus,
+                routes: [comp.route],
+                manualOrders: comp.orders,
+                isOverflow: false,
+                overflowCount: comp.overflowCount || 0,
+            }));
+
+            setStackDefs(prev => [
+                ...prev.filter(d => d.id !== stack.id), // Remove the merged stack
+                ...restoredDefs // Add back the original component stacks
+            ]);
+
+            console.log(`[Split] Restored ${restoredDefs.length} stacks from merged stack ${stack.id}`);
+        } else {
+            // For non-merged stacks, just remove from stackDefs
+            // The orders will remain in history and form implicit stacks
+            setStackDefs(prev => prev.filter(d => d.id !== stack.id));
+        }
     };
 
     const handleResolveOverflow = (stack: RouteStack) => {
@@ -893,9 +920,61 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
         return result;
     }, [renderableStacks, filterMode]);
 
+    // Drag and drop handlers
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!isDragging) setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Only set isDragging to false if we're leaving the container (not entering a child)
+        if (e.currentTarget === e.target) {
+            setIsDragging(false);
+        }
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            const file = files[0];
+            const validExtensions = ['.json', '.xlsx', '.xls'];
+            const isValid = validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+
+            if (isValid) {
+                handleImport(file);
+            } else {
+                alert('Please drop a JSON or Excel file (.json, .xlsx, .xls)');
+            }
+        }
+    };
+
 
     return (
-        <div className="h-full flex flex-col space-y-6 p-6 animate-in fade-in duration-500">
+        <div
+            className={`h-full flex flex-col space-y-6 p-6 animate-in fade-in duration-500 relative transition-all ${isDragging ? 'ring-4 ring-sky-500/50 ring-inset' : ''}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+        >
+            {/* Drag overlay */}
+            {isDragging && (
+                <div className="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center pointer-events-none animate-in fade-in duration-200">
+                    <div className="flex flex-col items-center gap-4 p-8 bg-slate-900/90 rounded-3xl border-2 border-dashed border-sky-500 shadow-2xl shadow-sky-500/20">
+                        <Upload className="w-16 h-16 text-sky-400 animate-bounce" />
+                        <div className="text-center">
+                            <p className="text-2xl font-bold text-white">Drop to Import</p>
+                            <p className="text-slate-400 text-sm mt-1">JSON or Excel files (.json, .xlsx, .xls)</p>
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* Consolidated Header with Import/Export and Settings */}
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-slate-900/50 p-4 rounded-2xl border border-white/5 backdrop-blur-sm">
                 {/* Left: Title and Stats */}
