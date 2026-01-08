@@ -54,6 +54,7 @@ export class HostServer {
     private connectedClients: Map<string, Socket> = new Map();
     private config: HostServerConfig;
     private messageHandler: ((event: string, data: any, clientId: string) => void) | null = null;
+    private serverInfo: ServerInfo | null = null;
 
     constructor(config: HostServerConfig) {
         this.config = config;
@@ -107,11 +108,14 @@ export class HostServer {
         console.log(`[HostServer] Server started at ${url}`);
         console.log(`[HostServer] Clients can connect using this address`);
 
-        return {
+        // Store server info for later retrieval
+        this.serverInfo = {
             port: this.config.port,
             localIp,
             url,
         };
+
+        return this.serverInfo;
     }
 
     /**
@@ -153,6 +157,15 @@ export class HostServer {
                 // Notify main window about client disconnect
                 if (this.messageHandler) {
                     this.messageHandler('client:disconnected', { clientId }, clientId);
+                }
+            });
+
+            // Handle full state sync request (after client reconnection)
+            socket.on('request:fullSync', () => {
+                console.log(`[HostServer] Client ${clientId} requested full state sync (reconnection)`);
+                // Notify main window to send full state to this client
+                if (this.messageHandler) {
+                    this.messageHandler('client:requestSync', { clientId }, clientId);
                 }
             });
         });
@@ -252,6 +265,13 @@ export class HostServer {
      */
     isRunning(): boolean {
         return this.io !== null;
+    }
+
+    /**
+     * Get server info (port, localIp, url)
+     */
+    getServerInfo(): ServerInfo | null {
+        return this.serverInfo;
     }
 }
 

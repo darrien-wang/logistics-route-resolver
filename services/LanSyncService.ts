@@ -123,9 +123,11 @@ class LanSyncService {
 
         this.socket = io(url, {
             reconnection: true,
-            reconnectionDelay: 1000,
-            reconnectionAttempts: 5,
-            timeout: 10000, // 10 second connection timeout
+            reconnectionDelay: 1000,           // Start with 1 second
+            reconnectionDelayMax: 10000,       // Max 10 seconds between attempts
+            reconnectionAttempts: Infinity,    // Never stop trying
+            timeout: 10000,                    // 10 second connection timeout
+            randomizationFactor: 0.5,          // Add randomness to prevent thundering herd
         });
 
         // Wait for connection to succeed or fail
@@ -172,14 +174,37 @@ class LanSyncService {
             this.emit('connect', null);
         });
 
-        this.socket.on('disconnect', () => {
-            console.log('[LanSync] Disconnected from Host');
+        this.socket.on('disconnect', (reason) => {
+            console.log('[LanSync] Disconnected from Host, reason:', reason);
             this.updateConnectionStatus({
                 connected: false,
                 mode: 'client',
                 hostIp: this.config.hostIp,
             });
-            this.emit('disconnect', null);
+            this.emit('disconnect', { reason });
+        });
+
+        // Reconnection events for better UX
+        this.socket.io.on('reconnect_attempt', (attempt) => {
+            console.log(`[LanSync] Reconnection attempt #${attempt}...`);
+            this.emit('reconnecting', { attempt });
+        });
+
+        this.socket.io.on('reconnect', (attempt) => {
+            console.log(`[LanSync] Reconnected after ${attempt} attempts`);
+            // Request full state sync after reconnection
+            this.socket?.emit('request:fullSync');
+            this.emit('reconnected', { attempt });
+        });
+
+        this.socket.io.on('reconnect_error', (error) => {
+            console.log('[LanSync] Reconnection error:', error.message);
+            this.emit('reconnect_error', { error: error.message });
+        });
+
+        this.socket.io.on('reconnect_failed', () => {
+            console.log('[LanSync] Reconnection failed after all attempts');
+            this.emit('reconnect_failed', null);
         });
 
         // Receive full state sync from Host

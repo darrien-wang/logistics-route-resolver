@@ -82,6 +82,13 @@ export const useLanSync = ({
                 if (window.electron?.syncStateToClient) {
                     window.electron.syncStateToClient(message.clientId, fullState);
                 }
+            } else if (message.event === 'client:requestSync') {
+                // Client reconnected and requesting full state sync
+                console.log(`[LanSync] Client ${message.clientId} reconnected, sending full state`);
+                const fullState = createFullStateSnapshot();
+                if (window.electron?.syncStateToClient) {
+                    window.electron.syncStateToClient(message.clientId, fullState);
+                }
             }
         });
 

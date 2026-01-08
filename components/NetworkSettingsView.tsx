@@ -47,6 +47,10 @@ const NetworkSettingsView: React.FC = () => {
             try {
                 const status = await window.electron.getSyncServerStatus();
                 setServerStatus(status);
+                // Also update serverInfo if available (for when navigating back to this page)
+                if (status.serverInfo && !serverInfo) {
+                    setServerInfo(status.serverInfo);
+                }
             } catch (err) {
                 console.error('Failed to get server status:', err);
             }

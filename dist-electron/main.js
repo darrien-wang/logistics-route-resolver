@@ -30711,6 +30711,7 @@ class HostServer {
     this.httpServer = null;
     this.connectedClients = /* @__PURE__ */ new Map();
     this.messageHandler = null;
+    this.serverInfo = null;
     this.config = config;
   }
   /**
@@ -30749,11 +30750,12 @@ class HostServer {
     const url = `http://${localIp}:${this.config.port}`;
     console.log(`[HostServer] Server started at ${url}`);
     console.log(`[HostServer] Clients can connect using this address`);
-    return {
+    this.serverInfo = {
       port: this.config.port,
       localIp,
       url
     };
+    return this.serverInfo;
   }
   /**
    * Setup Socket.IO connection handler
@@ -30780,6 +30782,12 @@ class HostServer {
         this.connectedClients.delete(clientId);
         if (this.messageHandler) {
           this.messageHandler("client:disconnected", { clientId }, clientId);
+        }
+      });
+      socket2.on("request:fullSync", () => {
+        console.log(`[HostServer] Client ${clientId} requested full state sync (reconnection)`);
+        if (this.messageHandler) {
+          this.messageHandler("client:requestSync", { clientId }, clientId);
         }
       });
     });
@@ -30861,6 +30869,12 @@ class HostServer {
    */
   isRunning() {
     return this.io !== null;
+  }
+  /**
+   * Get server info (port, localIp, url)
+   */
+  getServerInfo() {
+    return this.serverInfo;
   }
 }
 const __dirname$1 = path.dirname(fileURLToPath(import.meta.url));
@@ -31230,7 +31244,8 @@ function setupLanSyncHandlers() {
     return {
       running: hostServer.isRunning(),
       clientCount: hostServer.getClientCount(),
-      clients: hostServer.getConnectedClients()
+      clients: hostServer.getConnectedClients(),
+      serverInfo: hostServer.getServerInfo()
     };
   });
 }

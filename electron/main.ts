@@ -475,7 +475,8 @@ function setupLanSyncHandlers() {
         return {
             running: hostServer.isRunning(),
             clientCount: hostServer.getClientCount(),
-            clients: hostServer.getConnectedClients()
+            clients: hostServer.getConnectedClients(),
+            serverInfo: hostServer.getServerInfo()
         }
     })
 }

@@ -206,6 +206,7 @@ export interface SyncServerStatus {
   running: boolean;
   clientCount: number;
   clients?: string[];
+  serverInfo?: SyncServerInfo;
 }
 
 export interface SyncServerMessage {
