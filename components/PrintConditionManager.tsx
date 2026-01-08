@@ -23,10 +23,11 @@ const PrintConditionManager: React.FC<PrintConditionManagerProps> = ({ isOpen, o
     const [enabled, setEnabled] = useState(printMappingConditionService.isEnabled());
     const [conditions, setConditions] = useState<MappingCondition[]>(printMappingConditionService.getConditions());
     const [showAddForm, setShowAddForm] = useState(false);
-    const [newCondition, setNewCondition] = useState<{ type: ConditionType; value: string; description: string }>({
+    const [newCondition, setNewCondition] = useState<{ type: ConditionType; value: string; description: string; mode: 'include' | 'exclude' }>({
         type: 'fileList',
         value: '',
-        description: ''
+        description: '',
+        mode: 'include'
     });
 
     // For fileList type
@@ -88,7 +89,8 @@ const PrintConditionManager: React.FC<PrintConditionManagerProps> = ({ isOpen, o
                 enabled: true,
                 description: newCondition.description.trim() || fileName || 'Manual paste',
                 fileListData: parsedItems,
-                fileName: fileName || undefined
+                fileName: fileName || undefined,
+                mode: newCondition.mode
             });
         } else {
             if (!newCondition.value.trim()) return;
@@ -97,12 +99,13 @@ const PrintConditionManager: React.FC<PrintConditionManagerProps> = ({ isOpen, o
                 type: newCondition.type,
                 value: newCondition.value.trim(),
                 enabled: true,
-                description: newCondition.description.trim() || undefined
+                description: newCondition.description.trim() || undefined,
+                mode: newCondition.mode
             });
         }
 
         setConditions(printMappingConditionService.getConditions());
-        setNewCondition({ type: 'fileList', value: '', description: '' });
+        setNewCondition({ type: 'fileList', value: '', description: '', mode: 'include' });
         setFileListInput('');
         setParsedItems([]);
         setFileName('');
@@ -121,7 +124,7 @@ const PrintConditionManager: React.FC<PrintConditionManagerProps> = ({ isOpen, o
 
     const resetForm = () => {
         setShowAddForm(false);
-        setNewCondition({ type: 'fileList', value: '', description: '' });
+        setNewCondition({ type: 'fileList', value: '', description: '', mode: 'include' });
         setFileListInput('');
         setParsedItems([]);
         setFileName('');
@@ -204,14 +207,18 @@ const PrintConditionManager: React.FC<PrintConditionManagerProps> = ({ isOpen, o
                                 <div
                                     key={condition.id}
                                     className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${condition.enabled
-                                        ? 'bg-slate-800/50 border-white/10'
+                                        ? condition.mode === 'exclude'
+                                            ? 'bg-red-900/20 border-red-500/30'
+                                            : 'bg-slate-800/50 border-white/10'
                                         : 'bg-slate-900/50 border-white/5 opacity-50'
                                         }`}
                                 >
                                     <button
                                         onClick={() => handleToggleCondition(condition.id)}
                                         className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${condition.enabled
-                                            ? 'bg-emerald-500/20 text-emerald-400'
+                                            ? condition.mode === 'exclude'
+                                                ? 'bg-red-500/20 text-red-400'
+                                                : 'bg-emerald-500/20 text-emerald-400'
                                             : 'bg-slate-800 text-slate-600'
                                             }`}
                                     >
@@ -224,11 +231,19 @@ const PrintConditionManager: React.FC<PrintConditionManagerProps> = ({ isOpen, o
 
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">
+                                            {/* Mode Badge */}
+                                            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-lg uppercase tracking-wider ${condition.mode === 'exclude'
+                                                    ? 'bg-red-500 text-white'
+                                                    : 'bg-emerald-500 text-white'
+                                                }`}>
+                                                {condition.mode === 'exclude' ? 'BLOCK' : 'ALLOW'}
+                                            </span>
+
                                             <span className={`px-2 py-0.5 text-xs font-bold rounded-lg uppercase ${condition.type === 'fileList'
                                                 ? 'bg-amber-500/20 text-amber-400'
                                                 : 'bg-sky-500/20 text-sky-400'
                                                 }`}>
-                                                {condition.type === 'fileList' ? 'WHITELIST' : condition.type}
+                                                {condition.type === 'fileList' ? 'LIST' : condition.type}
                                             </span>
                                             <span className="font-mono text-white font-bold truncate">
                                                 {condition.type === 'fileList'
@@ -268,6 +283,28 @@ const PrintConditionManager: React.FC<PrintConditionManagerProps> = ({ isOpen, o
                                     className="p-1 rounded-lg hover:bg-white/5 text-slate-400"
                                 >
                                     <X className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            {/* Mode Selection */}
+                            <div className="flex p-1 bg-slate-900 rounded-xl mb-4">
+                                <button
+                                    onClick={() => setNewCondition(prev => ({ ...prev, mode: 'include' }))}
+                                    className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${newCondition.mode === 'include'
+                                            ? 'bg-emerald-500 text-white shadow-lg'
+                                            : 'text-slate-500 hover:text-slate-300'
+                                        }`}
+                                >
+                                    Whitelist (Allow)
+                                </button>
+                                <button
+                                    onClick={() => setNewCondition(prev => ({ ...prev, mode: 'exclude' }))}
+                                    className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${newCondition.mode === 'exclude'
+                                            ? 'bg-red-500 text-white shadow-lg'
+                                            : 'text-slate-500 hover:text-slate-300'
+                                        }`}
+                                >
+                                    Blacklist (Block)
                                 </button>
                             </div>
 

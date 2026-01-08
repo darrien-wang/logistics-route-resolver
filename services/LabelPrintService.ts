@@ -154,11 +154,14 @@ class LabelPrintService {
     /**
      * Generate exception label image
      */
-    generateExceptionLabelImage(orderId: string): string {
-        // Cache exception labels by date + orderId
+    /**
+     * Generate exception label image
+     */
+    generateExceptionLabelImage(orderId: string, customTitle: string = 'EXCEPTION', customFooter: string = 'NO ROUTE'): string {
+        // Cache exception labels by date + orderId + title
         const today = new Date();
         const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')} ${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
-        const cacheKey = `exception-${orderId}-${dateStr}`;
+        const cacheKey = `exception-${orderId}-${customTitle}-${dateStr}`;
 
         if (this.exceptionCache.has(cacheKey)) {
             return this.exceptionCache.get(cacheKey)!;
@@ -185,12 +188,12 @@ class LabelPrintService {
         ctx.textBaseline = 'top';
         ctx.fillText(dateStr, width - 60, 25);
 
-        // "EXCEPTION" label
+        // TITLE label (customizable)
         ctx.fillStyle = '#cc0000';
         ctx.font = 'bold 80px Arial';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('EXCEPTION', leftWidth / 2, height * 0.15);
+        ctx.fillText(customTitle, leftWidth / 2, height * 0.15);
 
         // Order ID
         ctx.fillStyle = '#000000';
@@ -212,10 +215,18 @@ class LabelPrintService {
         ctx.lineTo(width - 20, height * 0.5);
         ctx.stroke();
 
-        // "NO ROUTE"
+        // FOOTER (customizable)
         ctx.fillStyle = '#999999';
-        ctx.font = 'bold 120px Arial';
-        ctx.fillText('NO ROUTE', leftWidth / 2, height * 0.75);
+        // Auto-scale footer text
+        let footerFontSize = 120;
+        ctx.font = `bold ${footerFontSize}px Arial`;
+        let footerWidth = ctx.measureText(customFooter).width;
+        while (footerWidth > leftWidth - 40 && footerFontSize > 60) {
+            footerFontSize -= 10;
+            ctx.font = `bold ${footerFontSize}px Arial`;
+            footerWidth = ctx.measureText(customFooter).width;
+        }
+        ctx.fillText(customFooter, leftWidth / 2, height * 0.75);
 
         // Notes
         const notesBoxTop = height * 0.5 + 40;
@@ -260,18 +271,21 @@ class LabelPrintService {
         return jobId;
     }
 
-    queueExceptionPrint(orderId: string, force: boolean = false): string | null {
+    queueExceptionPrint(orderId: string, force: boolean = false, customTitle?: string, customFooter?: string): string | null {
         if (!this.enabled && !force) return null;
 
         const now = performance.now();
         const jobId = `print-ex-${++this.jobIdCounter}-${Date.now()}`;
         console.log(`[LabelPrintService] Queuing exception print job ${jobId} (force=${force})`);
+        console.log('[LabelPrintService] Call Stack:', new Error().stack); // DEBUG TRACE
 
         const job: PrintJob = {
             id: jobId,
             type: 'exception',
             orderId,
             status: 'pending',
+            baseRouteName: customTitle,
+            trackingNumber: customFooter,
             timestamp: Date.now(),
             perf: { tEnqueue: now },
         };
@@ -357,7 +371,10 @@ class LabelPrintService {
             try {
                 let dataUrl: string;
                 if (job.type === 'exception' && job.orderId) {
-                    dataUrl = this.generateExceptionLabelImage(job.orderId);
+                    // Extract custom title/footer hacked into unused fields
+                    const customTitle = job.baseRouteName;
+                    const customFooter = job.trackingNumber;
+                    dataUrl = this.generateExceptionLabelImage(job.orderId, customTitle, customFooter);
                 } else if (job.type === 'standard' && job.baseRouteName && job.stackNumber) {
                     dataUrl = this.generateLabelImage(job.baseRouteName, job.stackNumber);
                 } else {

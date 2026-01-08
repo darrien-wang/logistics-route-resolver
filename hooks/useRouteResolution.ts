@@ -90,17 +90,11 @@ export const useRouteResolution = ({
         const ids = searchId.split(/[\s,;]+/).filter(id => id.length > 0);
         if (ids.length === 0) return;
 
-        // STRICT VALIDATION: Check for ZX/WP prefix
-        const invalidId = ids.find(id => !/^(ZX|WP)/i.test(id));
-        if (invalidId) {
-            setError(`INVALID PREFIX: ${invalidId} (Must start with ZX/WP)`);
-            if (apiSettings.voiceEnabled) voiceService.playError();
-            setLoading(false);
-            return;
-        }
+        // REMOVED HARCODED ZX/WP CHECK - Handled by Print Mapping Conditions
 
         // CLIENT MODE: Send scan action to Host instead of processing locally
         if (lanSyncService.isClient() && lanSyncService.isConnected()) {
+            // ... (client mode logic remains same)
             console.log(`[LanSync] CLIENT mode: Sending scan to Host: ${ids.join(', ')}`);
             for (const id of ids) {
                 const upperId = id.toUpperCase();
@@ -121,6 +115,7 @@ export const useRouteResolution = ({
 
         // Block operations if token is expired (and API is enabled)
         if (apiSettings.enabled && isTokenExpired()) {
+            // ... (token logic remains same)
             setError('TOKEN EXPIRED');
             setCurrentResult(null);
             setShowTokenExpired(true);
@@ -146,12 +141,28 @@ export const useRouteResolution = ({
                     // Print Condition Pool Check - before route resolution
                     if (printMappingConditionService.isEnabled()) {
                         const checkResult = printMappingConditionService.checkOrder(uppercaseId, cachedOrder?.zipCode);
+                        console.log(`[Resolution] Condition Check for ${uppercaseId}: allowed=${checkResult.allowed}`, checkResult);
+
                         if (!checkResult.allowed) {
-                            console.log(`[PrintCondition] Order ${uppercaseId} filtered: ${checkResult.reason}`);
-                            // Print exception label and skip
+                            console.log(`[Resolution] ENTERING FILTER BLOCK. Reason: ${checkResult.reason}`);
+
+                            // LOGIC: If Blocked block Blacklist (exclude rule) -> Print the raw string (Special handling)
+                            // If just not Whitelisted -> Print Exception (Default handling) or nothing?
+                            // User request: "If matched blacklist, print this string out"
+
                             if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
-                                labelPrintService.queueExceptionPrint(uppercaseId);
+                                if (checkResult.reason?.includes('Blocked by Blacklist')) {
+                                    // It's a Blacklisted item (Special Exception) -> Print with custom labels
+                                    console.log('[PrintCondition] Printing SPECIAL EXCEPTION for blocked item');
+                                    labelPrintService.queueExceptionPrint(uppercaseId, true, 'BLOCKED', 'CONDITION FILTER');
+                                } else {
+                                    // Not whitelisted -> Normal Exception -> STOP -> DO NOT PRINT
+                                    // Previously this was falling through or printing default exception?
+                                    // We explicitly enforce NO PRINT here.
+                                    console.log('[PrintCondition] Item filtered (not in whitelist). Skipping print.');
+                                }
                             }
+
                             // Record to history as filtered exception
                             const exceptionResult: ResolvedRouteInfo = {
                                 orderId: uppercaseId,

@@ -13,6 +13,7 @@ export interface MappingCondition {
     value: string;
     enabled: boolean;
     description?: string;
+    mode?: 'include' | 'exclude'; // include = Whitelist, exclude = Blacklist
     // 用于 fileList 类型：存储从文件加载的订单ID列表
     fileListData?: string[];
     fileName?: string;
@@ -37,10 +38,10 @@ class PrintMappingConditionService {
 
     /**
      * 检查订单是否满足条件池的任一条件
-     * @param orderId - 订单ID
-     * @param zipCode - 可选的ZIP码
-     * @param route - 可选的路由名称
-     * @returns 检查结果
+     * Logic:
+     * 1. Check Blacklist (exclude rules) -> If match, BLOCK.
+     * 2. Check Whitelist (include rules) -> If exist, must match one to ALLOW.
+     * 3. If no Whitelist rules exist -> ALLOW (as long as not blacklisted).
      */
     checkOrder(orderId: string, zipCode?: string, route?: string): ConditionCheckResult {
         // 如果功能未启用，允许所有
@@ -56,21 +57,44 @@ class PrintMappingConditionService {
             return { allowed: true, reason: 'No active conditions' };
         }
 
-        // OR 逻辑：匹配任一条件即可
-        for (const condition of activeConditions) {
+        // 1. Blacklist Check (Exclude)
+        const excludeConditions = activeConditions.filter(c => c.mode === 'exclude');
+        for (const condition of excludeConditions) {
             if (this.matchCondition(condition, orderId, zipCode, route)) {
                 return {
-                    allowed: true,
+                    allowed: false,
                     matchedCondition: condition,
-                    reason: `Matched: ${condition.type}=${condition.value}`
+                    reason: `Blocked by Blacklist: ${condition.type}=${condition.value}`
                 };
             }
         }
 
-        // 没有匹配任何条件
+        // 2. Whitelist Check (Include)
+        const includeConditions = activeConditions.filter(c => c.mode !== 'exclude');
+
+        // If no whitelist rules exist, and we passed blacklist check -> Allow
+        if (includeConditions.length === 0) {
+            return {
+                allowed: true,
+                reason: 'Passed blacklist (no whitelist rules defined)'
+            };
+        }
+
+        // OR 逻辑：匹配任一 Whitelist 条件即可
+        for (const condition of includeConditions) {
+            if (this.matchCondition(condition, orderId, zipCode, route)) {
+                return {
+                    allowed: true,
+                    matchedCondition: condition,
+                    reason: `Matched Whitelist: ${condition.type}=${condition.value}`
+                };
+            }
+        }
+
+        // 没有匹配任何 Whitelist 条件 -> Block
         return {
             allowed: false,
-            reason: `No matching condition (${activeConditions.length} active rules)`
+            reason: `No matching whitelist condition (${includeConditions.length} active rules)`
         };
     }
 
@@ -222,11 +246,47 @@ class PrintMappingConditionService {
                 this.conditions = data.conditions || [];
                 this.enabled = data.enabled ?? false;
                 this.idCounter = data.idCounter || 0;
-                console.log(`[PrintCondition] Loaded ${this.conditions.length} conditions, enabled=${this.enabled}`);
+
+                // If enabled but no conditions, inject defaults (safeguard against open access)
+                if (this.conditions.length === 0) {
+                    console.log('[PrintCondition] Storage found but empty. Injecting defaults.');
+                    this.injectDefaults();
+                } else {
+                    console.log(`[PrintCondition] Loaded ${this.conditions.length} conditions, enabled=${this.enabled}`);
+                }
+            } else {
+                // Initial Load
+                console.log('[PrintCondition] No saved config found. Injecting defaults.');
+                this.injectDefaults();
             }
         } catch (e) {
             console.warn('[PrintCondition] Failed to load from storage:', e);
+            // Fallback
+            this.injectDefaults();
         }
+    }
+
+    private injectDefaults(): void {
+        this.conditions = [
+            {
+                id: 'default-zx',
+                type: 'prefix',
+                value: 'ZX',
+                enabled: true,
+                mode: 'include',
+                description: 'Default Whitelist: ZX'
+            },
+            {
+                id: 'default-wp',
+                type: 'prefix',
+                value: 'WP',
+                enabled: true,
+                mode: 'include',
+                description: 'Default Whitelist: WP'
+            }
+        ];
+        this.enabled = true;
+        this.saveToStorage();
     }
 
     /**
