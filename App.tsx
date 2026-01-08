@@ -29,6 +29,7 @@ import {
   createPersistenceMiddleware,
   createRemoteLookupMiddleware,
   createPickupScanMiddleware,
+  createPlaceholderMiddleware,
 } from './services/MiddlewareChain';
 import { executeUnload } from './services/UnloadService';
 import { batchSearchOrders } from './services/BatchOrderService';
@@ -397,6 +398,7 @@ const App: React.FC = () => {
             // Run route resolution with cached data (skip remote lookup)
             const chain = new MiddlewareChain();
             chain
+              .use(createPlaceholderMiddleware(history))
               .use(createOrderLookupMiddleware())
               .use(createRouteResolverMiddleware(dataSource))
               .use(createEnrichmentMiddleware());
@@ -464,6 +466,7 @@ const App: React.FC = () => {
 
             const chain = new MiddlewareChain();
             chain
+              .use(createPlaceholderMiddleware(history))
               .use(createOrderLookupMiddleware())
               .use(createRouteResolverMiddleware(dataSource))
               .use(createEventTriggerMiddleware(selectedEventTypes, handleEventInitiated, handleEventFinished))
@@ -712,6 +715,31 @@ const App: React.FC = () => {
     };
     reader.readAsBinaryString(file);
   };
+
+
+
+  const handleImportOrders = useCallback((newOrders: ResolvedRouteInfo[]) => {
+    setHistory((prev) => {
+      const merged = [...prev];
+      const idMap = new Map();
+      prev.forEach((o, i) => idMap.set(o.orderId, i));
+
+      newOrders.forEach(order => {
+        const idx = idMap.get(order.orderId);
+        if (idx === undefined) {
+          merged.push(order);
+          idMap.set(order.orderId, merged.length - 1);
+        } else {
+          const existing = merged[idx];
+          // Only update if existing is placeholder AND new is placeholder (preserve Active status)
+          if (existing.isPlaceholder && order.isPlaceholder) {
+            merged[idx] = order;
+          }
+        }
+      });
+      return merged;
+    });
+  }, []);
 
   useEffect(() => {
     const handleGlobalFocus = (e: MouseEvent) => {
@@ -1056,7 +1084,13 @@ const App: React.FC = () => {
             onSearch={handleSearch}
           />
         ) : view === 'stacks' ? (
-          <RouteStackManager history={history} apiSettings={apiSettings} onSettingsChange={setApiSettings} onAddTestData={handleAddTestData} />
+          <RouteStackManager
+            history={history}
+            apiSettings={apiSettings}
+            onSettingsChange={setApiSettings}
+            onAddTestData={handleAddTestData}
+            onImportOrders={handleImportOrders}
+          />
         ) : view === 'network' ? (
           <NetworkSettingsView />
         ) : (

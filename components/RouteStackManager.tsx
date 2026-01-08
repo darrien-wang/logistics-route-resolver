@@ -11,12 +11,14 @@ import { stackMergeService, historyService } from '../services/StackMergeService
 import { stackExportService } from '../services/StackExportService';
 import { ExcelExportService } from '../services/ExportService';
 import ExportConfigModal from './ExportConfigModal';
+import StackSelectorModal from './StackSelectorModal';
 
 interface RouteStackManagerProps {
     history: ResolvedRouteInfo[];
     apiSettings: ApiSettings;
     onSettingsChange: (settings: ApiSettings) => void;
     onAddTestData?: (testOrders: ResolvedRouteInfo[]) => void;
+    onImportOrders?: (orders: ResolvedRouteInfo[]) => void;
 }
 
 type FilterMode = 'all' | 'full' | 'notFull' | 'overflow' | 'merged';
@@ -38,7 +40,8 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
     history,
     apiSettings,
     onSettingsChange,
-    onAddTestData
+    onAddTestData,
+    onImportOrders
 }) => {
     // --- State ---
     const [stackDefs, setStackDefs] = useState<StackDefinition[]>([]);
@@ -54,8 +57,14 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
     const [searchResults, setSearchResults] = useState<{ orderId: string; stackName: string; stackType: string; found: boolean }[]>([]);
     const [showSearchResults, setShowSearchResults] = useState(false);
 
+    // Custom Stack / Move Logic
+    const [moveTargetModal, setMoveTargetModal] = useState<{ isOpen: boolean; sourceIds: string[] }>({ isOpen: false, sourceIds: [] });
+
+
+
     // Ref for file input
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const placeholderInputRef = useRef<HTMLInputElement>(null);
 
     // Initializer used to setup history
     useEffect(() => {
@@ -510,6 +519,55 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
         }
     };
 
+    const handleImportPlaceholders = async (file: File) => {
+        try {
+            historyService.pushState(stackDefs);
+
+            let importedStacks: RouteStack[];
+
+            if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+                importedStacks = await stackExportService.importStacksFromExcel(file);
+            } else {
+                const text = await file.text();
+                importedStacks = stackExportService.importStacks(text);
+            }
+
+            // Extract all orders and mark them as placeholders
+            const allPlaceholderOrders: ResolvedRouteInfo[] = [];
+
+            const newDefs: StackDefinition[] = importedStacks.map(s => {
+                const placeholderOrders = s.orders.map(o => ({ ...o, isPlaceholder: true }));
+                allPlaceholderOrders.push(...placeholderOrders);
+
+                return {
+                    id: s.id,
+                    type: s.type,
+                    status: s.status,
+                    routes: [s.route],
+                    manualOrders: placeholderOrders, // Keep structure but with placeholder flag
+                    isOverflow: s.isOverflow,
+                    overflowCount: s.overflowCount,
+                    importedAt: s.importedAt,
+                    sourceNote: s.sourceNote
+                };
+            });
+
+            // 1. Update stack definitions (to preserve Merged/Overflow structure)
+            setStackDefs(prev => [...prev, ...newDefs]);
+
+            // 2. Inject into history so they appear in Implicit stacks too AND act as placeholders
+            if (onImportOrders) {
+                onImportOrders(allPlaceholderOrders);
+            }
+
+            alert(`Imported ${allPlaceholderOrders.length} placeholders.`);
+
+        } catch (e) {
+            console.error(e);
+            alert(`Placeholder Import failed: ${(e as Error).message}`);
+        }
+    };
+
     const onUndo = () => {
         const prev = historyService.undo();
         if (prev) setStackDefs(prev);
@@ -540,6 +598,73 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
         a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
+    };
+
+    // --- Stack Manipulation ---
+
+    const handleMoveOrders = (orderIds: string[]) => {
+        setMoveTargetModal({ isOpen: true, sourceIds: orderIds });
+    };
+
+    const handleConfirmMove = (targetStackId: string | 'NEW_CUSTOM', customName?: string) => {
+        const { sourceIds } = moveTargetModal;
+        if (sourceIds.length === 0) return;
+
+        historyService.pushState(stackDefs);
+
+        const newStackDefs = [...stackDefs];
+
+        // 1. Remove source orders from any existing Explicit Stacks
+        newStackDefs.forEach(def => {
+            if (def.manualOrders) {
+                def.manualOrders = def.manualOrders.filter(o => !sourceIds.includes(o.orderId));
+            }
+        });
+
+        // 2. Identify orders to move (from history or existing stacks)
+        const ordersToMove = sourceIds.map(id => {
+            const inHistory = history.find(h => h.orderId === id);
+            if (inHistory) return inHistory;
+            // Fallback for demo/test data not in history?
+            // Try finding in current stacks
+            for (const stack of renderableStacks) {
+                const found = stack.orders.find(o => o.orderId === id);
+                if (found) return found;
+            }
+            // Absolute fallback
+            return {
+                orderId: id,
+                resolvedAt: new Date().toISOString(),
+                date: new Date().toLocaleDateString(),
+                address: 'Unknown',
+            } as ResolvedRouteInfo;
+        });
+
+        // 3. Add to Target Stack
+        if (targetStackId === 'NEW_CUSTOM') {
+            const newId = `CUSTOM-${crypto.randomUUID()}`;
+            newStackDefs.push({
+                id: newId,
+                type: 'custom',
+                status: 'open',
+                routes: [customName || 'Custom Pool'],
+                manualOrders: ordersToMove,
+                isOverflow: false,
+                overflowCount: 0,
+                importedAt: new Date().toISOString(),
+                sourceNote: customName
+            });
+        } else {
+            const targetDef = newStackDefs.find(s => s.id === targetStackId);
+            if (targetDef) {
+                if (!targetDef.manualOrders) targetDef.manualOrders = [];
+                targetDef.manualOrders.push(...ordersToMove);
+            }
+        }
+
+        setStackDefs(newStackDefs);
+        setMoveTargetModal({ isOpen: false, sourceIds: [] });
+        setSelectedDetailStack(null);
     };
 
     // Batch Order Search Handler
@@ -717,6 +842,27 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                         IMPORT
                     </button>
 
+                    {/* Import Placeholders */}
+                    <input
+                        type="file"
+                        ref={placeholderInputRef}
+                        onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleImportPlaceholders(file);
+                            if (e.target) e.target.value = '';
+                        }}
+                        className="hidden"
+                        accept=".json,.xlsx,.xls"
+                    />
+                    <button
+                        onClick={() => placeholderInputRef.current?.click()}
+                        className="flex items-center gap-2 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white rounded-xl font-bold transition-colors text-sm border border-slate-600"
+                        title="Import as Placeholders (Grayed out)"
+                    >
+                        <Upload className="w-4 h-4 text-slate-400" />
+                        IMPORT PLAN
+                    </button>
+
 
                     {/* Undo/Redo */}
                     <div className="flex items-center gap-1 bg-black/20 p-1 rounded-xl border border-white/5">
@@ -863,6 +1009,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                     title={selectedDetailStack.title}
                     orders={selectedDetailStack.orders}
                     mergeInfo={selectedDetailStack.mergeInfo}
+                    onMoveOrders={handleMoveOrders}
                 />
             )}
 
@@ -888,6 +1035,17 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                 onClose={() => setShowExportModal(false)}
                 selectedStacks={renderableStacks.filter(s => selectedStackIds.has(s.id))}
                 allStacks={renderableStacks}
+            />
+
+            <StackSelectorModal
+                isOpen={moveTargetModal.isOpen}
+                onClose={() => setMoveTargetModal({ isOpen: false, sourceIds: [] })}
+                stacks={renderableStacks.filter(s => s.type === 'custom' || s.type === 'merged' || s.type === 'overflow')} // Only show explicit stacks as targets? Or allow all? Implicit stacks technically can't accept manual orders unless we convert them.
+                // For simplicity, let's only allow moving to Explicit Stacks (Custom, Merged, Overflow).
+                // If user wants to move to an Implicit Stack, they should probably just "unassign" it?
+                // But "Custom Route Pools" is the feature. So showing Custom + New is primary.
+                // Let's also show Merged.
+                onSelect={handleConfirmMove}
             />
         </div>
     );

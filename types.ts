@@ -103,6 +103,7 @@ export interface ResolvedRouteInfo extends OrderData {
     stackNumber: number;
     movedAt: string;
   };
+  isPlaceholder?: boolean;
 }
 
 // Middleware interface for data processing
@@ -118,10 +119,10 @@ export interface IExportService {
   export(data: ResolvedRouteInfo[]): Promise<void>;
 }
 
-// Route Stack Management
+// --- Route Stack Management ---
 // --- Core Enums ---
 export type StackStatus = 'open' | 'active' | 'locked';
-export type StackType = 'normal' | 'merged' | 'overflow';
+export type StackType = 'normal' | 'merged' | 'overflow' | 'custom';
 
 // --- Merged Stack Details ---
 export interface MergedStackComponent {
@@ -138,6 +139,9 @@ export interface RouteStack {
   route: string;            // Display route name
   stackNumber: number;
   orders: ResolvedRouteInfo[];
+
+  // For Custom Stacks
+  customName?: string;
 
   // Dynamic display fields (optional)
   activeValue?: number;

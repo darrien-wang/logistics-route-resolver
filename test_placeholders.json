@@ -1,0 +1,47 @@
+{
+    "version": "1.0",
+    "exportedAt": "2025-01-01T10:00:00Z",
+    "stacks": [
+        {
+            "id": "STACK-IMPORT-1",
+            "type": "normal",
+            "status": "open",
+            "routes": [
+                "R1"
+            ],
+            "stackNumber": 1,
+            "capacity": 40,
+            "isOverflow": false,
+            "overflowCount": 0,
+            "importedAt": "2025-01-01T10:00:00Z",
+            "orders": [
+                {
+                    "orderId": "ORD-P-001",
+                    "route": {
+                        "routeConfiguration": "R1",
+                        "metroArea": "Metro A",
+                        "state": "CA",
+                        "destinationZone": "Z1"
+                    },
+                    "address": "123 Placeholder St",
+                    "date": "2025-01-01",
+                    "resolvedAt": "2025-01-01T10:00:00Z",
+                    "zipCode": "90001"
+                },
+                {
+                    "orderId": "ORD-P-002",
+                    "route": {
+                        "routeConfiguration": "R1",
+                        "metroArea": "Metro A",
+                        "state": "CA",
+                        "destinationZone": "Z1"
+                    },
+                    "address": "456 Placeholder Ave",
+                    "date": "2025-01-01",
+                    "resolvedAt": "2025-01-01T10:00:00Z",
+                    "zipCode": "90002"
+                }
+            ]
+        }
+    ]
+}

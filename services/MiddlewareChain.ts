@@ -24,6 +24,31 @@ export class MiddlewareChain {
 }
 
 /**
+ * Middleware: Check for existing placeholder in history
+ * If found, hydrate context with placeholder data so we don't re-resolve route.
+ */
+export const createPlaceholderMiddleware = (
+  history: ResolvedRouteInfo[]
+): ProcessingMiddleware => {
+  return async (context) => {
+    const placeholder = history.find(h => h.orderId === context.orderId && h.isPlaceholder);
+
+    if (placeholder) {
+      console.log(`[Placeholder] Found matched placeholder for ${context.orderId}`);
+      return {
+        ...context,
+        ...placeholder, // Hydrate with placeholder data (route, zip, etc.)
+        isPlaceholder: false, // Mark as active
+        resolvedAt: new Date().toISOString(), // Update timestamp
+        // Keep original context ID and any new data if provided? 
+        // Actually we want to preserve the Route info most importantly.
+      };
+    }
+    return context;
+  };
+};
+
+/**
  * Middleware factory for Remote API Lookup (Wpglb)
  */
 export const createRemoteLookupMiddleware = (settings: ApiSettings): ProcessingMiddleware => {
