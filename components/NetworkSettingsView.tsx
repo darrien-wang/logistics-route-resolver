@@ -7,6 +7,7 @@ const NetworkSettingsView: React.FC = () => {
     const [syncMode, setSyncMode] = useState<SyncMode>('standalone');
     const [hostIp, setHostIp] = useState('');
     const [hostPort, setHostPort] = useState('14059');
+    const [clientName, setClientName] = useState('');
     const [serverInfo, setServerInfo] = useState<SyncServerInfo | null>(null);
     const [serverStatus, setServerStatus] = useState<SyncServerStatus | null>(null);
     const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
@@ -105,10 +106,12 @@ const NetworkSettingsView: React.FC = () => {
 
         try {
             const port = parseInt(hostPort) || 14059;
+            const name = clientName.trim() || `Client-${Date.now().toString(36).slice(-4)}`;
             await lanSyncService.initialize({
                 mode: 'client',
                 hostIp: hostIp.trim(),
                 hostPort: port,
+                clientName: name,
             });
 
             setSyncMode('client');
@@ -158,7 +161,9 @@ const NetworkSettingsView: React.FC = () => {
                 return (
                     <div className="flex items-center gap-2 text-green-400">
                         <Wifi className="w-5 h-5" />
-                        <span className="font-medium">Connected to {connectionStatus.hostIp}</span>
+                        <span className="font-medium">
+                            Connected as "{connectionStatus.clientName}" to {connectionStatus.hostIp}
+                        </span>
                     </div>
                 );
             }
@@ -301,6 +306,21 @@ const NetworkSettingsView: React.FC = () => {
                                         />
                                     </div>
 
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                                            Client Name (Optional)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={clientName}
+                                            onChange={(e) => setClientName(e.target.value)}
+                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-sky-500 relative z-10"
+                                            placeholder="e.g. Scanner-1, Table-A"
+                                            disabled={loading}
+                                            autoComplete="off"
+                                        />
+                                    </div>
+
                                     <button
                                         onClick={handleConnectClient}
                                         disabled={loading || !hostIp.trim()}
@@ -372,15 +392,15 @@ const NetworkSettingsView: React.FC = () => {
                                     <p className="text-slate-500 text-sm">No clients connected</p>
                                 ) : (
                                     <div className="space-y-2">
-                                        {serverStatus.clients?.map((clientId, index) => (
+                                        {serverStatus.clients?.map((client, index) => (
                                             <div
-                                                key={clientId}
+                                                key={client.id}
                                                 className="flex items-center gap-2 text-sm text-slate-400"
                                             >
                                                 <div className="w-2 h-2 bg-green-400 rounded-full" />
-                                                Client {index + 1}
+                                                <span className="font-medium text-slate-300">{client.name}</span>
                                                 <span className="text-slate-600 font-mono text-xs">
-                                                    ({clientId.slice(0, 8)})
+                                                    ({client.id.slice(0, 8)})
                                                 </span>
                                             </div>
                                         ))}

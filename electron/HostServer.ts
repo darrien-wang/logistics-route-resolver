@@ -52,6 +52,7 @@ export class HostServer {
     private io: Server | null = null;
     private httpServer: any = null;
     private connectedClients: Map<string, Socket> = new Map();
+    private clientNames: Map<string, string> = new Map(); // clientId -> displayName
     private config: HostServerConfig;
     private messageHandler: ((event: string, data: any, clientId: string) => void) | null = null;
     private serverInfo: ServerInfo | null = null;
@@ -128,15 +129,19 @@ export class HostServer {
 
         this.io.on('connection', (socket: Socket) => {
             const clientId = socket.id;
-            console.log(`[HostServer] ✅ Client connected: ${clientId}`);
+            // Get client name from auth, or use a fallback
+            const clientName = (socket.handshake.auth as any)?.clientName || `Client-${clientId.slice(0, 6)}`;
+
+            console.log(`[HostServer] ✅ Client connected: ${clientName} (${clientId})`);
             console.log(`[HostServer] Total clients: ${this.connectedClients.size + 1}`);
 
-            // Store client connection
+            // Store client connection and name
             this.connectedClients.set(clientId, socket);
+            this.clientNames.set(clientId, clientName);
 
-            // Notify main window about new client
+            // Notify main window about new client with name
             if (this.messageHandler) {
-                this.messageHandler('client:connected', { clientId }, clientId);
+                this.messageHandler('client:connected', { clientId, clientName }, clientId);
             }
 
             // Handle scan actions from client
@@ -151,12 +156,14 @@ export class HostServer {
 
             // Handle client disconnect
             socket.on('disconnect', () => {
-                console.log(`[HostServer] Client disconnected: ${clientId}`);
+                const disconnectedName = this.clientNames.get(clientId) || clientId;
+                console.log(`[HostServer] Client disconnected: ${disconnectedName} (${clientId})`);
                 this.connectedClients.delete(clientId);
+                this.clientNames.delete(clientId);
 
                 // Notify main window about client disconnect
                 if (this.messageHandler) {
-                    this.messageHandler('client:disconnected', { clientId }, clientId);
+                    this.messageHandler('client:disconnected', { clientId, clientName: disconnectedName }, clientId);
                 }
             });
 
@@ -213,10 +220,13 @@ export class HostServer {
     }
 
     /**
-     * Get list of connected client IDs
+     * Get list of connected clients with their names
      */
-    getConnectedClients(): string[] {
-        return Array.from(this.connectedClients.keys());
+    getConnectedClients(): Array<{ id: string; name: string }> {
+        return Array.from(this.connectedClients.keys()).map(id => ({
+            id,
+            name: this.clientNames.get(id) || id,
+        }));
     }
 
     /**

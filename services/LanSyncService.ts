@@ -15,6 +15,7 @@ export interface SyncConfig {
     mode: SyncMode;
     hostIp?: string;
     hostPort?: number;
+    clientName?: string;
 }
 
 export interface ScanAction {
@@ -38,6 +39,7 @@ export interface ConnectionStatus {
     mode: SyncMode;
     clientCount?: number; // For host mode
     hostIp?: string; // For client mode
+    clientName?: string; // For client mode - display name
 }
 
 // Event names
@@ -62,6 +64,7 @@ class LanSyncService {
         connected: false,
         mode: 'standalone',
     };
+    private clientName: string = '';
 
     // Track pending prints for CLIENT mode - orders that need to be printed when result comes back
     private pendingPrints: Set<string> = new Set();
@@ -119,7 +122,10 @@ class LanSyncService {
         const hostPort = this.config.hostPort || 14059;
         const url = `http://${hostIp}:${hostPort}`;
 
-        console.log(`[LanSync] Connecting to Host at ${url}...`);
+        // Store client name for display
+        this.clientName = this.config.clientName || `Client-${Date.now().toString(36).slice(-4)}`;
+
+        console.log(`[LanSync] Connecting to Host at ${url} as "${this.clientName}"...`);
 
         this.socket = io(url, {
             reconnection: true,
@@ -128,6 +134,9 @@ class LanSyncService {
             reconnectionAttempts: Infinity,    // Never stop trying
             timeout: 10000,                    // 10 second connection timeout
             randomizationFactor: 0.5,          // Add randomness to prevent thundering herd
+            auth: {
+                clientName: this.clientName,   // Send client name to Host
+            },
         });
 
         // Wait for connection to succeed or fail
@@ -165,11 +174,12 @@ class LanSyncService {
         if (!this.socket) return;
 
         this.socket.on('connect', () => {
-            console.log('[LanSync] Connected to Host');
+            console.log(`[LanSync] Connected to Host as "${this.clientName}"`);
             this.updateConnectionStatus({
                 connected: true,
                 mode: 'client',
                 hostIp: this.config.hostIp,
+                clientName: this.clientName,
             });
             this.emit('connect', null);
         });
@@ -180,6 +190,7 @@ class LanSyncService {
                 connected: false,
                 mode: 'client',
                 hostIp: this.config.hostIp,
+                clientName: this.clientName,
             });
             this.emit('disconnect', { reason });
         });

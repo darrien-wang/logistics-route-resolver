@@ -205,7 +205,7 @@ export interface SyncServerInfo {
 export interface SyncServerStatus {
   running: boolean;
   clientCount: number;
-  clients?: string[];
+  clients?: Array<{ id: string; name: string }>;
   serverInfo?: SyncServerInfo;
 }
 
