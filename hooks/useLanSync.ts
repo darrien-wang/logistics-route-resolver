@@ -38,8 +38,12 @@ export const useLanSync = ({
     const broadcastState = useCallback(() => {
         if (lanSyncService.isHost() && window.electron?.broadcastSyncState) {
             const fullState = createFullStateSnapshot();
+            console.log('[LanSync] Broadcasting state', {
+                timestamp: fullState.timestamp,
+                historyCount: fullState.history?.length || 0,
+                stackDefsCount: fullState.stackDefs?.length || 0,
+            });
             window.electron.broadcastSyncState(fullState);
-            console.log('[LanSync] Manual state broadcast triggered');
         }
     }, [createFullStateSnapshot]);
 
@@ -75,7 +79,13 @@ export const useLanSync = ({
 
         // Setup Client mode: receive and apply full state from Host
         const handleSyncState = (fullState: any) => {
-            console.log('[LanSync] Received full state sync from Host');
+            console.log('[LanSync] Received full state sync from Host', {
+                hasRouteStacks: !!fullState.routeStacks,
+                hasHistory: !!fullState.history,
+                historyCount: fullState.history?.length || 0,
+                hasStackDefs: !!fullState.stackDefs,
+                stackDefsCount: fullState.stackDefs?.length || 0,
+            });
             if (fullState.routeStacks) {
                 routeStackService.applyRemoteState(fullState.routeStacks);
             }
@@ -86,6 +96,7 @@ export const useLanSync = ({
                 setOperationLog(fullState.operationLog);
             }
             if (fullState.stackDefs) {
+                console.log('[LanSync] Applying stackDefs:', fullState.stackDefs.length, 'stacks');
                 setStackDefs(fullState.stackDefs);
             }
             if (fullState.printConditions) {
@@ -94,7 +105,13 @@ export const useLanSync = ({
         };
 
         const handleStateUpdate = (fullState: any) => {
-            console.log('[LanSync] Received state update from Host');
+            console.log('[LanSync] Received state update from Host', {
+                hasRouteStacks: !!fullState.routeStacks,
+                hasHistory: !!fullState.history,
+                historyCount: fullState.history?.length || 0,
+                hasStackDefs: !!fullState.stackDefs,
+                stackDefsCount: fullState.stackDefs?.length || 0,
+            });
             if (fullState.routeStacks) {
                 routeStackService.applyRemoteState(fullState.routeStacks);
             }
@@ -105,6 +122,7 @@ export const useLanSync = ({
                 setOperationLog(fullState.operationLog);
             }
             if (fullState.stackDefs) {
+                console.log('[LanSync] Applying stackDefs update:', fullState.stackDefs.length, 'stacks');
                 setStackDefs(fullState.stackDefs);
             }
             if (fullState.printConditions) {

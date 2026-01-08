@@ -573,8 +573,26 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                 importedStacks = stackExportService.importStacks(text);
             }
 
+            // Build a set of existing order IDs across all current stackDefs to prevent duplicates
+            const existingOrderIds = new Set<string>();
+            stackDefs.forEach(def => {
+                def.manualOrders?.forEach(o => existingOrderIds.add(o.orderId));
+            });
+
+            // Build a set of existing stack IDs to prevent duplicate stacks
+            const existingStackIds = new Set(stackDefs.map(d => d.id));
+
+            // Filter out stacks that already exist and dedupe orders within new stacks
+            const filteredStacks = importedStacks
+                .filter(stack => !existingStackIds.has(stack.id))
+                .map(stack => ({
+                    ...stack,
+                    orders: stack.orders.filter(o => !existingOrderIds.has(o.orderId))
+                }))
+                .filter(stack => stack.orders.length > 0); // Skip empty stacks after deduplication
+
             // Hydrate RouteStackService with imported orders to ensure accumulation works
-            importedStacks.forEach(stack => {
+            filteredStacks.forEach(stack => {
                 stack.orders.forEach(order => {
                     routeStackService.addToStack(
                         stack.route,
@@ -584,7 +602,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                 });
             });
 
-            const newDefs: StackDefinition[] = importedStacks.map(s => ({
+            const newDefs: StackDefinition[] = filteredStacks.map(s => ({
                 id: s.id,
                 type: s.type,
                 status: s.status,
@@ -596,7 +614,13 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                 sourceNote: s.sourceNote
             }));
 
+            if (newDefs.length === 0) {
+                alert('No new stacks to import (all stacks/orders already exist)');
+                return;
+            }
+
             setStackDefs(prev => [...prev, ...newDefs]);
+            console.log(`[Import] Imported ${newDefs.length} stacks with ${newDefs.reduce((sum, d) => sum + (d.manualOrders?.length || 0), 0)} orders`);
         } catch (e) {
             console.error(e);
             alert(`Import failed: ${(e as Error).message}`);
@@ -616,8 +640,26 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                 importedStacks = stackExportService.importStacks(text);
             }
 
+            // Build a set of existing order IDs across all current stackDefs to prevent duplicates
+            const existingOrderIds = new Set<string>();
+            stackDefs.forEach(def => {
+                def.manualOrders?.forEach(o => existingOrderIds.add(o.orderId));
+            });
+
+            // Build a set of existing stack IDs to prevent duplicate stacks
+            const existingStackIds = new Set(stackDefs.map(d => d.id));
+
+            // Filter out stacks that already exist and dedupe orders within new stacks
+            const filteredStacks = importedStacks
+                .filter(stack => !existingStackIds.has(stack.id))
+                .map(stack => ({
+                    ...stack,
+                    orders: stack.orders.filter(o => !existingOrderIds.has(o.orderId))
+                }))
+                .filter(stack => stack.orders.length > 0);
+
             // Hydrate RouteStackService with imported orders to ensure accumulation works
-            importedStacks.forEach(stack => {
+            filteredStacks.forEach(stack => {
                 stack.orders.forEach(order => {
                     routeStackService.addToStack(
                         stack.route,
@@ -630,7 +672,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
             // Extract all orders and mark them as placeholders
             const allPlaceholderOrders: ResolvedRouteInfo[] = [];
 
-            const newDefs: StackDefinition[] = importedStacks.map(s => {
+            const newDefs: StackDefinition[] = filteredStacks.map(s => {
                 const placeholderOrders = s.orders.map(o => ({ ...o, isPlaceholder: true }));
                 allPlaceholderOrders.push(...placeholderOrders);
 
@@ -647,6 +689,11 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                 };
             });
 
+            if (newDefs.length === 0) {
+                alert('No new placeholders to import (all stacks/orders already exist)');
+                return;
+            }
+
             // 1. Update stack definitions (to preserve Merged/Overflow structure)
             setStackDefs(prev => [...prev, ...newDefs]);
 
@@ -655,7 +702,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                 onImportOrders(allPlaceholderOrders);
             }
 
-            alert(`Imported ${allPlaceholderOrders.length} placeholders.`);
+            console.log(`[Import] Imported ${allPlaceholderOrders.length} placeholders`);
 
         } catch (e) {
             console.error(e);
