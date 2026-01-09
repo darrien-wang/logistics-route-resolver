@@ -319,6 +319,34 @@ class RouteStackService {
      */
     reset(): void {
         this.routeStates.clear();
+        this.notifyStateChange();  // Trigger save to localStorage
+    }
+
+    /**
+     * Restore state from persistence (used on app startup)
+     * Unlike applyRemoteState, this doesn't check sync mode
+     */
+    restoreState(serialized: SerializedStackServiceState): void {
+        // Clear current state
+        this.routeStates.clear();
+
+        // Apply saved state
+        Object.entries(serialized.routeStates).forEach(([routeName, serializedState]) => {
+            this.routeStates.set(routeName, {
+                currentStackNumber: serializedState.currentStackNumber,
+                currentStackCount: serializedState.currentStackCount,
+                currentStackWeight: serializedState.currentStackWeight,
+                currentStackVolume: serializedState.currentStackVolume,
+                scannedOrderIds: new Set(serializedState.scannedOrderIds),
+            });
+        });
+
+        // Apply capacity config if present
+        if (serialized.capacityConfig) {
+            this.capacityConfig = serialized.capacityConfig;
+        }
+
+        console.log(`[RouteStackService] Restored state with ${this.routeStates.size} routes`);
     }
 
     /**

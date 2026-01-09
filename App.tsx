@@ -30,20 +30,22 @@ import { useRouteResolution } from './hooks/useRouteResolution';
 
 const App: React.FC = () => {
   const [view, setView] = useState<'dashboard' | 'operator' | 'rules' | 'stacks' | 'network'>('dashboard');
-  const [history, setHistory] = useState<ResolvedRouteInfo[]>([]);
   const [showApiConfig, setShowApiConfig] = useState(false);
   const [showTokenExpired, setShowTokenExpired] = useState(false);
   const [showPrintConditions, setShowPrintConditions] = useState(false);
   const [appVersion, setAppVersion] = useState<string>('');
 
-  // Persistence Hook
+  // Persistence Hook - now includes history for persistence across restarts
   const {
     operationLog,
     setOperationLog,
     apiSettings,
     setApiSettings,
     stackDefs,
-    setStackDefs
+    setStackDefs,
+    history,
+    setHistory,
+    clearAllData
   } = useAppPersistence();
 
   const scannerInputRef = useRef<HTMLInputElement>(null);
@@ -145,17 +147,17 @@ const App: React.FC = () => {
 
   const clearHistory = () => {
     if (confirm("Clear all activity history?")) {
-      // Clear all state to match first-launch state
+      // Clear all persisted data
+      clearAllData();
+      // Clear React state to match first-launch state
       setOperationLog({});
       setHistory([]);
-      setStackDefs([]); // Also clear imported stacks
+      setStackDefs([]);
       setCurrentResult(null);
       setError(null);
       setBatchMode({ active: false, ids: [] });
       setSelectedEventTypes([]);
       setOrderId('');
-      // Also reset stack tracking
-      routeStackService.reset();
       // Refocus input after clear
       setTimeout(() => scannerInputRef.current?.focus(), 100);
     }

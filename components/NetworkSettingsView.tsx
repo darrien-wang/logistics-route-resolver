@@ -30,6 +30,14 @@ const NetworkSettingsView: React.FC = () => {
         setConnectionStatus(initialStatus);
         setSyncMode(initialStatus.mode);
 
+        // Load saved config to populate form fields
+        const savedConfig = lanSyncService.getSavedConfig();
+        if (savedConfig) {
+            if (savedConfig.hostIp) setHostIp(savedConfig.hostIp);
+            if (savedConfig.hostPort) setHostPort(savedConfig.hostPort.toString());
+            if (savedConfig.clientName) setClientName(savedConfig.clientName);
+        }
+
         // Poll server status if in host mode
         let statusInterval: NodeJS.Timeout | null = null;
         if (initialStatus.mode === 'host') {
@@ -37,9 +45,56 @@ const NetworkSettingsView: React.FC = () => {
             statusInterval = setInterval(updateServerStatus, 3000);
         }
 
+        // Auto-reconnect on visibility change (system wake from sleep)
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                console.log('[NetworkSettings] Page became visible, checking auto-reconnect...');
+                lanSyncService.attemptAutoReconnect().then(attempted => {
+                    if (attempted) {
+                        // Update UI after successful reconnect
+                        const newStatus = lanSyncService.getStatus();
+                        setConnectionStatus(newStatus);
+                        setSyncMode(newStatus.mode);
+                        if (newStatus.mode === 'host') {
+                            updateServerStatus();
+                        }
+                    }
+                });
+            }
+        };
+
+        // Auto-reconnect when network comes back online
+        const handleOnline = () => {
+            console.log('[NetworkSettings] Network online, checking auto-reconnect...');
+            lanSyncService.attemptAutoReconnect().then(attempted => {
+                if (attempted) {
+                    const newStatus = lanSyncService.getStatus();
+                    setConnectionStatus(newStatus);
+                    setSyncMode(newStatus.mode);
+                }
+            });
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('online', handleOnline);
+
+        // Try auto-reconnect on mount (in case app was restarted)
+        lanSyncService.attemptAutoReconnect().then(attempted => {
+            if (attempted) {
+                const newStatus = lanSyncService.getStatus();
+                setConnectionStatus(newStatus);
+                setSyncMode(newStatus.mode);
+                if (newStatus.mode === 'host') {
+                    updateServerStatus();
+                }
+            }
+        });
+
         return () => {
             lanSyncService.off('status', handleStatusChange);
             if (statusInterval) clearInterval(statusInterval);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('online', handleOnline);
         };
     }, []);
 

@@ -54,6 +54,16 @@ export const SYNC_EVENTS = {
     CLIENT_DISCONNECTED: 'client:disconnected',
 } as const;
 
+const LAN_CONFIG_KEY = 'LOGISTICS_LAN_CONFIG';
+
+interface PersistedLanConfig {
+    mode: SyncMode;
+    hostIp?: string;
+    hostPort?: number;
+    clientName?: string;
+    isManualDisconnect: boolean;
+}
+
 type EventCallback = (...args: any[]) => void;
 
 class LanSyncService {
@@ -79,13 +89,92 @@ class LanSyncService {
 
         if (this.mode === 'host') {
             await this.startHostMode();
+            this.saveConnectionConfig();  // Save config after successful connection
         } else if (this.mode === 'client') {
             await this.startClientMode();
+            this.saveConnectionConfig();  // Save config after successful connection
         } else {
             this.updateConnectionStatus({
                 connected: false,
                 mode: 'standalone',
             });
+        }
+    }
+
+    /**
+     * Save current connection config to localStorage
+     */
+    private saveConnectionConfig(): void {
+        const persistedConfig: PersistedLanConfig = {
+            mode: this.mode,
+            hostIp: this.config.hostIp,
+            hostPort: this.config.hostPort,
+            clientName: this.config.clientName,
+            isManualDisconnect: false
+        };
+        localStorage.setItem(LAN_CONFIG_KEY, JSON.stringify(persistedConfig));
+        console.log('[LanSync] Connection config saved');
+    }
+
+    /**
+     * Clear saved connection config (called on manual disconnect)
+     */
+    private clearConnectionConfig(): void {
+        const persistedConfig: PersistedLanConfig = {
+            mode: 'standalone',
+            isManualDisconnect: true
+        };
+        localStorage.setItem(LAN_CONFIG_KEY, JSON.stringify(persistedConfig));
+        console.log('[LanSync] Connection config cleared (manual disconnect)');
+    }
+
+    /**
+     * Get saved connection config from localStorage
+     */
+    getSavedConfig(): PersistedLanConfig | null {
+        try {
+            const saved = localStorage.getItem(LAN_CONFIG_KEY);
+            if (saved) {
+                return JSON.parse(saved);
+            }
+        } catch (e) {
+            console.error('[LanSync] Failed to load saved config:', e);
+        }
+        return null;
+    }
+
+    /**
+     * Attempt auto-reconnection based on saved config
+     * Returns true if reconnection was attempted, false otherwise
+     */
+    async attemptAutoReconnect(): Promise<boolean> {
+        const saved = this.getSavedConfig();
+
+        if (!saved || saved.isManualDisconnect || saved.mode === 'standalone') {
+            console.log('[LanSync] No auto-reconnect needed (manual disconnect or standalone)');
+            return false;
+        }
+
+        // Don't reconnect if already connected
+        if (this.isConnected()) {
+            console.log('[LanSync] Already connected, skipping auto-reconnect');
+            return false;
+        }
+
+        console.log(`[LanSync] Attempting auto-reconnect as ${saved.mode}...`);
+
+        try {
+            await this.initialize({
+                mode: saved.mode,
+                hostIp: saved.hostIp,
+                hostPort: saved.hostPort,
+                clientName: saved.clientName
+            });
+            console.log('[LanSync] Auto-reconnect successful');
+            return true;
+        } catch (error) {
+            console.error('[LanSync] Auto-reconnect failed:', error);
+            return false;
         }
     }
 
@@ -316,8 +405,9 @@ class LanSyncService {
 
     /**
      * Disconnect and cleanup
+     * @param isManual - If true, this is a manual disconnect and we should not auto-reconnect
      */
-    async disconnect(): Promise<void> {
+    async disconnect(isManual: boolean = true): Promise<void> {
         if (this.socket) {
             this.socket.disconnect();
             this.socket = null;
@@ -331,6 +421,10 @@ class LanSyncService {
             connected: false,
             mode: 'standalone',
         });
+
+        if (isManual) {
+            this.clearConnectionConfig();  // Mark as manual disconnect
+        }
 
         this.eventHandlers.clear();
         this.mode = 'standalone';
