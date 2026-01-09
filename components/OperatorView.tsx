@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Package, RotateCcw, Box, Scan, Printer, ChevronDown, Check } from 'lucide-react';
 import { ResolvedRouteInfo, ApiSettings, OrderEventStatus, EventType } from '../types';
 import { ExcelExportService } from '../services/ExportService';
+import { voiceService } from '../services/VoiceService';
 
 interface OperatorViewProps {
     apiSettings: ApiSettings;
@@ -55,21 +56,14 @@ const OperatorView: React.FC<OperatorViewProps> = ({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // --- Audio ---
-    const scanSoundRef = useRef<HTMLAudioElement | null>(null);
-    const errorSoundRef = useRef<HTMLAudioElement | null>(null);
-
-    useEffect(() => {
-        scanSoundRef.current = new Audio('/sounds/scan.mp3');
-        errorSoundRef.current = new Audio('/sounds/error.mp3');
-    }, []);
+    // --- Audio uses VoiceService ---
 
     // Play sounds based on result changes
     useEffect(() => {
         if (currentResult?.operationStatus === 'error' || error) {
-            errorSoundRef.current?.play().catch(() => { });
+            voiceService.playError();
         } else if (currentResult?.operationStatus === 'success') {
-            scanSoundRef.current?.play().catch(() => { });
+            voiceService.playSuccess();
         }
     }, [currentResult, error]);
 
