@@ -1,22 +1,19 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { OrderEventStatus, ApiSettings, DEFAULT_CAPACITY_CONFIG, ResolvedRouteInfo } from '../types';
 import { voiceService } from '../services/VoiceService';
 import { labelPrintService } from '../services/LabelPrintService';
 import { routeStackService, SerializedStackServiceState } from '../services/RouteStackService';
+import { indexedDBService } from '../services/IndexedDBService';
 
-const STORAGE_KEY = 'LOGISTICS_ACTIVITY_STREAM';
 const API_CONFIG_KEY = 'LOGISTICS_API_CONFIG';
-const HISTORY_KEY = 'LOGISTICS_HISTORY';
-const ROUTE_STACK_STATE_KEY = 'LOGISTICS_ROUTE_STACK_STATE';
 
 export const useAppPersistence = () => {
-    // Persistence logic: Initialize operationLog from LocalStorage
-    const [operationLog, setOperationLog] = useState<Record<string, OrderEventStatus[]>>(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        return saved ? JSON.parse(saved) : {};
-    });
+    const [isLoading, setIsLoading] = useState(true);
 
-    // API Settings logic: Initialize from LocalStorage
+    // Operation log - still using localStorage for now (smaller data)
+    const [operationLog, setOperationLog] = useState<Record<string, OrderEventStatus[]>>({});
+
+    // API Settings - using localStorage (small data)
     const [apiSettings, setApiSettings] = useState<ApiSettings>(() => {
         const saved = localStorage.getItem(API_CONFIG_KEY);
         return saved ? JSON.parse(saved) : {
@@ -34,40 +31,63 @@ export const useAppPersistence = () => {
         };
     });
 
-    // History persistence: Scan history survives app restarts
-    const [history, setHistory] = useState<ResolvedRouteInfo[]>(() => {
-        try {
-            const saved = localStorage.getItem(HISTORY_KEY);
-            return saved ? JSON.parse(saved) : [];
-        } catch (e) {
-            console.error('[Persistence] Failed to load history:', e);
-            return [];
-        }
-    });
+    // History - using IndexedDB for large data
+    const [history, setHistory] = useState<ResolvedRouteInfo[]>([]);
 
-    // Persistence side-effects
+    // Stack definitions - using IndexedDB
+    const [stackDefs, setStackDefs] = useState<any[]>([]);
+
+    // Track if initial load is complete
+    const initialLoadComplete = useRef(false);
+
+    // Initialize IndexedDB and load data
     useEffect(() => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(operationLog));
-    }, [operationLog]);
+        const loadData = async () => {
+            try {
+                await indexedDBService.init();
 
+                // Load all data from IndexedDB
+                const [loadedHistory, loadedStackDefs, loadedState, loadedLog] = await Promise.all([
+                    indexedDBService.loadHistory(),
+                    indexedDBService.loadStackDefs(),
+                    indexedDBService.loadRouteStackState(),
+                    indexedDBService.loadOperationLog()
+                ]);
+
+                setHistory(loadedHistory);
+                setStackDefs(loadedStackDefs);
+                setOperationLog(loadedLog);
+
+                // Restore RouteStackService state
+                if (loadedState) {
+                    routeStackService.restoreState(loadedState);
+                    console.log('[Persistence] RouteStackService state restored from IndexedDB');
+                }
+
+                console.log(`[Persistence] Loaded ${loadedHistory.length} history items, ${loadedStackDefs.length} stack defs`);
+                initialLoadComplete.current = true;
+            } catch (error) {
+                console.error('[Persistence] Failed to load from IndexedDB:', error);
+                initialLoadComplete.current = true;
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadData();
+    }, []);
+
+    // Persist API settings to localStorage
     useEffect(() => {
         localStorage.setItem(API_CONFIG_KEY, JSON.stringify(apiSettings));
         voiceService.setEnabled(apiSettings.voiceEnabled ?? true);
         labelPrintService.setEnabled(apiSettings.autoPrintLabelEnabled ?? true);
-        // Use new capacity config if available, otherwise fall back to legacy
         if (apiSettings.stackCapacityConfig) {
             routeStackService.setCapacityConfig(apiSettings.stackCapacityConfig);
         } else {
             routeStackService.setCapacity(apiSettings.stackCapacity ?? 40);
         }
     }, [apiSettings]);
-
-    // Persist history (throttled to avoid too many writes)
-    useEffect(() => {
-        // Limit history size to prevent localStorage from getting too large
-        const historyToSave = history.slice(0, 1000);
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(historyToSave));
-    }, [history]);
 
     // Initialize services on mount
     useEffect(() => {
@@ -78,25 +98,82 @@ export const useAppPersistence = () => {
         } else {
             routeStackService.setCapacity(apiSettings.stackCapacity ?? 40);
         }
-
-        // Restore RouteStackService state from localStorage
-        try {
-            const savedStackState = localStorage.getItem(ROUTE_STACK_STATE_KEY);
-            if (savedStackState) {
-                const parsed: SerializedStackServiceState = JSON.parse(savedStackState);
-                routeStackService.restoreState(parsed);
-                console.log('[Persistence] RouteStackService state restored');
-            }
-        } catch (e) {
-            console.error('[Persistence] Failed to restore RouteStackService state:', e);
-        }
     }, []);
+
+    // Debounced save for history (avoid too many writes)
+    const historyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    useEffect(() => {
+        if (!initialLoadComplete.current) return;
+
+        // Debounce history saves - wait 1 second after last change
+        if (historyTimeoutRef.current) {
+            clearTimeout(historyTimeoutRef.current);
+        }
+
+        historyTimeoutRef.current = setTimeout(() => {
+            indexedDBService.saveHistory(history).catch(err => {
+                console.error('[Persistence] Failed to save history:', err);
+            });
+        }, 1000);
+
+        return () => {
+            if (historyTimeoutRef.current) {
+                clearTimeout(historyTimeoutRef.current);
+            }
+        };
+    }, [history]);
+
+    // Debounced save for stackDefs
+    const stackDefsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    useEffect(() => {
+        if (!initialLoadComplete.current) return;
+
+        if (stackDefsTimeoutRef.current) {
+            clearTimeout(stackDefsTimeoutRef.current);
+        }
+
+        stackDefsTimeoutRef.current = setTimeout(() => {
+            indexedDBService.saveStackDefs(stackDefs).catch(err => {
+                console.error('[Persistence] Failed to save stackDefs:', err);
+            });
+        }, 500);
+
+        return () => {
+            if (stackDefsTimeoutRef.current) {
+                clearTimeout(stackDefsTimeoutRef.current);
+            }
+        };
+    }, [stackDefs]);
+
+    // Debounced save for operation log
+    const operationLogTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    useEffect(() => {
+        if (!initialLoadComplete.current) return;
+
+        if (operationLogTimeoutRef.current) {
+            clearTimeout(operationLogTimeoutRef.current);
+        }
+
+        operationLogTimeoutRef.current = setTimeout(() => {
+            indexedDBService.saveOperationLog(operationLog).catch(err => {
+                console.error('[Persistence] Failed to save operationLog:', err);
+            });
+        }, 1000);
+
+        return () => {
+            if (operationLogTimeoutRef.current) {
+                clearTimeout(operationLogTimeoutRef.current);
+            }
+        };
+    }, [operationLog]);
 
     // Subscribe to RouteStackService state changes and persist
     useEffect(() => {
         const handleStateChange = () => {
             const state = routeStackService.serializeState();
-            localStorage.setItem(ROUTE_STACK_STATE_KEY, JSON.stringify(state));
+            indexedDBService.saveRouteStackState(state).catch(err => {
+                console.error('[Persistence] Failed to save RouteStackService state:', err);
+            });
         };
 
         routeStackService.onStateChange(handleStateChange);
@@ -106,26 +183,11 @@ export const useAppPersistence = () => {
         };
     }, []);
 
-    // Stack Logic: Initialize from LocalStorage
-    // We persist imported stacks so they don't disappear on refresh/re-mount
-    const [stackDefs, setStackDefs] = useState<any[]>(() => {
-        const saved = localStorage.getItem('LOGISTICS_STACK_DEFS');
-        return saved ? JSON.parse(saved) : [];
-    });
-
-    useEffect(() => {
-        localStorage.setItem('LOGISTICS_STACK_DEFS', JSON.stringify(stackDefs));
-    }, [stackDefs]);
-
     // Clear all persisted data (called on Reset)
-    const clearAllData = useCallback(() => {
-        localStorage.removeItem(HISTORY_KEY);
-        localStorage.removeItem(ROUTE_STACK_STATE_KEY);
-        localStorage.removeItem('LOGISTICS_STACK_DEFS');
-        localStorage.removeItem(STORAGE_KEY);
+    const clearAllData = useCallback(async () => {
+        await indexedDBService.clearAll();
         routeStackService.reset();
-        // Also clear localStorage for RouteStackService
-        localStorage.removeItem(ROUTE_STACK_STATE_KEY);
+        console.log('[Persistence] All data cleared');
     }, []);
 
     return {
@@ -137,6 +199,7 @@ export const useAppPersistence = () => {
         setStackDefs,
         history,
         setHistory,
-        clearAllData
+        clearAllData,
+        isLoading
     };
 };
