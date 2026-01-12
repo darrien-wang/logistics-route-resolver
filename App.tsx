@@ -70,11 +70,45 @@ const App: React.FC = () => {
 
 
 
+  // Load default rules from bundled Excel file
+  const loadDefaultRulesFromExcel = useCallback(async () => {
+    try {
+      const response = await fetch('/已开发邮编线路汇总999999.xlsx');
+      if (!response.ok) {
+        console.warn('[App] Default rules file not found, using fallback constants.');
+        return;
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      const wb = XLSX.read(arrayBuffer, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data: any[] = XLSX.utils.sheet_to_json(ws);
+
+      const newRecords: ZipRouteRecord[] = data.map(row => ({
+        zip: (row['Ship-to Zipcodes'] || row['Zipcode'] || row['邮编'] || "").toString(),
+        metroArea: row['Metro Area'] || row['城市'] || "",
+        state: row['State'] || row['州'] || "",
+        destinationZone: (row['Destination Zone'] || row['目的地区'] || "").toString(),
+        routeConfiguration: row['Route Configuration'] || row['线路'] || "",
+        route2Configuration: row['ROUTE2 Configuration'] || row['线路2'] || ""
+      })).filter(r => r.zip);
+
+      if (newRecords.length > 0) {
+        dataSource.updateData(newRecords, '已开发邮编线路汇总999999.xlsx');
+        console.log(`[App] Loaded ${newRecords.length} default rules from Excel.`);
+      }
+    } catch (error) {
+      console.error('[App] Failed to load default rules:', error);
+    }
+  }, [dataSource]);
+
   // Check token expiration on app mount (only if API is enabled)
   useEffect(() => {
     if (apiSettings.enabled && isTokenExpired()) {
       setShowTokenExpired(true);
     }
+
+    // Load default rules from bundled Excel file
+    loadDefaultRulesFromExcel();
 
     // Get app version from Electron API
     const electronAPI = (window as any).electronAPI;
