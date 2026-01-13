@@ -79,7 +79,8 @@ const App: React.FC = () => {
   const loadDefaultRulesFromExcel = useCallback(async () => {
     try {
       console.log('[App] Attempting to load default rules from Excel...');
-      const response = await fetch('/default_routes.xlsx');
+      // Use relative path for Electron compatibility (file:// protocol)
+      const response = await fetch('./default_routes.xlsx');
       console.log('[App] Fetch response status:', response.status, response.ok);
       if (!response.ok) {
         console.warn('[App] Default rules file not found, using fallback constants.');
