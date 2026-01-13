@@ -38,6 +38,7 @@ const App: React.FC = () => {
   const [showPrintConditions, setShowPrintConditions] = useState(false);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [appVersion, setAppVersion] = useState<string>('');
+  const [rulesLoaded, setRulesLoaded] = useState(false);
 
   // Persistence Hook - now uses IndexedDB for large data storage
   const {
@@ -106,11 +107,14 @@ const App: React.FC = () => {
       if (newRecords.length > 0) {
         dataSource.updateData(newRecords, '已开发邮编线路汇总999999.xlsx');
         console.log(`[App] ✅ Loaded ${newRecords.length} default rules from Excel.`);
+        setRulesLoaded(true);
       } else {
         console.warn('[App] No valid records found in Excel file!');
+        setRulesLoaded(false);
       }
     } catch (error) {
       console.error('[App] Failed to load default rules:', error);
+      setRulesLoaded(false);
     }
   }, [dataSource]);
 
@@ -293,12 +297,18 @@ const App: React.FC = () => {
   }, [view, showApiConfig]);
 
   // Show loading screen while IndexedDB initializes
-  if (isLoading) {
+  // Show loading screen until both persistence data AND rules are loaded
+  if (isLoading || !rulesLoaded) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-sky-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-slate-400">Loading data...</p>
+          <p className="text-slate-400 text-lg font-bold">
+            {isLoading ? 'Loading data...' : 'Loading route rules...'}
+          </p>
+          <p className="text-slate-600 text-sm mt-2">
+            {!rulesLoaded && 'Please wait, loading ZIP codes and routes...'}
+          </p>
         </div>
       </div>
     );

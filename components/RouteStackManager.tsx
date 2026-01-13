@@ -115,6 +115,15 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
             }
         });
 
+        // Debug: Log distribution stats
+        console.log('[StackDebug] Order distribution:', {
+            totalHistory: history.length,
+            processedUnique: processedOrderIds.size,
+            routeGroups: routeOrdersMap.size,
+            totalInRoutes: Array.from(routeOrdersMap.values()).reduce((sum, arr) => sum + arr.length, 0),
+            totalExceptions: exceptions.length
+        });
+
         // Set of Order IDs that are already assigned to an Explicit (Manual/Merged/Overflow) stack
         const claimedOrderIds = new Set<string>();
 
