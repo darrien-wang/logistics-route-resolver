@@ -79,7 +79,7 @@ const App: React.FC = () => {
   const loadDefaultRulesFromExcel = useCallback(async () => {
     try {
       console.log('[App] Attempting to load default rules from Excel...');
-      const response = await fetch('/已开发邮编线路汇总999999.xlsx');
+      const response = await fetch('/default_routes.xlsx');
       console.log('[App] Fetch response status:', response.status, response.ok);
       if (!response.ok) {
         console.warn('[App] Default rules file not found, using fallback constants.');
@@ -105,7 +105,7 @@ const App: React.FC = () => {
       console.log('[App] Processed records:', newRecords.length, 'First record:', newRecords[0]);
 
       if (newRecords.length > 0) {
-        dataSource.updateData(newRecords, '已开发邮编线路汇总999999.xlsx');
+        dataSource.updateData(newRecords, 'default_routes.xlsx');
         console.log(`[App] ✅ Loaded ${newRecords.length} default rules from Excel.`);
         setRulesLoaded(true);
       } else {
