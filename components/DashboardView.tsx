@@ -11,7 +11,8 @@ import {
     Save,
     Wifi,
     WifiOff,
-    Server
+    Server,
+    RotateCw
 } from 'lucide-react';
 import { lanSyncService, type ConnectionStatus } from '../services/LanSyncService';
 import { ResolvedRouteInfo, OrderEventStatus, EventType, ApiSettings } from '../types';
@@ -133,6 +134,39 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                     >
                         <Trash2 className="w-4 h-4" /> {t('common.reset')}
                     </button>
+                    {/* Sync Request Button - Only visible in Client mode */}
+                    {syncStatus.mode === 'client' && (
+                        <div className="relative group">
+                            <button
+                                onClick={() => lanSyncService.requestSync('full')}
+                                className="bg-blue-500/10 p-3 px-5 rounded-xl border border-blue-500/20 text-blue-400 flex items-center gap-2 hover:bg-blue-500/20 transition-colors"
+                                title="Request full sync from Host"
+                            >
+                                <RotateCw className="w-4 h-4" /> {t('common.sync')}
+                            </button>
+                            {/* Dropdown for sync options */}
+                            <div className="absolute top-full right-0 mt-2 bg-slate-800 border border-white/10 rounded-xl py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 min-w-[150px]">
+                                <button
+                                    onClick={() => lanSyncService.requestSync('full')}
+                                    className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 transition-colors"
+                                >
+                                    🔄 Full Sync
+                                </button>
+                                <button
+                                    onClick={() => lanSyncService.requestSync(500)}
+                                    className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 transition-colors"
+                                >
+                                    📦 Last 500
+                                </button>
+                                <button
+                                    onClick={() => lanSyncService.requestSync(200)}
+                                    className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 transition-colors"
+                                >
+                                    📋 Last 200
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </header>
 

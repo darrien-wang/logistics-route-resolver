@@ -30,28 +30,40 @@ export const useLanSync = ({
     handleSearch
 }: UseLanSyncProps) => {
 
-    // Create full state snapshot for broadcasting
+    // Create full state snapshot for initial sync (new client connections)
     const createFullStateSnapshot = useCallback(() => ({
         routeStacks: routeStackService.serializeState(),
-        history: history.slice(0, 100), // Limit to last 100 entries
+        history, // Full history for initial client sync
         operationLog,
-        stackDefs, // Include imported stack definitions
+        stackDefs,
         printConditions: printMappingConditionService.serializeState(),
         timestamp: Date.now(),
+        isFullSync: true, // Flag for client to know this is full sync
     }), [history, operationLog, stackDefs]);
 
-    // Manual broadcast function for HOST mode
+    // Create incremental snapshot for regular broadcasts (last 200 entries only)
+    const createIncrementalSnapshot = useCallback(() => ({
+        routeStacks: routeStackService.serializeState(),
+        history: history.slice(0, 200), // Only last 200 for regular updates
+        operationLog,
+        stackDefs,
+        printConditions: printMappingConditionService.serializeState(),
+        timestamp: Date.now(),
+        isFullSync: false, // Flag for incremental update
+    }), [history, operationLog, stackDefs]);
+
+    // Broadcast function for HOST mode - uses incremental snapshot for regular updates
     const broadcastState = useCallback(() => {
         if (lanSyncService.isHost() && window.electron?.broadcastSyncState) {
-            const fullState = createFullStateSnapshot();
-            console.log('[LanSync] Broadcasting state', {
-                timestamp: fullState.timestamp,
-                historyCount: fullState.history?.length || 0,
-                stackDefsCount: fullState.stackDefs?.length || 0,
+            const incrementalState = createIncrementalSnapshot();
+            console.log('[LanSync] Broadcasting incremental state', {
+                timestamp: incrementalState.timestamp,
+                historyCount: incrementalState.history?.length || 0,
+                stackDefsCount: incrementalState.stackDefs?.length || 0,
             });
-            window.electron.broadcastSyncState(fullState);
+            window.electron.broadcastSyncState(incrementalState);
         }
-    }, [createFullStateSnapshot]);
+    }, [createIncrementalSnapshot]);
 
     // LAN Sync integration - Full state synchronization
     useEffect(() => {
@@ -86,11 +98,30 @@ export const useLanSync = ({
                     window.electron.syncStateToClient(message.clientId, fullState);
                 }
             } else if (message.event === 'client:requestSync') {
-                // Client reconnected and requesting full state sync
-                console.log(`[LanSync] Client ${message.clientId} reconnected, sending full state`);
-                const fullState = createFullStateSnapshot();
+                // Client requesting sync with configurable amount
+                const requestedAmount = message.data?.amount || 'full'; // 'full', 200, 500, etc.
+                console.log(`[LanSync] Client ${message.clientId} requesting sync: ${requestedAmount}`);
+
+                let syncState;
+                if (requestedAmount === 'full') {
+                    syncState = createFullStateSnapshot();
+                } else {
+                    // Create snapshot with specific amount
+                    const amount = parseInt(requestedAmount) || 200;
+                    syncState = {
+                        routeStacks: routeStackService.serializeState(),
+                        history: history.slice(0, amount),
+                        operationLog,
+                        stackDefs,
+                        printConditions: printMappingConditionService.serializeState(),
+                        timestamp: Date.now(),
+                        isFullSync: amount >= history.length, // Mark as full if requesting more than available
+                    };
+                }
+
+                console.log(`[LanSync] Sending ${syncState.history?.length || 0} history items to client`);
                 if (window.electron?.syncStateToClient) {
-                    window.electron.syncStateToClient(message.clientId, fullState);
+                    window.electron.syncStateToClient(message.clientId, syncState);
                 }
             }
         });
@@ -129,12 +160,43 @@ export const useLanSync = ({
                 historyCount: fullState.history?.length || 0,
                 hasStackDefs: !!fullState.stackDefs,
                 stackDefsCount: fullState.stackDefs?.length || 0,
+                isFullSync: fullState.isFullSync,
             });
             if (fullState.routeStacks) {
                 routeStackService.applyRemoteState(fullState.routeStacks);
             }
             if (fullState.history) {
-                setHistory(fullState.history);
+                const incomingHistory = fullState.history as ResolvedRouteInfo[];
+
+                // Debug: Check how many synced orders have route info
+                const historyWithRoute = incomingHistory.filter(h => h.route?.routeConfiguration);
+                console.log('[LanSync] Synced history route check:', {
+                    total: incomingHistory.length,
+                    withRoute: historyWithRoute.length,
+                    withoutRoute: incomingHistory.length - historyWithRoute.length,
+                    isFullSync: fullState.isFullSync,
+                });
+
+                if (fullState.isFullSync) {
+                    // Full sync: replace all history
+                    console.log('[LanSync] Full sync - replacing all history');
+                    setHistory(incomingHistory);
+                } else {
+                    // Incremental sync: merge new entries with existing history
+                    setHistory(prev => {
+                        const existingIds = new Set(prev.map(h => h.orderId));
+                        const newEntries = incomingHistory.filter(h => !existingIds.has(h.orderId));
+                        console.log('[LanSync] Incremental sync - merging', {
+                            existing: prev.length,
+                            incoming: incomingHistory.length,
+                            newEntries: newEntries.length,
+                        });
+                        // Add new entries to the front and sort by timestamp (most recent first)
+                        return [...newEntries, ...prev].sort((a, b) =>
+                            new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()
+                        );
+                    });
+                }
 
                 // CLIENT MODE: Process pending prints AND update currentResult for display
                 // Check if any orders we scanned are now in history with route info

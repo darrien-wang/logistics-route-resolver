@@ -336,6 +336,20 @@ class LanSyncService {
     }
 
     /**
+     * Request sync from Host with configurable amount (Client mode only)
+     * @param amount - 'full' for all history, or a number (200, 500, etc.)
+     */
+    requestSync(amount: 'full' | number = 'full'): void {
+        if (this.mode !== 'client' || !this.socket?.connected) {
+            console.warn('[LanSync] Cannot request sync - not in client mode or not connected');
+            return;
+        }
+
+        console.log(`[LanSync] Requesting sync from Host: ${amount}`);
+        this.socket.emit('client:requestSync', { amount });
+    }
+
+    /**
      * Broadcast state update to all clients (Host mode only)
      * This is called via Electron IPC
      */
