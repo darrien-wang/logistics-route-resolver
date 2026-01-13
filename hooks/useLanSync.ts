@@ -140,27 +140,51 @@ export const useLanSync = ({
                 console.log(`[LanSync] Received data push from ${clientName}:`, clientHistory?.length || 0, 'items');
 
                 if (clientHistory && clientHistory.length > 0) {
-                    setHistory(prev => {
-                        const existingIds = new Set(prev.map(h => h.orderId));
-                        const newEntries = clientHistory.filter(h => !existingIds.has(h.orderId));
+                    // Filter out existing orders using current history state
+                    const existingIds = new Set(history.map(h => h.orderId));
+                    const newEntries = clientHistory.filter(h => !existingIds.has(h.orderId));
 
-                        if (newEntries.length > 0) {
-                            console.log(`[LanSync] Merging ${newEntries.length} new items from ${clientName}`);
-                            // Add new entries, update scannedBy if missing
-                            const taggedEntries = newEntries.map(entry => ({
+                    if (newEntries.length > 0) {
+                        console.log(`[LanSync] Processing ${newEntries.length} new items from ${clientName}`);
+
+                        // Process into Stack Service (Host Authority) and tag source
+                        const processedEntries = newEntries.map(entry => {
+                            let stackInfo = entry.stackInfo;
+
+                            // Re-calculate stack info on Host to ensure global consistency
+                            if (entry.route?.routeConfiguration) {
+                                try {
+                                    stackInfo = routeStackService.addToStack(
+                                        entry.route.routeConfiguration,
+                                        entry.orderId,
+                                        {
+                                            weight: entry.weight || 0,
+                                            volume: entry.volume || 0
+                                        }
+                                    );
+                                } catch (error) {
+                                    console.warn(`[LanSync] Failed to add remote order ${entry.orderId} to stack:`, error);
+                                }
+                            }
+
+                            return {
                                 ...entry,
-                                scannedBy: entry.scannedBy || clientName // Ensure source is tracked
-                            }));
+                                stackInfo, // Use authoritative stack info from Host
+                                scannedBy: entry.scannedBy || clientName
+                            };
+                        });
 
-                            // Broadcast will happen automatically due to history change
-                            return [...taggedEntries, ...prev].sort((a, b) =>
+                        // Update history state
+                        setHistory(prev => {
+                            // Double-check duplicates in case of race condition
+                            const finalNew = processedEntries.filter(e => !prev.some(p => p.orderId === e.orderId));
+                            return [...finalNew, ...prev].sort((a, b) =>
                                 new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()
                             );
-                        } else {
-                            console.log('[LanSync] No new items to merge from push');
-                            return prev;
-                        }
-                    });
+                        });
+                    } else {
+                        console.log('[LanSync] No unique new items to merge from push');
+                    }
                 }
             }
         });
