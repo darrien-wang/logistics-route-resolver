@@ -168,6 +168,7 @@ const App: React.FC = () => {
     setHistory,
     setOperationLog,
     setStackDefs,
+    setCurrentResult,
     handleSearch
   });
 

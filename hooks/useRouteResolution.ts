@@ -94,14 +94,11 @@ export const useRouteResolution = ({
 
         // CLIENT MODE: Send scan action to Host instead of processing locally
         if (lanSyncService.isClient() && lanSyncService.isConnected()) {
-            // ... (client mode logic remains same)
             console.log(`[LanSync] CLIENT mode: Sending scan to Host: ${ids.join(', ')}`);
             for (const id of ids) {
                 const upperId = id.toUpperCase();
-                // Register pending print so we can print locally when result comes back
-                if (apiSettings.autoPrintLabelEnabled) {
-                    lanSyncService.registerPendingPrint(upperId);
-                }
+                // Register pending so we can update currentResult (and print) when result comes back from Host
+                lanSyncService.registerPendingPrint(upperId);
                 lanSyncService.sendScanAction({
                     orderId: upperId,
                     routeName: '', // Will be resolved by Host

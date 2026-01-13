@@ -14,6 +14,7 @@ export interface UseLanSyncProps {
     setHistory: React.Dispatch<React.SetStateAction<ResolvedRouteInfo[]>>;
     setOperationLog: React.Dispatch<React.SetStateAction<Record<string, OrderEventStatus[]>>>;
     setStackDefs: React.Dispatch<React.SetStateAction<any[]>>;
+    setCurrentResult?: React.Dispatch<React.SetStateAction<ResolvedRouteInfo | null>>;
     handleSearch: (orderId: string, options?: SearchOptions) => Promise<void>;
 }
 
@@ -25,6 +26,7 @@ export const useLanSync = ({
     setHistory,
     setOperationLog,
     setStackDefs,
+    setCurrentResult,
     handleSearch
 }: UseLanSyncProps) => {
 
@@ -134,26 +136,35 @@ export const useLanSync = ({
             if (fullState.history) {
                 setHistory(fullState.history);
 
-                // CLIENT MODE: Process pending prints
+                // CLIENT MODE: Process pending prints AND update currentResult for display
                 // Check if any orders we scanned are now in history with route info
                 const pendingPrints = lanSyncService.getPendingPrints();
-                if (lanSyncService.isClient() && apiSettings.autoPrintLabelEnabled && pendingPrints.length > 0) {
+                if (lanSyncService.isClient() && pendingPrints.length > 0) {
                     const historyArray = fullState.history as ResolvedRouteInfo[];
                     pendingPrints.forEach(orderId => {
                         const result = historyArray.find(h => h.orderId === orderId);
                         if (result) {
-                            if (result.route?.routeConfiguration && result.stackInfo) {
-                                // Found matching order with route - print locally
-                                console.log(`[LanSync] Client printing for scanned order: ${orderId}`);
-                                labelPrintService.queuePrint(
-                                    result.route.routeConfiguration,
-                                    result.stackInfo.stackNumber,
-                                    orderId
-                                );
-                            } else if (result.exceptionReason) {
-                                // Exception - print exception label
-                                console.log(`[LanSync] Client printing exception for: ${orderId}`);
-                                labelPrintService.queueExceptionPrint(orderId);
+                            // CLIENT MODE: Update currentResult to display route info in OperatorView
+                            if (setCurrentResult) {
+                                console.log(`[LanSync] Client setting currentResult for: ${orderId}`);
+                                setCurrentResult(result);
+                            }
+
+                            // Handle printing
+                            if (apiSettings.autoPrintLabelEnabled) {
+                                if (result.route?.routeConfiguration && result.stackInfo) {
+                                    // Found matching order with route - print locally
+                                    console.log(`[LanSync] Client printing for scanned order: ${orderId}`);
+                                    labelPrintService.queuePrint(
+                                        result.route.routeConfiguration,
+                                        result.stackInfo.stackNumber,
+                                        orderId
+                                    );
+                                } else if (result.exceptionReason) {
+                                    // Exception - print exception label
+                                    console.log(`[LanSync] Client printing exception for: ${orderId}`);
+                                    labelPrintService.queueExceptionPrint(orderId);
+                                }
                             }
                             // Remove from pending
                             lanSyncService.clearPendingPrint(orderId);

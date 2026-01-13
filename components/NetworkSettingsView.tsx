@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Wifi, WifiOff, Server, Users, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { lanSyncService, type SyncMode, type ConnectionStatus } from '../services/LanSyncService';
+import { routeStackService } from '../services/RouteStackService';
 import type { SyncServerInfo, SyncServerStatus } from '../types';
 
 const NetworkSettingsView: React.FC = () => {
@@ -55,6 +56,7 @@ const NetworkSettingsView: React.FC = () => {
                         const newStatus = lanSyncService.getStatus();
                         setConnectionStatus(newStatus);
                         setSyncMode(newStatus.mode);
+                        routeStackService.setSyncMode(newStatus.mode);
                         if (newStatus.mode === 'host') {
                             updateServerStatus();
                         }
@@ -71,6 +73,7 @@ const NetworkSettingsView: React.FC = () => {
                     const newStatus = lanSyncService.getStatus();
                     setConnectionStatus(newStatus);
                     setSyncMode(newStatus.mode);
+                    routeStackService.setSyncMode(newStatus.mode);
                 }
             });
         };
@@ -84,6 +87,7 @@ const NetworkSettingsView: React.FC = () => {
                 const newStatus = lanSyncService.getStatus();
                 setConnectionStatus(newStatus);
                 setSyncMode(newStatus.mode);
+                routeStackService.setSyncMode(newStatus.mode);
                 if (newStatus.mode === 'host') {
                     updateServerStatus();
                 }
@@ -123,6 +127,7 @@ const NetworkSettingsView: React.FC = () => {
             setServerInfo(info);
 
             await lanSyncService.initialize({ mode: 'host', hostPort: port });
+            routeStackService.setSyncMode('host');
 
             setServerStatus({
                 running: true,
@@ -168,6 +173,7 @@ const NetworkSettingsView: React.FC = () => {
                 hostPort: port,
                 clientName: name,
             });
+            routeStackService.setSyncMode('client');
 
             setSyncMode('client');
             // Directly update connectionStatus to trigger UI refresh
@@ -192,6 +198,7 @@ const NetworkSettingsView: React.FC = () => {
 
         try {
             await lanSyncService.disconnect();
+            routeStackService.setSyncMode('standalone');
             setSyncMode('standalone');
             setServerInfo(null);
             setServerStatus(null);
