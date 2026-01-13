@@ -60,7 +60,7 @@
         "inTransit": "En Tránsito / Procesando",
         "systemHealth": "Estado del Sistema",
         "localStorage": "Almacenamiento Local",
-        "lookupSource": "Fuente de Búsqueda",
+        "lookupSource": "Fuente de Búsqueda"
     },
     "operator": {
         "scanPlaceholder": "ESCANEAR ETIQUETAS...",
