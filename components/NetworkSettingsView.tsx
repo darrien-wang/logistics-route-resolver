@@ -233,12 +233,23 @@ const NetworkSettingsView: React.FC = () => {
                 );
             }
         } else {
-            return (
-                <div className="flex items-center gap-2 text-slate-500">
-                    <WifiOff className="w-5 h-5" />
-                    <span className="font-medium">{t('network.disconnected')}</span>
-                </div>
-            );
+            // Differentiate between intentional Standalone vs Client Offline (Broken)
+            if (connectionStatus.mode === 'client') {
+                return (
+                    <div className="flex items-center gap-2 text-red-500 animate-pulse">
+                        <WifiOff className="w-5 h-5" />
+                        <span className="font-bold">OFFLINE (Client Mode) - Reconnecting...</span>
+                    </div>
+                );
+            } else {
+                // Standalone Mode (Normal)
+                return (
+                    <div className="flex items-center gap-2 text-green-500">
+                        <CheckCircle2 className="w-5 h-5" />
+                        <span className="font-bold">{t('network.disconnected')}</span>
+                    </div>
+                );
+            }
         }
     };
 

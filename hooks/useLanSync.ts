@@ -78,6 +78,14 @@ export const useLanSync = ({
 
     // LAN Sync integration - Full state synchronization
     useEffect(() => {
+        // Attempt auto-reconnect from saved config on mount
+        lanSyncService.attemptAutoReconnect().then(reconnected => {
+            if (reconnected) {
+                // Update local state if mode changed due to reconnect
+                setConnectionStatus(lanSyncService.getConnectionStatus());
+            }
+        });
+
         // Setup Host mode: broadcast state changes to clients
         const handleStateChange = () => {
             if (window.electron?.broadcastSyncState && lanSyncService.isHost()) {

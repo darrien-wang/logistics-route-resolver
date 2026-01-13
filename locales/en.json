@@ -104,7 +104,7 @@
         "connect": "Connect",
         "disconnect": "Disconnect",
         "connected": "Connected",
-        "disconnected": "Disconnected",
+        "disconnected": "Standalone Mode (Active)",
         "connecting": "Connecting...",
         "connectedClients": "Connected Clients",
         "hostAddress": "Host Address",
