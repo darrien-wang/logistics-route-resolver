@@ -1,0 +1,91 @@
+{
+    "common": {
+        "confirm": "Confirmar",
+        "cancel": "Cancelar",
+        "save": "Guardar",
+        "delete": "Eliminar",
+        "edit": "Editar",
+        "close": "Cerrar",
+        "loading": "Cargando...",
+        "search": "Buscar",
+        "export": "Exportar",
+        "import": "Importar",
+        "clear": "Limpiar",
+        "success": "Éxito",
+        "failed": "Fallido",
+        "pending": "Pendiente",
+        "error": "Error",
+        "settings": "Configuración"
+    },
+    "nav": {
+        "dashboard": "Panel",
+        "operator": "Operador",
+        "rules": "Reglas",
+        "stacks": "Pilas",
+        "network": "Red"
+    },
+    "dashboard": {
+        "title": "Panel de Control",
+        "todayScans": "Escaneos de Hoy",
+        "totalOrders": "Total de Pedidos",
+        "successRate": "Tasa de Éxito",
+        "activeRoutes": "Rutas Activas",
+        "rulesLoaded": "Reglas Cargadas",
+        "clearHistory": "Limpiar Historial",
+        "clearHistoryConfirm": "¿Limpiar todo el historial de actividad?"
+    },
+    "operator": {
+        "scanPlaceholder": "ESCANEAR ETIQUETAS...",
+        "readyToScan": "Listo para Escanear",
+        "activityStream": "Flujo de Actividad",
+        "events": "EVENTOS",
+        "noActivity": "Sin actividad aún"
+    },
+    "stacks": {
+        "title": "Gestor de Pilas",
+        "capacity": "Capacidad",
+        "count": "Cantidad",
+        "weight": "Peso",
+        "volume": "Volumen",
+        "full": "LLENO",
+        "merge": "Fusionar",
+        "split": "Dividir",
+        "undo": "Deshacer",
+        "redo": "Rehacer"
+    },
+    "network": {
+        "title": "Sincronización de Red",
+        "standalone": "Independiente",
+        "hostMode": "Modo Host",
+        "clientMode": "Modo Cliente",
+        "startHost": "Iniciar Host",
+        "connect": "Conectar",
+        "disconnect": "Desconectar",
+        "connected": "Conectado",
+        "disconnected": "Desconectado",
+        "connectedClients": "Clientes Conectados",
+        "hostAddress": "Dirección del Host",
+        "port": "Puerto",
+        "clientName": "Nombre del Cliente"
+    },
+    "settings": {
+        "title": "Configuración",
+        "apiConfig": "Configuración de API",
+        "autoPrint": "Impresión Automática",
+        "voiceAnnounce": "Anuncio de Voz",
+        "printerSelect": "Seleccionar Impresora",
+        "tokenExpired": "Token Expirado",
+        "updateToken": "Por favor actualice su token"
+    },
+    "whatsNew": {
+        "title": "Novedades",
+        "gotIt": "¡Entendido!"
+    },
+    "printConditions": {
+        "title": "Filtro de Condiciones de Impresión",
+        "whitelist": "Lista Blanca",
+        "blacklist": "Lista Negra",
+        "enabled": "Habilitado",
+        "disabled": "Deshabilitado"
+    }
+}

@@ -1,0 +1,91 @@
+{
+    "common": {
+        "confirm": "确认",
+        "cancel": "取消",
+        "save": "保存",
+        "delete": "删除",
+        "edit": "编辑",
+        "close": "关闭",
+        "loading": "加载中...",
+        "search": "搜索",
+        "export": "导出",
+        "import": "导入",
+        "clear": "清除",
+        "success": "成功",
+        "failed": "失败",
+        "pending": "等待中",
+        "error": "错误",
+        "settings": "设置"
+    },
+    "nav": {
+        "dashboard": "仪表盘",
+        "operator": "操作员",
+        "rules": "规则管理",
+        "stacks": "堆栈管理",
+        "network": "网络同步"
+    },
+    "dashboard": {
+        "title": "仪表盘",
+        "todayScans": "今日扫描",
+        "totalOrders": "总订单数",
+        "successRate": "成功率",
+        "activeRoutes": "活跃路线",
+        "rulesLoaded": "规则已加载",
+        "clearHistory": "清除历史",
+        "clearHistoryConfirm": "确定要清除所有活动历史吗？"
+    },
+    "operator": {
+        "scanPlaceholder": "扫描追踪标签...",
+        "readyToScan": "准备扫描",
+        "activityStream": "活动流",
+        "events": "事件",
+        "noActivity": "暂无活动"
+    },
+    "stacks": {
+        "title": "堆栈管理",
+        "capacity": "容量",
+        "count": "数量",
+        "weight": "重量",
+        "volume": "体积",
+        "full": "已满",
+        "merge": "合并",
+        "split": "拆分",
+        "undo": "撤销",
+        "redo": "重做"
+    },
+    "network": {
+        "title": "网络同步",
+        "standalone": "独立模式",
+        "hostMode": "主机模式",
+        "clientMode": "客户端模式",
+        "startHost": "启动主机",
+        "connect": "连接",
+        "disconnect": "断开",
+        "connected": "已连接",
+        "disconnected": "已断开",
+        "connectedClients": "已连接客户端",
+        "hostAddress": "主机地址",
+        "port": "端口",
+        "clientName": "客户端名称"
+    },
+    "settings": {
+        "title": "设置",
+        "apiConfig": "API 配置",
+        "autoPrint": "自动打印",
+        "voiceAnnounce": "语音播报",
+        "printerSelect": "选择打印机",
+        "tokenExpired": "令牌已过期",
+        "updateToken": "请更新您的令牌"
+    },
+    "whatsNew": {
+        "title": "更新日志",
+        "gotIt": "知道了"
+    },
+    "printConditions": {
+        "title": "打印条件过滤",
+        "whitelist": "白名单",
+        "blacklist": "黑名单",
+        "enabled": "已启用",
+        "disabled": "已禁用"
+    }
+}

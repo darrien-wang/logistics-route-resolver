@@ -1,0 +1,91 @@
+{
+    "common": {
+        "confirm": "Confirm",
+        "cancel": "Cancel",
+        "save": "Save",
+        "delete": "Delete",
+        "edit": "Edit",
+        "close": "Close",
+        "loading": "Loading...",
+        "search": "Search",
+        "export": "Export",
+        "import": "Import",
+        "clear": "Clear",
+        "success": "Success",
+        "failed": "Failed",
+        "pending": "Pending",
+        "error": "Error",
+        "settings": "Settings"
+    },
+    "nav": {
+        "dashboard": "Dashboard",
+        "operator": "Operator",
+        "rules": "Rules",
+        "stacks": "Stacks",
+        "network": "Network"
+    },
+    "dashboard": {
+        "title": "Dashboard",
+        "todayScans": "Today's Scans",
+        "totalOrders": "Total Orders",
+        "successRate": "Success Rate",
+        "activeRoutes": "Active Routes",
+        "rulesLoaded": "Rules Loaded",
+        "clearHistory": "Clear History",
+        "clearHistoryConfirm": "Clear all activity history?"
+    },
+    "operator": {
+        "scanPlaceholder": "SCAN TRACKING LABELS...",
+        "readyToScan": "Ready to Scan",
+        "activityStream": "Activity Stream",
+        "events": "EVENTS",
+        "noActivity": "No activity yet"
+    },
+    "stacks": {
+        "title": "Stack Manager",
+        "capacity": "Capacity",
+        "count": "Count",
+        "weight": "Weight",
+        "volume": "Volume",
+        "full": "FULL",
+        "merge": "Merge",
+        "split": "Split",
+        "undo": "Undo",
+        "redo": "Redo"
+    },
+    "network": {
+        "title": "Network Sync",
+        "standalone": "Standalone",
+        "hostMode": "Host Mode",
+        "clientMode": "Client Mode",
+        "startHost": "Start Host",
+        "connect": "Connect",
+        "disconnect": "Disconnect",
+        "connected": "Connected",
+        "disconnected": "Disconnected",
+        "connectedClients": "Connected Clients",
+        "hostAddress": "Host Address",
+        "port": "Port",
+        "clientName": "Client Name"
+    },
+    "settings": {
+        "title": "Settings",
+        "apiConfig": "API Configuration",
+        "autoPrint": "Auto Print",
+        "voiceAnnounce": "Voice Announcement",
+        "printerSelect": "Select Printer",
+        "tokenExpired": "Token Expired",
+        "updateToken": "Please update your token"
+    },
+    "whatsNew": {
+        "title": "What's New",
+        "gotIt": "Got it!"
+    },
+    "printConditions": {
+        "title": "Print Condition Filter",
+        "whitelist": "Whitelist",
+        "blacklist": "Blacklist",
+        "enabled": "Enabled",
+        "disabled": "Disabled"
+    }
+}

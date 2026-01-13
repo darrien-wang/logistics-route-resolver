@@ -3,6 +3,7 @@ import { Package, RotateCcw, Box, Scan, Printer, ChevronDown, Check } from 'luci
 import { ResolvedRouteInfo, ApiSettings, OrderEventStatus, EventType } from '../types';
 import { ExcelExportService } from '../services/ExportService';
 import { voiceService } from '../services/VoiceService';
+import { useI18n } from '../contexts/I18nContext';
 
 interface OperatorViewProps {
     apiSettings: ApiSettings;
@@ -44,6 +45,7 @@ const OperatorView: React.FC<OperatorViewProps> = ({
 
     const [isEventMenuOpen, setIsEventMenuOpen] = useState(false);
     const eventMenuRef = useRef<HTMLDivElement>(null);
+    const { t } = useI18n();
 
     // Close menu when clicking outside
     useEffect(() => {
@@ -116,7 +118,7 @@ const OperatorView: React.FC<OperatorViewProps> = ({
                             onChange={(e) => onOrderIdChange(e.target.value)}
                             onKeyDown={handleKeyDown}
                             className="block w-full pl-20 pr-48 py-6 bg-slate-950 border-2 border-slate-800 rounded-2xl text-4xl font-bold text-white placeholder-slate-600 focus:outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-500/20 transition-all shadow-inner tracking-wide uppercase"
-                            placeholder="SCAN TRACKING LABELS..."
+                            placeholder={t('operator.scanPlaceholder')}
                             autoComplete="off"
                             autoFocus
                         />
@@ -179,10 +181,10 @@ const OperatorView: React.FC<OperatorViewProps> = ({
                     <div className="p-4 border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-10 flex justify-between items-center">
                         <h2 className="text-lg font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
                             <RotateCcw className="w-5 h-5" />
-                            Activity Stream
+                            {t('operator.activityStream')}
                         </h2>
                         <div className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs font-mono text-slate-400">
-                            {Object.keys(operationLog).length} EVENTS
+                            {Object.keys(operationLog).length} {t('operator.events')}
                         </div>
                     </div>
                     <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
