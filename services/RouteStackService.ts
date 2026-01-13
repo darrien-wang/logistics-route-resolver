@@ -391,7 +391,10 @@ class RouteStackService {
      * Notify all registered callbacks of state change
      */
     private notifyStateChange(): void {
-        if (this.syncMode === 'host') {
+        // Notifications needed for:
+        // 1. Host mode -> Broadcasting to clients
+        // 2. Standalone mode -> Persistence (useAppPersistence)
+        if (this.syncMode === 'host' || this.syncMode === 'standalone') {
             const state = this.serializeState();
             this.stateChangeCallbacks.forEach(callback => callback(state));
         }

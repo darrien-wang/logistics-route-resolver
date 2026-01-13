@@ -184,7 +184,7 @@ const App: React.FC = () => {
   });
 
   // LAN Sync Hook
-  const { broadcastState, isSyncing, requestSync, pushLocalData } = useLanSync({
+  const { broadcastState, isSyncing, requestSync, pushLocalData, connectionStatus } = useLanSync({
     history,
     operationLog,
     stackDefs,
@@ -195,6 +195,17 @@ const App: React.FC = () => {
     setCurrentResult,
     handleSearch
   });
+
+  // Wrapper for handleSearch to enforce online Requirement for Clients
+  const handleSafeSearch = useCallback(async (query: string, options?: any) => {
+    // STRICT MODE: Client must be connected to Host to scan
+    // This prevents stack count discrepancy (Client stack vs Host stack mismatch)
+    if (connectionStatus.mode === 'client' && !connectionStatus.connected) {
+      setError("🚫 OFFLINE: Cannot scan. Client must be connected to Host to ensure correct stack assignment.");
+      return;
+    }
+    return handleSearch(query, options);
+  }, [connectionStatus, handleSearch, setError]);
 
 
 
@@ -416,7 +427,8 @@ const App: React.FC = () => {
               scannerInputRef={scannerInputRef}
               onToggleEventType={toggleEventType}
               onOrderIdChange={setOrderId}
-              onSearch={handleSearch}
+              onSearch={handleSafeSearch}
+              connectionStatus={connectionStatus}
             />
           ) : view === 'stacks' ? (
             <RouteStackManager

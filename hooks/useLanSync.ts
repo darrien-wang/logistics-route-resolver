@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback, useState } from 'react';
 import { RouteStackState, ResolvedRouteInfo, OrderEventStatus, PrintMappingConditionState, ApiSettings } from '../types';
-import { lanSyncService, SYNC_EVENTS } from '../services/LanSyncService';
+import { lanSyncService, SYNC_EVENTS, ConnectionStatus } from '../services/LanSyncService';
 import { routeStackService } from '../services/RouteStackService';
 import { printMappingConditionService } from '../services/PrintMappingConditionService';
 import { labelPrintService } from '../services/LabelPrintService';
@@ -30,6 +30,7 @@ export const useLanSync = ({
     handleSearch
 }: UseLanSyncProps) => {
     const [isSyncing, setIsSyncing] = useState(false);
+    const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(lanSyncService.getConnectionStatus());
 
     // Wrapper for manual sync request with loading state
     const requestSync = useCallback((amount: 'full' | number = 'full') => {
@@ -321,11 +322,19 @@ export const useLanSync = ({
         lanSyncService.on(SYNC_EVENTS.STATE_UPDATE, handleStateUpdate);
         lanSyncService.on(SYNC_EVENTS.CONNECTION, handleConnection);
 
+        const updateConnectionStatus = () => {
+            setConnectionStatus(lanSyncService.getConnectionStatus());
+        };
+        lanSyncService.on(SYNC_EVENTS.CONNECTION, updateConnectionStatus);
+        lanSyncService.on(SYNC_EVENTS.DISCONNECT, updateConnectionStatus);
+
         return () => {
             routeStackService.offStateChange(handleStateChange);
             lanSyncService.off(SYNC_EVENTS.SYNC_STATE, handleSyncState);
             lanSyncService.off(SYNC_EVENTS.STATE_UPDATE, handleStateUpdate);
             lanSyncService.off(SYNC_EVENTS.CONNECTION, handleConnection);
+            lanSyncService.off(SYNC_EVENTS.CONNECTION, updateConnectionStatus);
+            lanSyncService.off(SYNC_EVENTS.DISCONNECT, updateConnectionStatus);
             if (cleanup) cleanup();
         };
     }, [createFullStateSnapshot, handleSearch, setHistory, setOperationLog, setStackDefs, apiSettings.autoPrintLabelEnabled]);
@@ -352,6 +361,7 @@ export const useLanSync = ({
         broadcastState,
         isSyncing,
         requestSync,
-        pushLocalData
+        pushLocalData,
+        connectionStatus
     };
 };

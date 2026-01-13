@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Settings, Layers, Upload, Download, RotateCcw, RotateCw, Search, X, Filter, ChevronDown } from 'lucide-react';
+import { Settings, Layers, Upload, Download, RotateCcw, RotateCw, Search, X, Filter, ChevronDown, Wrench } from 'lucide-react';
 import { RouteStack, ResolvedRouteInfo, StackCapacityConfig, DEFAULT_CAPACITY_CONFIG, ApiSettings, StackStatus, StackType, StackDefinition } from '../types';
 import RouteStackCard from './RouteStackCard';
 import MergedStackCard from './MergedStackCard';
@@ -793,6 +793,45 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
         }
     };
 
+
+
+    const handleRepairStacks = () => {
+        if (!confirm(t('stacks.repairConfirm') || "Recalculate all stack counts from history? This serves as a consistency check.")) return;
+
+        console.log('[StackRepair] Starting repair...');
+
+        // 1. Reset Service internal state
+        routeStackService.reset();
+
+        // 2. Sort history by timestamp (Oldest -> Newest) to replay accurately
+        const sortedHistory = [...history].sort((a, b) => {
+            const tA = new Date(a.scannedAt || a.resolvedAt || 0).getTime();
+            const tB = new Date(b.scannedAt || b.resolvedAt || 0).getTime();
+            return tA - tB;
+        });
+
+        // 3. Replay all items
+        let processed = 0;
+        sortedHistory.forEach(order => {
+            if (order.route?.routeConfiguration) {
+                try {
+                    routeStackService.addToStack(
+                        order.route.routeConfiguration,
+                        order.orderId,
+                        { weight: order.weight || 0, volume: order.volume || 0 }
+                    );
+                    processed++;
+                } catch (e) {
+                    console.warn('[StackRepair] Skip:', e);
+                }
+            }
+        });
+
+        alert((t('stacks.repairComplete') || 'Repaired stack state. Items processed: ') + processed);
+        // Force reload to ensure everything is consistent
+        window.location.reload();
+    };
+
     const onUndo = () => {
         const prev = historyService.undo();
         if (prev) setStackDefs(prev);
@@ -1230,84 +1269,97 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                         </button>
                     </div>
 
-                    {/* Settings (Capacity Rules) */}
-                    <button
-                        onClick={() => setShowSettingsModal(true)}
-                        className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-colors border border-white/5"
-                        title={t('stacks.capacitySettings')}
-                    >
-                        <Settings className="w-5 h-5" />
-                    </button>
                 </div>
+
+                {/* Repair Button */}
+                <button
+                    onClick={handleRepairStacks}
+                    className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-colors border border-white/5"
+                    title={t('stacks.repair') || "Repair/Recalculate Stacks"}
+                >
+                    <Wrench className="w-5 h-5" />
+                </button>
+
+                {/* Settings (Capacity Rules) */}
+                <button
+                    onClick={() => setShowSettingsModal(true)}
+                    className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-colors border border-white/5"
+                    title={t('stacks.capacitySettings')}
+                >
+                    <Settings className="w-5 h-5" />
+                </button>
             </div>
 
-            {/* Search Results Panel */}
-            {showSearchResults && searchResults.length > 0 && (
-                <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-4 animate-in slide-in-from-top-4 fade-in duration-300">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                            <Search className="w-5 h-5 text-sky-400" />
-                            <h3 className="text-lg font-bold text-white">Search Results</h3>
-                            <span className="px-2 py-1 bg-sky-500/20 text-sky-400 text-xs font-bold rounded-full">
-                                {searchResults.filter(r => r.found).length} / {searchResults.length} Found
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={handleExportSearchResults}
-                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
-                            >
-                                <Download className="w-3 h-3" />
-                                EXPORT
-                            </button>
-                            <button
-                                onClick={() => setShowSearchResults(false)}
-                                className="p-1.5 text-slate-500 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-                    </div>
 
-                    <div className="max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
-                        <table className="w-full text-sm">
-                            <thead className="sticky top-0 bg-slate-900">
-                                <tr className="text-left text-slate-500 uppercase text-xs tracking-wider">
-                                    <th className="pb-2 pr-4">Order ID</th>
-                                    <th className="pb-2 pr-4">Stack</th>
-                                    <th className="pb-2 pr-4">Type</th>
-                                    <th className="pb-2">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {searchResults.map((result, idx) => (
-                                    <tr key={idx} className={`border-t border-slate-800 ${result.found ? 'text-white' : 'text-red-400'}`}>
-                                        <td className="py-2 pr-4 font-mono">{result.orderId}</td>
-                                        <td className="py-2 pr-4 font-medium">{result.stackName}</td>
-                                        <td className="py-2 pr-4">
-                                            <span className={`px-2 py-0.5 rounded text-xs font-bold ${result.stackType === 'Merged' ? 'bg-indigo-500/20 text-indigo-400' :
-                                                result.stackType === 'Overflow' ? 'bg-yellow-500/20 text-yellow-400' :
-                                                    result.stackType === 'Exception' ? 'bg-red-500/20 text-red-400' :
-                                                        result.stackType === 'Normal' ? 'bg-emerald-500/20 text-emerald-400' :
-                                                            'bg-slate-700 text-slate-400'
-                                                }`}>
-                                                {result.stackType}
-                                            </span>
-                                        </td>
-                                        <td className="py-2">
-                                            {result.found ? (
-                                                <span className="text-emerald-400 font-bold">✓ Found</span>
-                                            ) : (
-                                                <span className="text-red-400 font-bold">✗ Not Found</span>
-                                            )}
-                                        </td>
+            {/* Search Results Panel */}
+            {
+                showSearchResults && searchResults.length > 0 && (
+                    <div className="bg-slate-900/80 border border-slate-700 rounded-2xl p-4 animate-in slide-in-from-top-4 fade-in duration-300">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                                <Search className="w-5 h-5 text-sky-400" />
+                                <h3 className="text-lg font-bold text-white">Search Results</h3>
+                                <span className="px-2 py-1 bg-sky-500/20 text-sky-400 text-xs font-bold rounded-full">
+                                    {searchResults.filter(r => r.found).length} / {searchResults.length} Found
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={handleExportSearchResults}
+                                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
+                                >
+                                    <Download className="w-3 h-3" />
+                                    EXPORT
+                                </button>
+                                <button
+                                    onClick={() => setShowSearchResults(false)}
+                                    className="p-1.5 text-slate-500 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+                            <table className="w-full text-sm">
+                                <thead className="sticky top-0 bg-slate-900">
+                                    <tr className="text-left text-slate-500 uppercase text-xs tracking-wider">
+                                        <th className="pb-2 pr-4">Order ID</th>
+                                        <th className="pb-2 pr-4">Stack</th>
+                                        <th className="pb-2 pr-4">Type</th>
+                                        <th className="pb-2">Status</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {searchResults.map((result, idx) => (
+                                        <tr key={idx} className={`border-t border-slate-800 ${result.found ? 'text-white' : 'text-red-400'}`}>
+                                            <td className="py-2 pr-4 font-mono">{result.orderId}</td>
+                                            <td className="py-2 pr-4 font-medium">{result.stackName}</td>
+                                            <td className="py-2 pr-4">
+                                                <span className={`px-2 py-0.5 rounded text-xs font-bold ${result.stackType === 'Merged' ? 'bg-indigo-500/20 text-indigo-400' :
+                                                    result.stackType === 'Overflow' ? 'bg-yellow-500/20 text-yellow-400' :
+                                                        result.stackType === 'Exception' ? 'bg-red-500/20 text-red-400' :
+                                                            result.stackType === 'Normal' ? 'bg-emerald-500/20 text-emerald-400' :
+                                                                'bg-slate-700 text-slate-400'
+                                                    }`}>
+                                                    {result.stackType}
+                                                </span>
+                                            </td>
+                                            <td className="py-2">
+                                                {result.found ? (
+                                                    <span className="text-emerald-400 font-bold">✓ Found</span>
+                                                ) : (
+                                                    <span className="text-red-400 font-bold">✗ Not Found</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-20">
@@ -1348,16 +1400,18 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
             </div>
 
             {/* Modals */}
-            {selectedDetailStack && (
-                <OrderDetailModal
-                    isOpen={!!selectedDetailStack}
-                    onClose={() => setSelectedDetailStack(null)}
-                    title={selectedDetailStack.title}
-                    orders={selectedDetailStack.orders}
-                    mergeInfo={selectedDetailStack.mergeInfo}
-                    onMoveOrders={handleMoveOrders}
-                />
-            )}
+            {
+                selectedDetailStack && (
+                    <OrderDetailModal
+                        isOpen={!!selectedDetailStack}
+                        onClose={() => setSelectedDetailStack(null)}
+                        title={selectedDetailStack.title}
+                        orders={selectedDetailStack.orders}
+                        mergeInfo={selectedDetailStack.mergeInfo}
+                        onMoveOrders={handleMoveOrders}
+                    />
+                )
+            }
 
             <CapacityRuleEditor
                 isOpen={showSettingsModal}
@@ -1393,7 +1447,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                 // Let's also show Merged.
                 onSelect={handleConfirmMove}
             />
-        </div>
+        </div >
     );
 };
 

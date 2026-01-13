@@ -483,6 +483,13 @@ class LanSyncService {
     }
 
     /**
+     * Get current connection status
+     */
+    getConnectionStatus(): ConnectionStatus {
+        return { ...this.connectionStatus };
+    }
+
+    /**
      * Register an order as needing to print when result comes back (CLIENT mode)
      */
     registerPendingPrint(orderId: string): void {
