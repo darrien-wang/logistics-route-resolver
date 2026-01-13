@@ -13,6 +13,7 @@ import { routeStackService } from '../services/RouteStackService';
 import { ExcelExportService } from '../services/ExportService';
 import ExportConfigModal from './ExportConfigModal';
 import StackSelectorModal from './StackSelectorModal';
+import { useI18n } from '../contexts/I18nContext';
 
 interface RouteStackManagerProps {
     history: ResolvedRouteInfo[];
@@ -62,6 +63,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
     // Ref for file input
     const fileInputRef = useRef<HTMLInputElement>(null);
     const placeholderInputRef = useRef<HTMLInputElement>(null);
+    const { t } = useI18n();
 
     // Initializer used to setup history
     useEffect(() => {
@@ -969,7 +971,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                     <div className="flex flex-col items-center gap-4 p-8 bg-slate-900/90 rounded-3xl border-2 border-dashed border-sky-500 shadow-2xl shadow-sky-500/20">
                         <Upload className="w-16 h-16 text-sky-400 animate-bounce" />
                         <div className="text-center">
-                            <p className="text-2xl font-bold text-white">Drop to Import</p>
+                            <p className="text-2xl font-bold text-white">{t('stacks.importOrders')}</p>
                             <p className="text-slate-400 text-sm mt-1">JSON or Excel files (.json, .xlsx, .xls)</p>
                         </div>
                     </div>
@@ -983,9 +985,9 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                         <Layers className="w-6 h-6 text-blue-400" />
                     </div>
                     <div>
-                        <h2 className="text-2xl font-black text-white tracking-tight">Route Stacks</h2>
+                        <h2 className="text-2xl font-black text-white tracking-tight">{t('stacks.title')}</h2>
                         <div className="flex items-center gap-2 text-sm font-medium text-slate-400">
-                            {renderableStacks.length} Active Stacks
+                            {renderableStacks.length} {t('stacks.capacity')}
                             <span className="w-1 h-1 bg-slate-600 rounded-full" />
                             {exceptionPool.length} Exceptions
                         </div>
@@ -1016,7 +1018,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                             onClick={handleBatchSearch}
                             className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-xs font-bold transition-colors"
                         >
-                            SEARCH
+                            {t('common.search').toUpperCase()}
                         </button>
                     </div>
                 </div>
@@ -1030,7 +1032,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                             className="animate-in slide-in-from-bottom-4 fade-in px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold shadow-lg shadow-indigo-900/30 flex items-center gap-2"
                         >
                             <Layers className="w-4 h-4" />
-                            MERGE ({selectedStackIds.size})
+                            {t('stacks.merge').toUpperCase()} ({selectedStackIds.size})
                         </button>
                     )}
 
@@ -1040,7 +1042,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                         className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold shadow-lg shadow-emerald-900/30 transition-colors"
                     >
                         <Download className="w-4 h-4" />
-                        {selectedStackIds.size > 0 ? `EXPORT (${selectedStackIds.size})` : 'EXPORT ALL'}
+                        {selectedStackIds.size > 0 ? `${t('common.export').toUpperCase()} (${selectedStackIds.size})` : t('stacks.exportStacks').toUpperCase()}
                     </button>
 
                     {/* Import */}
@@ -1060,7 +1062,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                         className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-colors text-sm"
                     >
                         <Upload className="w-4 h-4" />
-                        IMPORT
+                        {t('common.import').toUpperCase()}
                     </button>
 
                     {/* Import Placeholders */}
@@ -1091,7 +1093,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                             onClick={onUndo}
                             disabled={!historyService.canUndo()}
                             className={`p-2 rounded-lg transition-colors ${historyService.canUndo() ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-700 cursor-not-allowed'}`}
-                            title="Undo"
+                            title={t('stacks.undo')}
                         >
                             <RotateCcw className="w-4 h-4" />
                         </button>
@@ -1099,7 +1101,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                             onClick={onRedo}
                             disabled={!historyService.canRedo()}
                             className={`p-2 rounded-lg transition-colors ${historyService.canRedo() ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-700 cursor-not-allowed'}`}
-                            title="Redo"
+                            title={t('stacks.redo')}
                         >
                             <RotateCw className="w-4 h-4" />
                         </button>
@@ -1109,7 +1111,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                     <button
                         onClick={() => setShowSettingsModal(true)}
                         className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-colors border border-white/5"
-                        title="Stack Capacity Rules"
+                        title={t('stacks.capacitySettings')}
                     >
                         <Settings className="w-5 h-5" />
                     </button>

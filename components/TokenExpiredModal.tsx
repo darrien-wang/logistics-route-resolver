@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertCircle, Settings, X } from 'lucide-react';
+import { useI18n } from '../contexts/I18nContext';
 
 interface TokenExpiredModalProps {
     isOpen: boolean;
@@ -8,6 +9,7 @@ interface TokenExpiredModalProps {
 }
 
 const TokenExpiredModal: React.FC<TokenExpiredModalProps> = ({ isOpen, onClose, onOpenSettings }) => {
+    const { t } = useI18n();
     if (!isOpen) return null;
 
     const handleOpenSettings = () => {
@@ -23,7 +25,7 @@ const TokenExpiredModal: React.FC<TokenExpiredModalProps> = ({ isOpen, onClose, 
                         <div className="bg-red-500/20 p-3 rounded-2xl border border-red-500/30">
                             <AlertCircle className="w-8 h-8 text-red-500" />
                         </div>
-                        <h2 className="text-2xl font-black text-white uppercase tracking-tight">Token Expired</h2>
+                        <h2 className="text-2xl font-black text-white uppercase tracking-tight">{t('settings.tokenExpired')}</h2>
                     </div>
                     <button
                         onClick={onClose}
@@ -35,7 +37,7 @@ const TokenExpiredModal: React.FC<TokenExpiredModalProps> = ({ isOpen, onClose, 
 
                 <div className="mb-8">
                     <p className="text-slate-300 text-lg mb-2">
-                        Your authorization token has expired.
+                        {t('settings.updateToken')}
                     </p>
                     <p className="text-slate-500 text-sm">
                         Please update your <span className="text-amber-400 font-bold">Authorization</span> and <span className="text-sky-400 font-bold">WPGLB-Auth</span> tokens in the API settings to continue.
@@ -47,14 +49,14 @@ const TokenExpiredModal: React.FC<TokenExpiredModalProps> = ({ isOpen, onClose, 
                         onClick={onClose}
                         className="flex-1 px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-bold transition-colors border border-white/10"
                     >
-                        Dismiss
+                        {t('common.close')}
                     </button>
                     <button
                         onClick={handleOpenSettings}
                         className="flex-1 px-6 py-3 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white rounded-2xl font-black transition-all shadow-lg shadow-red-900/30 flex items-center justify-center gap-2"
                     >
                         <Settings className="w-5 h-5" />
-                        Open Settings
+                        {t('common.settings')}
                     </button>
                 </div>
             </div>

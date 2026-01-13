@@ -3,6 +3,7 @@ import { Wifi, WifiOff, Server, Users, AlertCircle, CheckCircle2, RefreshCw } fr
 import { lanSyncService, type SyncMode, type ConnectionStatus } from '../services/LanSyncService';
 import { routeStackService } from '../services/RouteStackService';
 import type { SyncServerInfo, SyncServerStatus } from '../types';
+import { useI18n } from '../contexts/I18nContext';
 
 const NetworkSettingsView: React.FC = () => {
     const [syncMode, setSyncMode] = useState<SyncMode>('standalone');
@@ -17,6 +18,7 @@ const NetworkSettingsView: React.FC = () => {
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const { t } = useI18n();
 
     useEffect(() => {
         // Subscribe to connection status updates
@@ -234,7 +236,7 @@ const NetworkSettingsView: React.FC = () => {
             return (
                 <div className="flex items-center gap-2 text-slate-500">
                     <WifiOff className="w-5 h-5" />
-                    <span className="font-medium">Not connected</span>
+                    <span className="font-medium">{t('network.disconnected')}</span>
                 </div>
             );
         }
@@ -243,16 +245,16 @@ const NetworkSettingsView: React.FC = () => {
     return (
         <div className="max-w-4xl mx-auto space-y-8">
             <div>
-                <h1 className="text-4xl font-bold text-white mb-2">Network Sync</h1>
+                <h1 className="text-4xl font-bold text-white mb-2">{t('network.title')}</h1>
                 <p className="text-slate-400">
-                    Synchronize data across multiple devices on your local network
+                    {t('network.standaloneDesc')}
                 </p>
             </div>
 
             {/* Connection Status */}
             <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-xl p-6">
                 <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-semibold text-white">Connection Status</h2>
+                    <h2 className="text-xl font-semibold text-white">{t('network.connected')}</h2>
                     {renderStatus()}
                 </div>
 
@@ -279,22 +281,22 @@ const NetworkSettingsView: React.FC = () => {
             {/* Mode Selection */}
             {!connectionStatus.connected && (
                 <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-xl p-6 space-y-6">
-                    <h2 className="text-xl font-semibold text-white">Connection Mode</h2>
+                    <h2 className="text-xl font-semibold text-white">{t('network.hostMode')}</h2>
 
                     {/* Host Mode */}
                     <div className="border border-slate-700 rounded-lg p-6">
                         <div className="flex items-start gap-4 mb-4">
                             <Server className="w-6 h-6 text-sky-400 mt-1" />
                             <div className="flex-1">
-                                <h3 className="text-lg font-semibold text-white mb-2">Host Mode</h3>
+                                <h3 className="text-lg font-semibold text-white mb-2">{t('network.hostMode')}</h3>
                                 <p className="text-slate-400 text-sm mb-4">
-                                    Run as the main server. This device will process all scans and broadcast updates to connected clients.
+                                    {t('network.hostDesc')}
                                 </p>
 
                                 <div className="space-y-4">
                                     <div>
                                         <label className="block text-sm font-medium text-slate-300 mb-2">
-                                            Server Port
+                                            {t('network.port')}
                                         </label>
                                         <input
                                             type="number"
@@ -333,9 +335,9 @@ const NetworkSettingsView: React.FC = () => {
                         <div className="flex items-start gap-4 mb-4">
                             <Wifi className="w-6 h-6 text-green-400 mt-1" />
                             <div className="flex-1">
-                                <h3 className="text-lg font-semibold text-white mb-2">Client Mode</h3>
+                                <h3 className="text-lg font-semibold text-white mb-2">{t('network.clientMode')}</h3>
                                 <p className="text-slate-400 text-sm mb-4">
-                                    Connect to an existing host server. Scans will be sent to the host for processing.
+                                    {t('network.clientDesc')}
                                 </p>
 
                                 <div className="space-y-4">

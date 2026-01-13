@@ -15,7 +15,17 @@
         "failed": "Failed",
         "pending": "Pending",
         "error": "Error",
-        "settings": "Settings"
+        "settings": "Settings",
+        "reset": "Reset",
+        "source": "Source",
+        "active": "Active",
+        "disabled": "Disabled",
+        "enabled": "Enabled",
+        "ok": "OK",
+        "storage": "Storage",
+        "backend": "Backend",
+        "local": "Local",
+        "remote": "Remote"
     },
     "nav": {
         "dashboard": "Dashboard",
@@ -25,21 +35,45 @@
         "network": "Network"
     },
     "dashboard": {
-        "title": "Dashboard",
+        "title": "Control Center",
+        "controlCenter": "Control Center",
         "todayScans": "Today's Scans",
         "totalOrders": "Total Orders",
         "successRate": "Success Rate",
         "activeRoutes": "Active Routes",
         "rulesLoaded": "Rules Loaded",
         "clearHistory": "Clear History",
-        "clearHistoryConfirm": "Clear all activity history?"
+        "clearHistoryConfirm": "Clear all activity history?",
+        "apiConfig": "API Config",
+        "tableConfig": "Table Config",
+        "exportLog": "Export Log",
+        "remoteEngineOn": "Remote Engine ON",
+        "localOnly": "Local Only",
+        "liveSync": "Live Sync",
+        "routesResolved": "Routes Resolved",
+        "totalActivity": "Total Activity",
+        "operationalMode": "Operational Mode",
+        "liveActivityStream": "Live Activity Stream",
+        "storageOk": "Storage: OK",
+        "waitingForActivity": "Waiting for scanning activity",
+        "processingComplete": "Processing Complete",
+        "inTransit": "In-Transit / Processing",
+        "systemHealth": "System Health",
+        "localStorage": "Local Storage",
+        "lookupSource": "Lookup Source",
+        "systemNote": "* The system uses a middleware chain to resolve routing. If Remote API fails or is disabled, it automatically falls back to local configuration tables."
     },
     "operator": {
         "scanPlaceholder": "SCAN TRACKING LABELS...",
         "readyToScan": "Ready to Scan",
         "activityStream": "Activity Stream",
         "events": "EVENTS",
-        "noActivity": "No activity yet"
+        "noActivity": "No activity yet",
+        "batchActive": "Batch Active",
+        "batchComplete": "Batch Complete",
+        "itemsRemaining": "items remaining",
+        "allItemsScanned": "ALL ITEMS SCANNED",
+        "printingSent": "Printing Sent"
     },
     "stacks": {
         "title": "Stack Manager",
@@ -51,22 +85,36 @@
         "merge": "Merge",
         "split": "Split",
         "undo": "Undo",
-        "redo": "Redo"
+        "redo": "Redo",
+        "importOrders": "Import Orders",
+        "exportStacks": "Export Stacks",
+        "batchSearch": "Batch Search",
+        "capacitySettings": "Capacity Settings",
+        "pieces": "pcs"
     },
     "network": {
         "title": "Network Sync",
+        "lanSync": "LAN Sync",
         "standalone": "Standalone",
         "hostMode": "Host Mode",
         "clientMode": "Client Mode",
         "startHost": "Start Host",
+        "stopHost": "Stop Host",
         "connect": "Connect",
         "disconnect": "Disconnect",
         "connected": "Connected",
         "disconnected": "Disconnected",
+        "connecting": "Connecting...",
         "connectedClients": "Connected Clients",
         "hostAddress": "Host Address",
         "port": "Port",
-        "clientName": "Client Name"
+        "clientName": "Client Name",
+        "serverRunning": "Server Running",
+        "serverStopped": "Server Stopped",
+        "noClientsConnected": "No clients connected",
+        "standaloneDesc": "Run independently without syncing to other devices",
+        "hostDesc": "Run as host server, process all scans and sync to clients",
+        "clientDesc": "Connect to a host, send scan requests and receive state updates"
     },
     "settings": {
         "title": "Settings",
@@ -75,7 +123,7 @@
         "voiceAnnounce": "Voice Announcement",
         "printerSelect": "Select Printer",
         "tokenExpired": "Token Expired",
-        "updateToken": "Please update your token"
+        "updateToken": "Please update your token in Settings"
     },
     "whatsNew": {
         "title": "What's New",
@@ -86,6 +134,20 @@
         "whitelist": "Whitelist",
         "blacklist": "Blacklist",
         "enabled": "Enabled",
-        "disabled": "Disabled"
+        "disabled": "Disabled",
+        "addRule": "Add Rule",
+        "prefix": "Prefix",
+        "zipCode": "ZIP Code"
+    },
+    "rules": {
+        "title": "Rules Management",
+        "zipCode": "ZIP Code",
+        "route": "Route",
+        "metroArea": "Metro Area",
+        "state": "State",
+        "zone": "Zone",
+        "exportRules": "Export Rules",
+        "noRules": "No rules loaded",
+        "rulesLoaded": "rules loaded"
     }
 }

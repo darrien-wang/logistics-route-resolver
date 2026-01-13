@@ -15,7 +15,17 @@
         "failed": "Fallido",
         "pending": "Pendiente",
         "error": "Error",
-        "settings": "Configuración"
+        "settings": "Configuración",
+        "reset": "Restablecer",
+        "source": "Fuente",
+        "active": "Activo",
+        "disabled": "Deshabilitado",
+        "enabled": "Habilitado",
+        "ok": "OK",
+        "storage": "Almacenamiento",
+        "backend": "Backend",
+        "local": "Local",
+        "remote": "Remoto"
     },
     "nav": {
         "dashboard": "Panel",
@@ -25,21 +35,45 @@
         "network": "Red"
     },
     "dashboard": {
-        "title": "Panel de Control",
+        "title": "Centro de Control",
+        "controlCenter": "Centro de Control",
         "todayScans": "Escaneos de Hoy",
         "totalOrders": "Total de Pedidos",
         "successRate": "Tasa de Éxito",
         "activeRoutes": "Rutas Activas",
         "rulesLoaded": "Reglas Cargadas",
         "clearHistory": "Limpiar Historial",
-        "clearHistoryConfirm": "¿Limpiar todo el historial de actividad?"
+        "clearHistoryConfirm": "¿Limpiar todo el historial de actividad?",
+        "apiConfig": "Config. API",
+        "tableConfig": "Config. Tabla",
+        "exportLog": "Exportar Registro",
+        "remoteEngineOn": "Motor Remoto ACTIVO",
+        "localOnly": "Solo Local",
+        "liveSync": "Sincronización en Vivo",
+        "routesResolved": "Rutas Resueltas",
+        "totalActivity": "Actividad Total",
+        "operationalMode": "Modo Operacional",
+        "liveActivityStream": "Flujo de Actividad en Vivo",
+        "storageOk": "Almacenamiento: OK",
+        "waitingForActivity": "Esperando actividad de escaneo",
+        "processingComplete": "Procesamiento Completo",
+        "inTransit": "En Tránsito / Procesando",
+        "systemHealth": "Estado del Sistema",
+        "localStorage": "Almacenamiento Local",
+        "lookupSource": "Fuente de Búsqueda",
+        "systemNote": "* El sistema utiliza una cadena de middleware para resolver rutas. Si la API remota falla o está deshabilitada, automáticamente recurre a las tablas de configuración locales."
     },
     "operator": {
         "scanPlaceholder": "ESCANEAR ETIQUETAS...",
         "readyToScan": "Listo para Escanear",
         "activityStream": "Flujo de Actividad",
         "events": "EVENTOS",
-        "noActivity": "Sin actividad aún"
+        "noActivity": "Sin actividad aún",
+        "batchActive": "Lote Activo",
+        "batchComplete": "Lote Completo",
+        "itemsRemaining": "elementos restantes",
+        "allItemsScanned": "TODOS LOS ARTÍCULOS ESCANEADOS",
+        "printingSent": "Impresión Enviada"
     },
     "stacks": {
         "title": "Gestor de Pilas",
@@ -51,22 +85,36 @@
         "merge": "Fusionar",
         "split": "Dividir",
         "undo": "Deshacer",
-        "redo": "Rehacer"
+        "redo": "Rehacer",
+        "importOrders": "Importar Pedidos",
+        "exportStacks": "Exportar Pilas",
+        "batchSearch": "Búsqueda por Lotes",
+        "capacitySettings": "Configuración de Capacidad",
+        "pieces": "pzs"
     },
     "network": {
         "title": "Sincronización de Red",
+        "lanSync": "Sincronización LAN",
         "standalone": "Independiente",
         "hostMode": "Modo Host",
         "clientMode": "Modo Cliente",
         "startHost": "Iniciar Host",
+        "stopHost": "Detener Host",
         "connect": "Conectar",
         "disconnect": "Desconectar",
         "connected": "Conectado",
         "disconnected": "Desconectado",
+        "connecting": "Conectando...",
         "connectedClients": "Clientes Conectados",
         "hostAddress": "Dirección del Host",
         "port": "Puerto",
-        "clientName": "Nombre del Cliente"
+        "clientName": "Nombre del Cliente",
+        "serverRunning": "Servidor Ejecutándose",
+        "serverStopped": "Servidor Detenido",
+        "noClientsConnected": "Sin clientes conectados",
+        "standaloneDesc": "Ejecutar independientemente sin sincronizar con otros dispositivos",
+        "hostDesc": "Ejecutar como servidor host, procesar todos los escaneos y sincronizar con clientes",
+        "clientDesc": "Conectar a un host, enviar solicitudes de escaneo y recibir actualizaciones de estado"
     },
     "settings": {
         "title": "Configuración",
@@ -75,7 +123,7 @@
         "voiceAnnounce": "Anuncio de Voz",
         "printerSelect": "Seleccionar Impresora",
         "tokenExpired": "Token Expirado",
-        "updateToken": "Por favor actualice su token"
+        "updateToken": "Por favor actualice su token en Configuración"
     },
     "whatsNew": {
         "title": "Novedades",
@@ -86,6 +134,20 @@
         "whitelist": "Lista Blanca",
         "blacklist": "Lista Negra",
         "enabled": "Habilitado",
-        "disabled": "Deshabilitado"
+        "disabled": "Deshabilitado",
+        "addRule": "Agregar Regla",
+        "prefix": "Prefijo",
+        "zipCode": "Código Postal"
+    },
+    "rules": {
+        "title": "Gestión de Reglas",
+        "zipCode": "Código Postal",
+        "route": "Ruta",
+        "metroArea": "Área Metropolitana",
+        "state": "Estado",
+        "zone": "Zona",
+        "exportRules": "Exportar Reglas",
+        "noRules": "No hay reglas cargadas",
+        "rulesLoaded": "reglas cargadas"
     }
 }

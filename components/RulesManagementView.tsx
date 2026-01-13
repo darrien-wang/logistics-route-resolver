@@ -11,6 +11,7 @@ import {
 import * as XLSX from 'xlsx';
 import { ZipRouteRecord } from '../types';
 import { FlexibleDataSource } from '../services/RouteService';
+import { useI18n } from '../contexts/I18nContext';
 
 interface RulesManagementViewProps {
     dataSource: FlexibleDataSource;
@@ -21,6 +22,7 @@ const RulesManagementView: React.FC<RulesManagementViewProps> = ({ dataSource })
     const [searchTerm, setSearchTerm] = useState('');
     const [editingZip, setEditingZip] = useState<string | null>(null);
     const [editValue, setEditValue] = useState('');
+    const { t } = useI18n();
 
     const filteredRecords = records.filter(r =>
         r.zip.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -58,14 +60,14 @@ const RulesManagementView: React.FC<RulesManagementViewProps> = ({ dataSource })
         <div className="flex flex-col space-y-8 animate-in fade-in duration-500">
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Rules Management</h1>
-                    <div className="text-slate-500 text-sm mt-1">Total Rules: <span className="text-sky-400 font-black">{records.length}</span></div>
+                    <h1 className="text-3xl font-bold tracking-tight">{t('rules.title')}</h1>
+                    <div className="text-slate-500 text-sm mt-1">{records.length} {t('rules.rulesLoaded')}</div>
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="relative">
                         <input
                             type="text"
-                            placeholder="Search ZIP or Route..."
+                            placeholder={`${t('common.search')}...`}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="bg-slate-900 border border-white/10 rounded-xl px-5 py-3 text-sm focus:outline-none focus:border-sky-500 w-64 uppercase"
@@ -76,7 +78,7 @@ const RulesManagementView: React.FC<RulesManagementViewProps> = ({ dataSource })
                         onClick={handleExport}
                         className="bg-emerald-500 p-3 px-6 rounded-xl border border-emerald-400/50 flex items-center gap-2 hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20 font-bold"
                     >
-                        <Download className="w-5 h-5" /> Export Rules
+                        <Download className="w-5 h-5" /> {t('rules.exportRules')}
                     </button>
                 </div>
             </header>
@@ -86,12 +88,12 @@ const RulesManagementView: React.FC<RulesManagementViewProps> = ({ dataSource })
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-900/50 border-b border-white/5">
-                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Zip Code</th>
-                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Metro Area</th>
-                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-500">State</th>
-                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Route Code</th>
-                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Zone</th>
-                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right">Actions</th>
+                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-500">{t('rules.zipCode')}</th>
+                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-500">{t('rules.metroArea')}</th>
+                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-500">{t('rules.state')}</th>
+                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-500">{t('rules.route')}</th>
+                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-500">{t('rules.zone')}</th>
+                                <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-500 text-right"></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -147,7 +149,7 @@ const RulesManagementView: React.FC<RulesManagementViewProps> = ({ dataSource })
                 {filteredRecords.length === 0 && (
                     <div className="p-20 flex flex-col items-center text-slate-800 opacity-20">
                         <FileSpreadsheet className="w-20 h-20 mb-4" />
-                        <p className="font-black uppercase tracking-widest">No Rules Found</p>
+                        <p className="font-black uppercase tracking-widest">{t('rules.noRules')}</p>
                     </div>
                 )}
             </div>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Lock, X, Database, RefreshCcw, Activity, Printer } from 'lucide-react';
 import { ApiSettings } from '../types';
+import { useI18n } from '../contexts/I18nContext';
 
 interface ApiConfigModalProps {
     isOpen: boolean;
@@ -17,6 +18,7 @@ const ApiConfigModal: React.FC<ApiConfigModalProps> = ({
 }) => {
     if (!isOpen) return null;
 
+    const { t } = useI18n();
     const setApiSettings = (settings: ApiSettings) => onSettingsChange(settings);
 
     return (
@@ -28,8 +30,8 @@ const ApiConfigModal: React.FC<ApiConfigModalProps> = ({
                             <Lock className="w-5 h-5" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-black uppercase tracking-widest">Network Config</h2>
-                            <p className="text-slate-500 text-[10px]">Configure Wpglb API credentials</p>
+                            <h2 className="text-xl font-black uppercase tracking-widest">{t('settings.apiConfig')}</h2>
+                            <p className="text-slate-500 text-[10px]">Configure API credentials</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-xl transition-colors">
@@ -123,7 +125,7 @@ const ApiConfigModal: React.FC<ApiConfigModalProps> = ({
                         <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl border border-white/5">
                             <div className="flex items-center gap-2">
                                 <Activity className="w-4 h-4 text-purple-400" />
-                                <span className="text-xs font-bold text-white">Voice Announcements</span>
+                                <span className="text-xs font-bold text-white">{t('settings.voiceAnnounce')}</span>
                             </div>
                             <button
                                 onClick={() => setApiSettings({ ...apiSettings, voiceEnabled: !apiSettings.voiceEnabled })}
@@ -136,7 +138,7 @@ const ApiConfigModal: React.FC<ApiConfigModalProps> = ({
                         <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl border border-white/5">
                             <div className="flex items-center gap-2">
                                 <Printer className="w-4 h-4 text-amber-400" />
-                                <span className="text-xs font-bold text-white">Auto-Print Labels</span>
+                                <span className="text-xs font-bold text-white">{t('settings.autoPrint')}</span>
                             </div>
                             <button
                                 onClick={() => setApiSettings({ ...apiSettings, autoPrintLabelEnabled: !apiSettings.autoPrintLabelEnabled })}
@@ -165,7 +167,7 @@ const ApiConfigModal: React.FC<ApiConfigModalProps> = ({
                             }}
                             className="flex-1 bg-sky-500 text-white font-black uppercase py-3 rounded-xl shadow-xl shadow-sky-500/20 hover:scale-[1.02] active:scale-95 transition-all"
                         >
-                            Save & Refresh Token
+                            {t('common.save')}
                         </button>
                     </div>
                 </div>

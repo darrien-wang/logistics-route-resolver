@@ -15,7 +15,17 @@
         "failed": "失败",
         "pending": "等待中",
         "error": "错误",
-        "settings": "设置"
+        "settings": "设置",
+        "reset": "重置",
+        "source": "来源",
+        "active": "活跃",
+        "disabled": "禁用",
+        "enabled": "启用",
+        "ok": "确定",
+        "storage": "存储",
+        "backend": "后端",
+        "local": "本地",
+        "remote": "远程"
     },
     "nav": {
         "dashboard": "仪表盘",
@@ -25,21 +35,45 @@
         "network": "网络同步"
     },
     "dashboard": {
-        "title": "仪表盘",
+        "title": "控制中心",
+        "controlCenter": "控制中心",
         "todayScans": "今日扫描",
         "totalOrders": "总订单数",
         "successRate": "成功率",
         "activeRoutes": "活跃路线",
         "rulesLoaded": "规则已加载",
         "clearHistory": "清除历史",
-        "clearHistoryConfirm": "确定要清除所有活动历史吗？"
+        "clearHistoryConfirm": "确定要清除所有活动历史吗？",
+        "apiConfig": "API 配置",
+        "tableConfig": "规则表配置",
+        "exportLog": "导出日志",
+        "remoteEngineOn": "远程引擎已开启",
+        "localOnly": "仅本地",
+        "liveSync": "实时同步",
+        "routesResolved": "已解析路线",
+        "totalActivity": "总活动量",
+        "operationalMode": "操作模式",
+        "liveActivityStream": "实时活动流",
+        "storageOk": "存储: 正常",
+        "waitingForActivity": "等待扫描活动",
+        "processingComplete": "处理完成",
+        "inTransit": "运输中 / 处理中",
+        "systemHealth": "系统状态",
+        "localStorage": "本地存储",
+        "lookupSource": "查询来源",
+        "systemNote": "* 系统使用中间件链解析路由。如果远程API失败或禁用，将自动回退到本地配置表。"
     },
     "operator": {
         "scanPlaceholder": "扫描追踪标签...",
         "readyToScan": "准备扫描",
         "activityStream": "活动流",
         "events": "事件",
-        "noActivity": "暂无活动"
+        "noActivity": "暂无活动",
+        "batchActive": "批量模式激活",
+        "batchComplete": "批量完成",
+        "itemsRemaining": "剩余项目",
+        "allItemsScanned": "所有项目已扫描",
+        "printingSent": "正在打印"
     },
     "stacks": {
         "title": "堆栈管理",
@@ -51,22 +85,36 @@
         "merge": "合并",
         "split": "拆分",
         "undo": "撤销",
-        "redo": "重做"
+        "redo": "重做",
+        "importOrders": "导入订单",
+        "exportStacks": "导出堆栈",
+        "batchSearch": "批量搜索",
+        "capacitySettings": "容量设置",
+        "pieces": "件"
     },
     "network": {
         "title": "网络同步",
+        "lanSync": "局域网同步",
         "standalone": "独立模式",
         "hostMode": "主机模式",
         "clientMode": "客户端模式",
         "startHost": "启动主机",
+        "stopHost": "停止主机",
         "connect": "连接",
         "disconnect": "断开",
         "connected": "已连接",
         "disconnected": "已断开",
+        "connecting": "连接中...",
         "connectedClients": "已连接客户端",
         "hostAddress": "主机地址",
         "port": "端口",
-        "clientName": "客户端名称"
+        "clientName": "客户端名称",
+        "serverRunning": "服务器运行中",
+        "serverStopped": "服务器已停止",
+        "noClientsConnected": "无客户端连接",
+        "standaloneDesc": "独立运行，不与其他设备同步",
+        "hostDesc": "作为主机运行，处理所有扫描并同步到客户端",
+        "clientDesc": "连接到主机，发送扫描请求并接收状态更新"
     },
     "settings": {
         "title": "设置",
@@ -75,7 +123,7 @@
         "voiceAnnounce": "语音播报",
         "printerSelect": "选择打印机",
         "tokenExpired": "令牌已过期",
-        "updateToken": "请更新您的令牌"
+        "updateToken": "请在设置中更新您的令牌"
     },
     "whatsNew": {
         "title": "更新日志",
@@ -86,6 +134,20 @@
         "whitelist": "白名单",
         "blacklist": "黑名单",
         "enabled": "已启用",
-        "disabled": "已禁用"
+        "disabled": "已禁用",
+        "addRule": "添加规则",
+        "prefix": "前缀",
+        "zipCode": "邮编"
+    },
+    "rules": {
+        "title": "规则管理",
+        "zipCode": "邮编",
+        "route": "路线",
+        "metroArea": "城市区域",
+        "state": "州/省",
+        "zone": "区域",
+        "exportRules": "导出规则",
+        "noRules": "暂无规则",
+        "rulesLoaded": "条规则已加载"
     }
 }

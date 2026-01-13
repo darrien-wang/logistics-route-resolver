@@ -77,15 +77,20 @@ const App: React.FC = () => {
   // Load default rules from bundled Excel file
   const loadDefaultRulesFromExcel = useCallback(async () => {
     try {
+      console.log('[App] Attempting to load default rules from Excel...');
       const response = await fetch('/已开发邮编线路汇总999999.xlsx');
+      console.log('[App] Fetch response status:', response.status, response.ok);
       if (!response.ok) {
         console.warn('[App] Default rules file not found, using fallback constants.');
         return;
       }
       const arrayBuffer = await response.arrayBuffer();
+      console.log('[App] ArrayBuffer size:', arrayBuffer.byteLength);
       const wb = XLSX.read(arrayBuffer, { type: 'array' });
+      console.log('[App] Workbook sheets:', wb.SheetNames);
       const ws = wb.Sheets[wb.SheetNames[0]];
       const data: any[] = XLSX.utils.sheet_to_json(ws);
+      console.log('[App] Raw data rows:', data.length, 'First row:', data[0]);
 
       const newRecords: ZipRouteRecord[] = data.map(row => ({
         zip: (row['Ship-to Zipcodes'] || row['Zipcode'] || row['邮编'] || "").toString(),
@@ -96,9 +101,13 @@ const App: React.FC = () => {
         route2Configuration: row['ROUTE2 Configuration'] || row['线路2'] || ""
       })).filter(r => r.zip);
 
+      console.log('[App] Processed records:', newRecords.length, 'First record:', newRecords[0]);
+
       if (newRecords.length > 0) {
         dataSource.updateData(newRecords, '已开发邮编线路汇总999999.xlsx');
-        console.log(`[App] Loaded ${newRecords.length} default rules from Excel.`);
+        console.log(`[App] ✅ Loaded ${newRecords.length} default rules from Excel.`);
+      } else {
+        console.warn('[App] No valid records found in Excel file!');
       }
     } catch (error) {
       console.error('[App] Failed to load default rules:', error);

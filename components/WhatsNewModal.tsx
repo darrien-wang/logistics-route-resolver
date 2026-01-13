@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Gift, ChevronDown, ChevronUp, Globe } from 'lucide-react';
-
-type Language = 'zh' | 'en' | 'es';
+import { useI18n, Language, LANGUAGE_LABELS, LANGUAGES } from '../contexts/I18nContext';
 
 interface WhatsNewModalProps {
     isOpen: boolean;
@@ -17,12 +16,6 @@ interface ChangelogEntry {
         items: string[];
     }[];
 }
-
-const LANGUAGE_LABELS: Record<Language, string> = {
-    zh: '中文',
-    en: 'English',
-    es: 'Español'
-};
 
 const CHANGELOG_PATHS: Record<Language, string> = {
     zh: '/docs/changelog/CHANGELOG.md',
@@ -76,18 +69,10 @@ const parseChangelog = (content: string): ChangelogEntry[] => {
 };
 
 const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ isOpen, onClose, currentVersion }) => {
+    const { language, setLanguage, t } = useI18n();
     const [changelog, setChangelog] = useState<ChangelogEntry[]>([]);
     const [expandedVersions, setExpandedVersions] = useState<Set<string>>(new Set([currentVersion]));
     const [loading, setLoading] = useState(true);
-    const [language, setLanguage] = useState<Language>(() => {
-        // Get saved language preference or detect from browser
-        const saved = localStorage.getItem('whatsNewLanguage') as Language;
-        if (saved && CHANGELOG_PATHS[saved]) return saved;
-        const browserLang = navigator.language.toLowerCase();
-        if (browserLang.startsWith('zh')) return 'zh';
-        if (browserLang.startsWith('es')) return 'es';
-        return 'en';
-    });
     const [showLangMenu, setShowLangMenu] = useState(false);
 
     useEffect(() => {
@@ -118,7 +103,6 @@ const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ isOpen, onClose, currentV
 
     const handleLanguageChange = (lang: Language) => {
         setLanguage(lang);
-        localStorage.setItem('whatsNewLanguage', lang);
         setShowLangMenu(false);
     };
 
@@ -155,7 +139,7 @@ const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ isOpen, onClose, currentV
                             </div>
                             <div>
                                 <h2 className="text-xl font-bold text-white">
-                                    {language === 'zh' ? '更新日志' : language === 'es' ? 'Novedades' : "What's New"}
+                                    {t('whatsNew.title')}
                                 </h2>
                                 <p className="text-sm text-slate-400">v{currentVersion}</p>
                             </div>
@@ -172,7 +156,7 @@ const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ isOpen, onClose, currentV
                                 </button>
                                 {showLangMenu && (
                                     <div className="absolute right-0 mt-1 py-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-10">
-                                        {(Object.keys(LANGUAGE_LABELS) as Language[]).map(lang => (
+                                        {LANGUAGES.map(lang => (
                                             <button
                                                 key={lang}
                                                 onClick={() => handleLanguageChange(lang)}
@@ -203,7 +187,7 @@ const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ isOpen, onClose, currentV
                         </div>
                     ) : changelog.length === 0 ? (
                         <div className="text-center py-12 text-slate-500">
-                            {language === 'zh' ? '暂无更新日志' : language === 'es' ? 'No hay registro de cambios' : 'No changelog available'}
+                            {t('operator.noActivity')}
                         </div>
                     ) : (
                         changelog.map(entry => (
@@ -228,10 +212,10 @@ const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ isOpen, onClose, currentV
                                         {entry.sections.map((section, idx) => (
                                             <div key={idx}>
                                                 <h4 className={`text-sm font-bold uppercase tracking-wider mb-2 ${section.type.toLowerCase().includes('fix') || section.type.toLowerCase().includes('corregido') ? 'text-emerald-400' :
-                                                        section.type.toLowerCase().includes('add') || section.type.toLowerCase().includes('agregado') ? 'text-sky-400' :
-                                                            section.type.toLowerCase().includes('change') ? 'text-amber-400' :
-                                                                section.type.toLowerCase().includes('remove') ? 'text-red-400' :
-                                                                    'text-slate-300'
+                                                    section.type.toLowerCase().includes('add') || section.type.toLowerCase().includes('agregado') ? 'text-sky-400' :
+                                                        section.type.toLowerCase().includes('change') ? 'text-amber-400' :
+                                                            section.type.toLowerCase().includes('remove') ? 'text-red-400' :
+                                                                'text-slate-300'
                                                     }`}>
                                                     {section.type}
                                                 </h4>
@@ -261,7 +245,7 @@ const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ isOpen, onClose, currentV
                         onClick={onClose}
                         className="w-full px-4 py-3 bg-sky-500 hover:bg-sky-600 text-white font-bold rounded-xl transition-colors"
                     >
-                        {language === 'zh' ? '知道了' : language === 'es' ? '¡Entendido!' : 'Got it!'}
+                        {t('whatsNew.gotIt')}
                     </button>
                 </div>
             </div>
