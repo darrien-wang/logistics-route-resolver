@@ -24,6 +24,7 @@ import NetworkSettingsView from './components/NetworkSettingsView';
 import UpdateNotification from './components/UpdateNotification';
 import TokenExpiredModal from './components/TokenExpiredModal';
 import PrintConditionManager from './components/PrintConditionManager';
+import WhatsNewModal from './components/WhatsNewModal';
 import { useAppPersistence } from './hooks/useAppPersistence';
 import { useLanSync } from './hooks/useLanSync';
 import { useRouteResolution } from './hooks/useRouteResolution';
@@ -33,6 +34,7 @@ const App: React.FC = () => {
   const [showApiConfig, setShowApiConfig] = useState(false);
   const [showTokenExpired, setShowTokenExpired] = useState(false);
   const [showPrintConditions, setShowPrintConditions] = useState(false);
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [appVersion, setAppVersion] = useState<string>('');
 
   // Persistence Hook - now uses IndexedDB for large data storage
@@ -114,7 +116,13 @@ const App: React.FC = () => {
     const electronAPI = (window as any).electronAPI;
     if (electronAPI?.updater?.getAppVersion) {
       electronAPI.updater.getAppVersion().then((version: string) => {
-        setAppVersion(version || 'dev');
+        const v = version || 'dev';
+        setAppVersion(v);
+        // Check if version changed (for What's New popup)
+        const lastSeenVersion = localStorage.getItem('lastSeenVersion');
+        if (lastSeenVersion !== v && v !== 'dev') {
+          setShowWhatsNew(true);
+        }
       }).catch(() => setAppVersion('dev'));
     } else {
       setAppVersion('dev');
@@ -314,16 +322,18 @@ const App: React.FC = () => {
           </button>
         </div>
 
-        {/* Version Number - Click to update */}
+        {/* Version Number - Click for What's New, Right-click for updates */}
         <button
-          onClick={() => {
+          onClick={() => setShowWhatsNew(true)}
+          onContextMenu={(e) => {
+            e.preventDefault();
             const electronAPI = (window as any).electronAPI;
             if (electronAPI?.updater?.checkForUpdates) {
               electronAPI.updater.checkForUpdates();
             }
           }}
           className="mt-auto mb-2 text-slate-600 hover:text-sky-400 transition-colors text-xs font-mono"
-          title="Click to check for updates"
+          title="Click for What's New • Right-click to check updates"
         >
           v{appVersion}
         </button>
@@ -410,6 +420,18 @@ const App: React.FC = () => {
         <PrintConditionManager
           isOpen={showPrintConditions}
           onClose={() => setShowPrintConditions(false)}
+        />
+
+        <WhatsNewModal
+          isOpen={showWhatsNew}
+          onClose={() => {
+            setShowWhatsNew(false);
+            // Save current version as seen
+            if (appVersion && appVersion !== 'dev') {
+              localStorage.setItem('lastSeenVersion', appVersion);
+            }
+          }}
+          currentVersion={appVersion}
         />
 
         {/* Update Notification */}
