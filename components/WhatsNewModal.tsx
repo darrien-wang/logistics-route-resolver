@@ -18,9 +18,9 @@ interface ChangelogEntry {
 }
 
 const CHANGELOG_PATHS: Record<Language, string> = {
-    zh: '/docs/changelog/CHANGELOG.md',
-    en: '/docs/changelog/CHANGELOG.en.md',
-    es: '/docs/changelog/CHANGELOG.es.md'
+    zh: './docs/changelog/CHANGELOG.md',
+    en: './docs/changelog/CHANGELOG.en.md',
+    es: './docs/changelog/CHANGELOG.es.md'
 };
 
 // Parse CHANGELOG.md content into structured data
