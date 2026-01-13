@@ -60,8 +60,7 @@
         "inTransit": "运输中 / 处理中",
         "systemHealth": "系统状态",
         "localStorage": "本地存储",
-        "lookupSource": "查询来源",
-        "systemNote": "* 系统使用中间件链解析路由。如果远程API失败或禁用，将自动回退到本地配置表。"
+        "lookupSource": "查询来源"
     },
     "operator": {
         "scanPlaceholder": "扫描追踪标签...",
