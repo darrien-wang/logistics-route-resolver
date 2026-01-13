@@ -60,7 +60,7 @@
         "inTransit": "In-Transit / Processing",
         "systemHealth": "System Health",
         "localStorage": "Local Storage",
-        "lookupSource": "Lookup Source",
+        "lookupSource": "Lookup Source"
     },
     "operator": {
         "scanPlaceholder": "SCAN TRACKING LABELS...",

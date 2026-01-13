@@ -415,7 +415,7 @@ const App: React.FC = () => {
           ) : view === 'network' ? (
             <NetworkSettingsView />
           ) : (
-            <RulesManagementView dataSource={dataSource} />
+            <RulesManagementView dataSource={dataSource} onFileUpload={handleFileUpload} />
           )}
 
           <ApiConfigModal

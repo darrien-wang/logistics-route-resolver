@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
     Activity,
     Download,
+    Upload,
     CheckCircle2,
     X,
     Save,
@@ -15,20 +16,60 @@ import { useI18n } from '../contexts/I18nContext';
 
 interface RulesManagementViewProps {
     dataSource: FlexibleDataSource;
+    onFileUpload?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
-const RulesManagementView: React.FC<RulesManagementViewProps> = ({ dataSource }) => {
+const RulesManagementView: React.FC<RulesManagementViewProps> = ({ dataSource, onFileUpload }) => {
     const [records, setRecords] = useState(dataSource.getAllRecords());
     const [searchTerm, setSearchTerm] = useState('');
     const [editingZip, setEditingZip] = useState<string | null>(null);
     const [editValue, setEditValue] = useState('');
     const { t } = useI18n();
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Refresh records when dataSource changes (handles async Excel loading)
+    const refreshRecords = () => setRecords([...dataSource.getAllRecords()]);
+
+    // Poll for data source updates on mount (Excel loads async)
+    useEffect(() => {
+        // Check immediately
+        refreshRecords();
+
+        // Poll a few times to catch async Excel load
+        const timer1 = setTimeout(refreshRecords, 200);
+        const timer2 = setTimeout(refreshRecords, 500);
+        const timer3 = setTimeout(refreshRecords, 1000);
+
+        return () => {
+            clearTimeout(timer1);
+            clearTimeout(timer2);
+            clearTimeout(timer3);
+        };
+    }, [dataSource]);
 
     const filteredRecords = records.filter(r =>
         r.zip.toLowerCase().includes(searchTerm.toLowerCase()) ||
         r.metroArea.toLowerCase().includes(searchTerm.toLowerCase()) ||
         r.routeConfiguration.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    // Progressive loading for large rule sets
+    const INITIAL_VISIBLE = 50;
+    const LOAD_MORE_COUNT = 30;
+    const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
+
+    const handleTableScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+        const container = e.currentTarget;
+        const scrollBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+        if (scrollBottom < 100) {
+            if (visibleCount < filteredRecords.length) {
+                setVisibleCount(prev => Math.min(prev + LOAD_MORE_COUNT, filteredRecords.length));
+            }
+        }
+    }, [filteredRecords.length, visibleCount]);
+
+    const visibleRecords = filteredRecords.slice(0, visibleCount);
+
 
     const handleDelete = (zip: string) => {
         if (confirm(`Delete rule for ZIP ${zip}?`)) {
@@ -74,6 +115,30 @@ const RulesManagementView: React.FC<RulesManagementViewProps> = ({ dataSource })
                         />
                         <Activity className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
                     </div>
+
+                    {/* Import Rules Button */}
+                    {onFileUpload && (
+                        <>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".xlsx,.xls,.csv"
+                                onChange={(e) => {
+                                    onFileUpload(e);
+                                    // Refresh records after import
+                                    setTimeout(refreshRecords, 100);
+                                }}
+                                className="hidden"
+                            />
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                className="bg-blue-500 p-3 px-6 rounded-xl border border-blue-400/50 flex items-center gap-2 hover:bg-blue-400 transition-colors shadow-lg shadow-blue-500/20 font-bold"
+                            >
+                                <Upload className="w-5 h-5" /> {t('common.import')}
+                            </button>
+                        </>
+                    )}
+
                     <button
                         onClick={handleExport}
                         className="bg-emerald-500 p-3 px-6 rounded-xl border border-emerald-400/50 flex items-center gap-2 hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20 font-bold"
@@ -84,7 +149,7 @@ const RulesManagementView: React.FC<RulesManagementViewProps> = ({ dataSource })
             </header>
 
             <div className="glass-panel rounded-[40px] border border-white/10 overflow-hidden shadow-2xl">
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto max-h-[600px] overflow-y-auto" onScroll={handleTableScroll}>
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-900/50 border-b border-white/5">
@@ -97,7 +162,7 @@ const RulesManagementView: React.FC<RulesManagementViewProps> = ({ dataSource })
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
-                            {filteredRecords.map((r, idx) => (
+                            {visibleRecords.map((r, idx) => (
                                 <tr key={idx} className="hover:bg-white/5 transition-colors group">
                                     <td className="px-8 py-4 font-mono font-black text-sky-400">{r.zip}</td>
                                     <td className="px-8 py-4 text-slate-300 font-bold">{r.metroArea}</td>

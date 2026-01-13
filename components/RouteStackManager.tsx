@@ -1033,7 +1033,9 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                     <div>
                         <h2 className="text-2xl font-black text-white tracking-tight">{t('stacks.title')}</h2>
                         <div className="flex items-center gap-2 text-sm font-medium text-slate-400">
-                            {renderableStacks.length} {t('stacks.capacity')}
+                            {renderableStacks.length} Stacks
+                            <span className="w-1 h-1 bg-slate-600 rounded-full" />
+                            <span className="text-emerald-400">{renderableStacks.reduce((sum, s) => sum + s.orders.length, 0)} {t('stacks.pieces')}</span>
                             <span className="w-1 h-1 bg-slate-600 rounded-full" />
                             {exceptionPool.length} Exceptions
                         </div>

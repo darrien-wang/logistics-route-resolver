@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     Database,
     Download,
@@ -69,6 +69,28 @@ const DashboardView: React.FC<DashboardViewProps> = ({
 
     const { t } = useI18n();
 
+    // Progressive loading for activity stream - only render visible items
+    const INITIAL_VISIBLE = 30;
+    const LOAD_MORE_COUNT = 20;
+    const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+        const container = e.currentTarget;
+        const scrollBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+        // Load more when scrolled near bottom (within 100px)
+        if (scrollBottom < 100) {
+            const totalItems = Object.keys(operationLog).length;
+            if (visibleCount < totalItems) {
+                setVisibleCount(prev => Math.min(prev + LOAD_MORE_COUNT, totalItems));
+            }
+        }
+    }, [operationLog, visibleCount]);
+
+    // Get visible entries only
+    const allEntries = Object.entries(operationLog).reverse();
+    const visibleEntries = allEntries.slice(0, visibleCount);
+
     return (
         <div className="flex flex-col space-y-8 animate-in fade-in duration-500">
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -99,16 +121,14 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
                 <div className="flex items-center gap-3">
                     <button onClick={onShowApiConfig} className="bg-slate-800 p-3 px-5 rounded-xl border border-white/5 flex items-center gap-2 hover:bg-slate-700 transition-colors"><Key className="w-4 h-4" /> {t('dashboard.apiConfig')}</button>
-                    <button onClick={() => fileInputRef.current?.click()} className="bg-slate-800 p-3 px-5 rounded-xl border border-white/5 flex items-center gap-2 hover:bg-slate-700 transition-colors"><Upload className="w-4 h-4" /> {t('dashboard.tableConfig')}</button>
-                    <input ref={fileInputRef} type="file" onChange={onFileUpload} className="hidden" />
                     <button onClick={() => exportService.exportActivityLog(operationLog)} disabled={Object.keys(operationLog).length === 0} className="bg-sky-500 p-3 px-5 rounded-xl border border-sky-400/50 flex items-center gap-2 hover:bg-sky-400 transition-colors shadow-lg shadow-sky-500/20"><Download className="w-4 h-4" /> {t('dashboard.exportLog')}</button>
                     <button
                         onClick={onClearHistory}
                         disabled={syncStatus.mode === 'client'}
                         title={syncStatus.mode === 'client' ? 'Reset is disabled in Client mode' : ''}
                         className={`p-3 px-5 rounded-xl border flex items-center gap-2 transition-colors ${syncStatus.mode === 'client'
-                                ? 'bg-slate-800 border-slate-700 text-slate-600 cursor-not-allowed'
-                                : 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20'
+                            ? 'bg-slate-800 border-slate-700 text-slate-600 cursor-not-allowed'
+                            : 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20'
                             }`}
                     >
                         <Trash2 className="w-4 h-4" /> {t('common.reset')}
@@ -132,33 +152,44 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                             <div className="text-xs text-slate-600 font-mono">{t('common.backend')}: {apiSettings.enabled ? 'WPGLB' : t('common.local').toUpperCase()}</div>
                         </div>
                     </div>
-                    <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+                    <div
+                        ref={scrollContainerRef}
+                        onScroll={handleScroll}
+                        className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar max-h-[500px]"
+                    >
                         {Object.keys(operationLog).length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center opacity-30 text-slate-500 space-y-4">
                                 <Activity className="w-16 h-16" />
                                 <p className="uppercase tracking-[0.3em] text-sm">{t('dashboard.waitingForActivity')}</p>
                             </div>
                         ) : (
-                            Object.entries(operationLog).reverse().map(([id, events]) => (
-                                <div key={id} className="flex items-center justify-between p-5 bg-slate-900/40 rounded-[24px] border border-white/5 hover:border-sky-500/20 transition-all">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center text-sky-400 border border-white/5">
-                                            <Package className="w-6 h-6" />
-                                        </div>
-                                        <div>
-                                            <div className="font-mono font-black text-white text-lg tracking-wider uppercase">{id}</div>
-                                            <div className="text-[10px] text-slate-500 uppercase tracking-widest">{(events as OrderEventStatus[]).every(e => e.status === 'SUCCESS') ? t('dashboard.processingComplete') : t('dashboard.inTransit')}</div>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-3">
-                                        {(events as OrderEventStatus[]).map((e, idx) => (
-                                            <div key={idx} className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] border transition-all ${e.status === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : e.status === 'FAILED' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse'}`}>
-                                                {e.type}: {e.status}
+                            <>
+                                {visibleEntries.map(([id, events]) => (
+                                    <div key={id} className="flex items-center justify-between p-5 bg-slate-900/40 rounded-[24px] border border-white/5 hover:border-sky-500/20 transition-all">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center text-sky-400 border border-white/5">
+                                                <Package className="w-6 h-6" />
                                             </div>
-                                        ))}
+                                            <div>
+                                                <div className="font-mono font-black text-white text-lg tracking-wider uppercase">{id}</div>
+                                                <div className="text-[10px] text-slate-500 uppercase tracking-widest">{(events as OrderEventStatus[]).every(e => e.status === 'SUCCESS') ? t('dashboard.processingComplete') : t('dashboard.inTransit')}</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-3">
+                                            {(events as OrderEventStatus[]).map((e, idx) => (
+                                                <div key={idx} className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] border transition-all ${e.status === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : e.status === 'FAILED' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse'}`}>
+                                                    {e.type}: {e.status}
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
-                                </div>
-                            ))
+                                ))}
+                                {visibleCount < allEntries.length && (
+                                    <div className="text-center py-4 text-slate-500 text-sm">
+                                        ↓ Scroll to load more ({visibleCount}/{allEntries.length})
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>

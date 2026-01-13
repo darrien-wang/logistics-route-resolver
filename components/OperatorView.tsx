@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Package, RotateCcw, Box, Scan, Printer, ChevronDown, Check } from 'lucide-react';
 import { ResolvedRouteInfo, ApiSettings, OrderEventStatus, EventType } from '../types';
 import { ExcelExportService } from '../services/ExportService';
@@ -100,6 +100,23 @@ const OperatorView: React.FC<OperatorViewProps> = ({
         };
     });
 
+    // Progressive loading for activity stream
+    const INITIAL_VISIBLE = 30;
+    const LOAD_MORE_COUNT = 20;
+    const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
+
+    const handleActivityScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+        const container = e.currentTarget;
+        const scrollBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+        if (scrollBottom < 100) {
+            if (visibleCount < historyEntries.length) {
+                setVisibleCount(prev => Math.min(prev + LOAD_MORE_COUNT, historyEntries.length));
+            }
+        }
+    }, [historyEntries.length, visibleCount]);
+
+    const visibleHistoryEntries = historyEntries.slice(0, visibleCount);
+
     const currentHasFailed = currentResult?.operationStatus === 'fail' || currentResult?.operationStatus === 'error' || error !== null;
 
     return (
@@ -187,8 +204,11 @@ const OperatorView: React.FC<OperatorViewProps> = ({
                             {Object.keys(operationLog).length} {t('operator.events')}
                         </div>
                     </div>
-                    <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
-                        {historyEntries.map(({ id, events, timestamp, scannedBy }, idx) => {
+                    <div
+                        className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent"
+                        onScroll={handleActivityScroll}
+                    >
+                        {visibleHistoryEntries.map(({ id, events, timestamp, scannedBy }, idx) => {
                             const isError = events.some(e => e.status === 'FAILED');
                             const isSuccess = events.every(e => e.status === 'SUCCESS');
 
