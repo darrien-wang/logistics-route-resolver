@@ -61,7 +61,6 @@
         "systemHealth": "Estado del Sistema",
         "localStorage": "Almacenamiento Local",
         "lookupSource": "Fuente de Búsqueda",
-        "systemNote": "* El sistema utiliza una cadena de middleware para resolver rutas. Si la API remota falla o está deshabilitada, automáticamente recurre a las tablas de configuración locales."
     },
     "operator": {
         "scanPlaceholder": "ESCANEAR ETIQUETAS...",

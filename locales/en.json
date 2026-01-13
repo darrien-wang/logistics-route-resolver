@@ -61,7 +61,6 @@
         "systemHealth": "System Health",
         "localStorage": "Local Storage",
         "lookupSource": "Lookup Source",
-        "systemNote": "* The system uses a middleware chain to resolve routing. If Remote API fails or is disabled, it automatically falls back to local configuration tables."
     },
     "operator": {
         "scanPlaceholder": "SCAN TRACKING LABELS...",

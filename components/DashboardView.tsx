@@ -102,7 +102,17 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                     <button onClick={() => fileInputRef.current?.click()} className="bg-slate-800 p-3 px-5 rounded-xl border border-white/5 flex items-center gap-2 hover:bg-slate-700 transition-colors"><Upload className="w-4 h-4" /> {t('dashboard.tableConfig')}</button>
                     <input ref={fileInputRef} type="file" onChange={onFileUpload} className="hidden" />
                     <button onClick={() => exportService.exportActivityLog(operationLog)} disabled={Object.keys(operationLog).length === 0} className="bg-sky-500 p-3 px-5 rounded-xl border border-sky-400/50 flex items-center gap-2 hover:bg-sky-400 transition-colors shadow-lg shadow-sky-500/20"><Download className="w-4 h-4" /> {t('dashboard.exportLog')}</button>
-                    <button onClick={onClearHistory} className="bg-red-500/10 p-3 px-5 rounded-xl border border-red-500/20 text-red-400 flex items-center gap-2 hover:bg-red-500/20 transition-colors"><Trash2 className="w-4 h-4" /> {t('common.reset')}</button>
+                    <button
+                        onClick={onClearHistory}
+                        disabled={syncStatus.mode === 'client'}
+                        title={syncStatus.mode === 'client' ? 'Reset is disabled in Client mode' : ''}
+                        className={`p-3 px-5 rounded-xl border flex items-center gap-2 transition-colors ${syncStatus.mode === 'client'
+                                ? 'bg-slate-800 border-slate-700 text-slate-600 cursor-not-allowed'
+                                : 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20'
+                            }`}
+                    >
+                        <Trash2 className="w-4 h-4" /> {t('common.reset')}
+                    </button>
                 </div>
             </header>
 
@@ -168,9 +178,6 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                                 <div className="text-2xl font-black text-white truncate max-w-[150px] uppercase">{apiSettings.enabled ? 'Wpglb API' : dataSource.getCurrentSourceName()}</div>
                             </div>
                             <Database className="w-8 h-8 text-emerald-500/40" />
-                        </div>
-                        <div className="mt-auto p-4 bg-sky-500/5 rounded-2xl border border-sky-500/10 text-[10px] font-medium text-sky-500/60 leading-relaxed">
-                            {t('dashboard.systemNote')}
                         </div>
                     </div>
                 </div>

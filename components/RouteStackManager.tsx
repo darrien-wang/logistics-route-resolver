@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Settings, Layers, Upload, Download, RotateCcw, RotateCw, Search, X } from 'lucide-react';
+import { Settings, Layers, Upload, Download, RotateCcw, RotateCw, Search, X, Filter, ChevronDown } from 'lucide-react';
 import { RouteStack, ResolvedRouteInfo, StackCapacityConfig, DEFAULT_CAPACITY_CONFIG, ApiSettings, StackStatus, StackType, StackDefinition } from '../types';
 import RouteStackCard from './RouteStackCard';
 import MergedStackCard from './MergedStackCard';
@@ -57,6 +57,11 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
 
     // Drag and drop state
     const [isDragging, setIsDragging] = useState(false);
+
+    // Filter states
+    const [routeFilter, setRouteFilter] = useState<string>('all');
+    const [regionFilter, setRegionFilter] = useState<string>('all');
+    const [fullFilter, setFullFilter] = useState<'all' | 'full' | 'notFull'>('all');
 
 
 
@@ -369,6 +374,46 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
         };
 
     }, [history, stackDefs, capacity, capacityConfig]);
+
+    // Extract unique routes and regions for filter dropdowns
+    const { uniqueRoutes, uniqueRegions } = useMemo(() => {
+        const routes = new Set<string>();
+        const regions = new Set<string>();
+        renderableStacks.forEach(stack => {
+            if (stack.route) routes.add(stack.route);
+            // Extract region from first order's route info if available
+            stack.orders.forEach(order => {
+                if (order.route?.metroArea) regions.add(order.route.metroArea);
+                if (order.route?.state) regions.add(order.route.state);
+            });
+        });
+        return {
+            uniqueRoutes: Array.from(routes).sort(),
+            uniqueRegions: Array.from(regions).sort()
+        };
+    }, [renderableStacks]);
+
+    // Apply filters to stacks
+    const filteredStacks = useMemo(() => {
+        return renderableStacks.filter(stack => {
+            // Route filter
+            if (routeFilter !== 'all' && stack.route !== routeFilter) return false;
+
+            // Region filter - check if any order has matching metro area or state
+            if (regionFilter !== 'all') {
+                const hasMatchingRegion = stack.orders.some(order =>
+                    order.route?.metroArea === regionFilter || order.route?.state === regionFilter
+                );
+                if (!hasMatchingRegion) return false;
+            }
+
+            // Full status filter
+            if (fullFilter === 'full' && !stack.isFull) return false;
+            if (fullFilter === 'notFull' && stack.isFull) return false;
+
+            return true;
+        });
+    }, [renderableStacks, routeFilter, regionFilter, fullFilter]);
 
     // --- Interaction Handlers ---
 
@@ -750,7 +795,8 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
     };
 
     const handleExportAll = () => {
-        const json = stackExportService.exportStacks(renderableStacks, { mode: 'all' });
+        // Export uses filteredStacks so filter results are exported
+        const json = stackExportService.exportStacks(filteredStacks, { mode: 'all' });
         downloadJson(json, 'stacks_all.json');
     };
 
@@ -915,12 +961,12 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
     };
 
     const displayedStacks = useMemo(() => {
-        let result = renderableStacks;
-        if (filterMode === 'full') result = result.filter(s => s.isFull);
-        if (filterMode === 'notFull') result = result.filter(s => !s.isFull);
+        // Start with filteredStacks (already filtered by route/region/full)
+        let result = filteredStacks;
+        // Apply additional filterMode (overflow, merged, etc.)
         if (filterMode === 'overflow') result = result.filter(s => s.isOverflow);
         return result;
-    }, [renderableStacks, filterMode]);
+    }, [filteredStacks, filterMode]);
 
     // Drag and drop handlers
     const handleDragOver = (e: React.DragEvent) => {
@@ -992,6 +1038,72 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                             {exceptionPool.length} Exceptions
                         </div>
                     </div>
+                </div>
+
+                {/* Filter Controls */}
+                <div className="flex items-center gap-2 flex-wrap">
+                    <Filter className="w-4 h-4 text-slate-500" />
+
+                    {/* Route Filter */}
+                    <div className="relative">
+                        <select
+                            value={routeFilter}
+                            onChange={(e) => setRouteFilter(e.target.value)}
+                            className="appearance-none bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 pr-8 text-sm text-white focus:outline-none focus:border-sky-500 cursor-pointer"
+                        >
+                            <option value="all">{t('rules.route')}: All</option>
+                            {uniqueRoutes.map(route => (
+                                <option key={route} value={route}>{route}</option>
+                            ))}
+                        </select>
+                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    </div>
+
+                    {/* Region Filter */}
+                    <div className="relative">
+                        <select
+                            value={regionFilter}
+                            onChange={(e) => setRegionFilter(e.target.value)}
+                            className="appearance-none bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 pr-8 text-sm text-white focus:outline-none focus:border-sky-500 cursor-pointer"
+                        >
+                            <option value="all">{t('rules.metroArea')}: All</option>
+                            {uniqueRegions.map(region => (
+                                <option key={region} value={region}>{region}</option>
+                            ))}
+                        </select>
+                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    </div>
+
+                    {/* Full Status Filter */}
+                    <div className="relative">
+                        <select
+                            value={fullFilter}
+                            onChange={(e) => setFullFilter(e.target.value as 'all' | 'full' | 'notFull')}
+                            className="appearance-none bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 pr-8 text-sm text-white focus:outline-none focus:border-sky-500 cursor-pointer"
+                        >
+                            <option value="all">{t('stacks.full')}: All</option>
+                            <option value="full">{t('stacks.full')}</option>
+                            <option value="notFull">Not Full</option>
+                        </select>
+                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    </div>
+
+                    {/* Clear Filters */}
+                    {(routeFilter !== 'all' || regionFilter !== 'all' || fullFilter !== 'all') && (
+                        <button
+                            onClick={() => { setRouteFilter('all'); setRegionFilter('all'); setFullFilter('all'); }}
+                            className="px-2 py-1 text-xs text-slate-400 hover:text-white bg-slate-800 rounded-lg border border-slate-700 hover:bg-slate-700 transition-colors"
+                        >
+                            {t('common.clear')}
+                        </button>
+                    )}
+
+                    {/* Show filtered count */}
+                    {(routeFilter !== 'all' || regionFilter !== 'all' || fullFilter !== 'all') && (
+                        <span className="text-xs text-sky-400 font-medium">
+                            {filteredStacks.length} / {renderableStacks.length}
+                        </span>
+                    )}
                 </div>
 
                 {/* Center: Batch Order Search */}
@@ -1256,8 +1368,8 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
             <ExportConfigModal
                 isOpen={showExportModal}
                 onClose={() => setShowExportModal(false)}
-                selectedStacks={renderableStacks.filter(s => selectedStackIds.has(s.id))}
-                allStacks={renderableStacks}
+                selectedStacks={filteredStacks.filter(s => selectedStackIds.has(s.id))}
+                allStacks={filteredStacks}
             />
 
             <StackSelectorModal
