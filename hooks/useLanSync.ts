@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import { RouteStackState, ResolvedRouteInfo, OrderEventStatus, PrintMappingConditionState, ApiSettings } from '../types';
 import { lanSyncService, SYNC_EVENTS } from '../services/LanSyncService';
 import { routeStackService } from '../services/RouteStackService';
@@ -29,6 +29,16 @@ export const useLanSync = ({
     setCurrentResult,
     handleSearch
 }: UseLanSyncProps) => {
+    const [isSyncing, setIsSyncing] = useState(false);
+
+    // Wrapper for manual sync request with loading state
+    const requestSync = useCallback((amount: 'full' | number = 'full') => {
+        setIsSyncing(true);
+        lanSyncService.requestSync(amount);
+
+        // Safety timeout to clear loading state if no response
+        setTimeout(() => setIsSyncing(false), 10000);
+    }, []);
 
     // Create full state snapshot for initial sync (new client connections)
     const createFullStateSnapshot = useCallback(() => ({
@@ -123,6 +133,35 @@ export const useLanSync = ({
                 if (window.electron?.syncStateToClient) {
                     window.electron.syncStateToClient(message.clientId, syncState);
                 }
+            } else if (message.event === 'client:pushData') {
+                // Client pushing local data to Host
+                const clientHistory = message.data?.history as ResolvedRouteInfo[];
+                const clientName = message.data?.clientName || message.clientId;
+                console.log(`[LanSync] Received data push from ${clientName}:`, clientHistory?.length || 0, 'items');
+
+                if (clientHistory && clientHistory.length > 0) {
+                    setHistory(prev => {
+                        const existingIds = new Set(prev.map(h => h.orderId));
+                        const newEntries = clientHistory.filter(h => !existingIds.has(h.orderId));
+
+                        if (newEntries.length > 0) {
+                            console.log(`[LanSync] Merging ${newEntries.length} new items from ${clientName}`);
+                            // Add new entries, update scannedBy if missing
+                            const taggedEntries = newEntries.map(entry => ({
+                                ...entry,
+                                scannedBy: entry.scannedBy || clientName // Ensure source is tracked
+                            }));
+
+                            // Broadcast will happen automatically due to history change
+                            return [...taggedEntries, ...prev].sort((a, b) =>
+                                new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()
+                            );
+                        } else {
+                            console.log('[LanSync] No new items to merge from push');
+                            return prev;
+                        }
+                    });
+                }
             }
         });
 
@@ -154,6 +193,7 @@ export const useLanSync = ({
         };
 
         const handleStateUpdate = (fullState: any) => {
+            setIsSyncing(false); // Clear loading state on response
             console.log('[LanSync] Received state update from Host', {
                 hasRouteStacks: !!fullState.routeStacks,
                 hasHistory: !!fullState.history,
@@ -246,13 +286,22 @@ export const useLanSync = ({
             }
         };
 
+        const handleConnection = () => {
+            if (lanSyncService.isClient() && history.length > 0) {
+                console.log('[LanSync] Connection established - Pushing local data to Host...');
+                lanSyncService.pushDataToHost(history);
+            }
+        };
+
         lanSyncService.on(SYNC_EVENTS.SYNC_STATE, handleSyncState);
         lanSyncService.on(SYNC_EVENTS.STATE_UPDATE, handleStateUpdate);
+        lanSyncService.on(SYNC_EVENTS.CONNECTION, handleConnection);
 
         return () => {
             routeStackService.offStateChange(handleStateChange);
             lanSyncService.off(SYNC_EVENTS.SYNC_STATE, handleSyncState);
             lanSyncService.off(SYNC_EVENTS.STATE_UPDATE, handleStateUpdate);
+            lanSyncService.off(SYNC_EVENTS.CONNECTION, handleConnection);
             if (cleanup) cleanup();
         };
     }, [createFullStateSnapshot, handleSearch, setHistory, setOperationLog, setStackDefs, apiSettings.autoPrintLabelEnabled]);
@@ -264,5 +313,21 @@ export const useLanSync = ({
         }
     }, [history, operationLog, stackDefs, broadcastState]);
 
-    return { broadcastState };
+    // Manual push of local data to Host (CLIENT mode only)
+    const pushLocalData = useCallback(() => {
+        if (lanSyncService.isClient()) {
+            setIsSyncing(true); // Re-use syncing state for feedback
+            lanSyncService.pushDataToHost(history);
+
+            // Safety timeout
+            setTimeout(() => setIsSyncing(false), 5000);
+        }
+    }, [history]);
+
+    return {
+        broadcastState,
+        isSyncing,
+        requestSync,
+        pushLocalData
+    };
 };

@@ -32,6 +32,9 @@ interface DashboardViewProps {
     onShowApiConfig: () => void;
     onFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
     onClearHistory: () => void;
+    isSyncing?: boolean;
+    onRequestSync?: (amount: 'full' | number) => void;
+    onPushData?: () => void;
 }
 
 const DashboardView: React.FC<DashboardViewProps> = ({
@@ -44,7 +47,10 @@ const DashboardView: React.FC<DashboardViewProps> = ({
     fileInputRef,
     onShowApiConfig,
     onFileUpload,
-    onClearHistory
+    onClearHistory,
+    isSyncing = false,
+    onRequestSync = (_: 'full' | number) => { },
+    onPushData = () => { }
 }) => {
     const [syncStatus, setSyncStatus] = useState<ConnectionStatus>({
         connected: false,
@@ -135,35 +141,59 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                         <Trash2 className="w-4 h-4" /> {t('common.reset')}
                     </button>
                     {/* Sync Request Button - Only visible in Client mode */}
+                    {/* Sync Request Button - Only visible in Client mode */}
                     {syncStatus.mode === 'client' && (
-                        <div className="relative group">
+                        <div className="flex gap-2 items-center">
+                            {/* Push Data Button */}
                             <button
-                                onClick={() => lanSyncService.requestSync('full')}
-                                className="bg-blue-500/10 p-3 px-5 rounded-xl border border-blue-500/20 text-blue-400 flex items-center gap-2 hover:bg-blue-500/20 transition-colors"
-                                title="Request full sync from Host"
+                                onClick={onPushData}
+                                disabled={isSyncing}
+                                className={`p-3 px-5 rounded-xl border flex items-center gap-2 transition-colors ${isSyncing
+                                        ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300 cursor-not-allowed'
+                                        : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20'
+                                    }`}
+                                title="Push local data to Host"
                             >
-                                <RotateCw className="w-4 h-4" /> {t('common.sync')}
+                                <Upload className={`w-4 h-4 ${isSyncing ? 'animate-bounce' : ''}`} />
+                                {t('common.push')}
                             </button>
-                            {/* Dropdown for sync options */}
-                            <div className="absolute top-full right-0 mt-2 bg-slate-800 border border-white/10 rounded-xl py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 min-w-[150px]">
+
+                            <div className="relative group">
                                 <button
-                                    onClick={() => lanSyncService.requestSync('full')}
-                                    className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 transition-colors"
+                                    onClick={() => onRequestSync('full')}
+                                    disabled={isSyncing}
+                                    className={`p-3 px-5 rounded-xl border flex items-center gap-2 transition-colors ${isSyncing
+                                        ? 'bg-blue-500/20 border-blue-500/30 text-blue-300 cursor-not-allowed'
+                                        : 'bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20'
+                                        }`}
+                                    title="Request full sync from Host"
                                 >
-                                    🔄 Full Sync
+                                    <RotateCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                                    {isSyncing ? t('common.loading') : t('common.sync')}
                                 </button>
-                                <button
-                                    onClick={() => lanSyncService.requestSync(500)}
-                                    className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 transition-colors"
-                                >
-                                    📦 Last 500
-                                </button>
-                                <button
-                                    onClick={() => lanSyncService.requestSync(200)}
-                                    className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 transition-colors"
-                                >
-                                    📋 Last 200
-                                </button>
+                                {/* Dropdown for sync options - Hide when syncing */}
+                                {!isSyncing && (
+                                    <div className="absolute top-full right-0 mt-2 bg-slate-800 border border-white/10 rounded-xl py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 min-w-[150px]">
+                                        <button
+                                            onClick={() => onRequestSync('full')}
+                                            className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 transition-colors"
+                                        >
+                                            🔄 Full Sync
+                                        </button>
+                                        <button
+                                            onClick={() => onRequestSync(500)}
+                                            className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 transition-colors"
+                                        >
+                                            📦 Last 500
+                                        </button>
+                                        <button
+                                            onClick={() => onRequestSync(200)}
+                                            className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 transition-colors"
+                                        >
+                                            📋 Last 200
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

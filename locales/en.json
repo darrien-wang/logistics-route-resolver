@@ -18,6 +18,7 @@
         "settings": "Settings",
         "reset": "Reset",
         "sync": "Sync",
+        "push": "Push",
         "source": "Source",
         "active": "Active",
         "disabled": "Disabled",

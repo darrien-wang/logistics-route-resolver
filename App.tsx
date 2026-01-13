@@ -184,7 +184,7 @@ const App: React.FC = () => {
   });
 
   // LAN Sync Hook
-  const { broadcastState } = useLanSync({
+  const { broadcastState, isSyncing, requestSync, pushLocalData } = useLanSync({
     history,
     operationLog,
     stackDefs,
@@ -195,6 +195,8 @@ const App: React.FC = () => {
     setCurrentResult,
     handleSearch
   });
+
+
 
   const isBatchComplete = useMemo(() => {
     if (!batchMode.active || batchMode.ids.length === 0) return false;
@@ -393,6 +395,9 @@ const App: React.FC = () => {
               onShowApiConfig={() => setShowApiConfig(true)}
               onFileUpload={handleFileUpload}
               onClearHistory={clearHistory}
+              isSyncing={isSyncing}
+              onRequestSync={requestSync}
+              onPushData={pushLocalData}
             />
           ) : view === 'operator' ? (
             <OperatorView

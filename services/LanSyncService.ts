@@ -271,7 +271,7 @@ class LanSyncService {
                 hostIp: this.config.hostIp,
                 clientName: this.clientName,
             });
-            this.emit('connect', null);
+            this.emit(SYNC_EVENTS.CONNECTION, null);
         });
 
         this.socket.on('disconnect', (reason) => {
@@ -282,7 +282,7 @@ class LanSyncService {
                 hostIp: this.config.hostIp,
                 clientName: this.clientName,
             });
-            this.emit('disconnect', { reason });
+            this.emit(SYNC_EVENTS.DISCONNECT, { reason });
         });
 
         // Reconnection events for better UX
@@ -347,6 +347,23 @@ class LanSyncService {
 
         console.log(`[LanSync] Requesting sync from Host: ${amount}`);
         this.socket.emit('client:requestSync', { amount });
+    }
+
+    /**
+     * Push local history data to Host
+     * Used for merging offline scans or manual sync
+     */
+    pushDataToHost(history: any[]): void {
+        if (this.mode !== 'client' || !this.socket?.connected) {
+            console.warn('[LanSync] Cannot push data - not in client mode or not connected');
+            return;
+        }
+
+        console.log(`[LanSync] Pushing ${history.length} items to Host`);
+        this.socket.emit('client:pushData', {
+            history,
+            clientName: this.clientName
+        });
     }
 
     /**
