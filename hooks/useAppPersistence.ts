@@ -8,6 +8,9 @@ import { indexedDBService } from '../services/IndexedDBService';
 const API_CONFIG_KEY = 'LOGISTICS_API_CONFIG';
 
 export const useAppPersistence = () => {
+    // ============================================================================
+    // 1. STATE DEFINITIONS
+    // ============================================================================
     const [isLoading, setIsLoading] = useState(true);
 
     // Operation log - still using localStorage for now (smaller data)
@@ -37,8 +40,20 @@ export const useAppPersistence = () => {
     // Stack definitions - using IndexedDB
     const [stackDefs, setStackDefs] = useState<any[]>([]);
 
+    // ============================================================================
+    // 2. REF DEFINITIONS (Must be before any usage in callbacks/effects)
+    // ============================================================================
     // Track if initial load is complete
     const initialLoadComplete = useRef(false);
+
+    // Timeout Refs for Debouncing
+    const historyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const stackDefsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const operationLogTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // ============================================================================
+    // 3. CALLBACKS & UTILITIES
+    // ============================================================================
 
     // Initialize IndexedDB and load data
     const reloadData = useCallback(async () => {
@@ -74,12 +89,6 @@ export const useAppPersistence = () => {
         }
     }, []);
 
-    useEffect(() => {
-        reloadData();
-    }, [reloadData]);
-
-    // ... (keep existing persistence effects) ...
-
     // Clear all persisted data (called on Reset)
     const clearAllData = useCallback(async () => {
         // Create a safety backup before clearing (Silent persistence protection)
@@ -112,6 +121,118 @@ export const useAppPersistence = () => {
         }
         return false;
     }, [reloadData]);
+
+    // ============================================================================
+    // 4. EFFECTS
+    // ============================================================================
+
+    // Load data on mount
+    useEffect(() => {
+        reloadData();
+    }, [reloadData]);
+
+    // Persist API settings to localStorage
+    useEffect(() => {
+        localStorage.setItem(API_CONFIG_KEY, JSON.stringify(apiSettings));
+        voiceService.setEnabled(apiSettings.voiceEnabled ?? true);
+        labelPrintService.setEnabled(apiSettings.autoPrintLabelEnabled ?? true);
+        if (apiSettings.stackCapacityConfig) {
+            routeStackService.setCapacityConfig(apiSettings.stackCapacityConfig);
+        } else {
+            routeStackService.setCapacity(apiSettings.stackCapacity ?? 40);
+        }
+    }, [apiSettings]);
+
+    // Initialize services on mount
+    useEffect(() => {
+        voiceService.setEnabled(apiSettings.voiceEnabled ?? true);
+        labelPrintService.setEnabled(apiSettings.autoPrintLabelEnabled ?? true);
+        if (apiSettings.stackCapacityConfig) {
+            routeStackService.setCapacityConfig(apiSettings.stackCapacityConfig);
+        } else {
+            routeStackService.setCapacity(apiSettings.stackCapacity ?? 40);
+        }
+    }, []);
+
+    // Debounced save for history (avoid too many writes)
+    useEffect(() => {
+        if (!initialLoadComplete.current) return;
+
+        // Debounce history saves - wait 1 second after last change
+        if (historyTimeoutRef.current) {
+            clearTimeout(historyTimeoutRef.current);
+        }
+
+        historyTimeoutRef.current = setTimeout(() => {
+            indexedDBService.saveHistory(history).catch(err => {
+                console.error('[Persistence] Failed to save history:', err);
+            });
+        }, 1000);
+
+        return () => {
+            if (historyTimeoutRef.current) {
+                clearTimeout(historyTimeoutRef.current);
+            }
+        };
+    }, [history]);
+
+    // Debounced save for stackDefs
+    useEffect(() => {
+        if (!initialLoadComplete.current) return;
+
+        if (stackDefsTimeoutRef.current) {
+            clearTimeout(stackDefsTimeoutRef.current);
+        }
+
+        stackDefsTimeoutRef.current = setTimeout(() => {
+            indexedDBService.saveStackDefs(stackDefs).catch(err => {
+                console.error('[Persistence] Failed to save stackDefs:', err);
+            });
+        }, 500);
+
+        return () => {
+            if (stackDefsTimeoutRef.current) {
+                clearTimeout(stackDefsTimeoutRef.current);
+            }
+        };
+    }, [stackDefs]);
+
+    // Debounced save for operation log
+    useEffect(() => {
+        if (!initialLoadComplete.current) return;
+
+        if (operationLogTimeoutRef.current) {
+            clearTimeout(operationLogTimeoutRef.current);
+        }
+
+        operationLogTimeoutRef.current = setTimeout(() => {
+            indexedDBService.saveOperationLog(operationLog).catch(err => {
+                console.error('[Persistence] Failed to save operationLog:', err);
+            });
+        }, 1000);
+
+        return () => {
+            if (operationLogTimeoutRef.current) {
+                clearTimeout(operationLogTimeoutRef.current);
+            }
+        };
+    }, [operationLog]);
+
+    // Subscribe to RouteStackService state changes and persist
+    useEffect(() => {
+        const handleStateChange = () => {
+            const state = routeStackService.serializeState();
+            indexedDBService.saveRouteStackState(state).catch(err => {
+                console.error('[Persistence] Failed to save RouteStackService state:', err);
+            });
+        };
+
+        routeStackService.onStateChange(handleStateChange);
+
+        return () => {
+            routeStackService.offStateChange(handleStateChange);
+        };
+    }, []);
 
     return {
         operationLog,
