@@ -55,6 +55,7 @@ export const SYNC_EVENTS = {
 } as const;
 
 const LAN_CONFIG_KEY = 'LOGISTICS_LAN_CONFIG';
+const DEVICE_ROLE_KEY = 'LOGISTICS_DEVICE_ROLE'; // 'host' | 'client' | null (unset)
 
 interface PersistedLanConfig {
     mode: SyncMode;
@@ -92,10 +93,16 @@ class LanSyncService {
         this.mode = config.mode;
 
         if (this.mode === 'host') {
+            // Check if device is locked to client role
+            if (!this.isHostCapable()) {
+                throw new Error('This device is locked to Client mode and cannot become a Host');
+            }
             await this.startHostMode();
+            this.setDeviceRole('host'); // Lock device as host
             this.saveConnectionConfig();  // Save config after successful connection
         } else if (this.mode === 'client') {
             await this.startClientMode();
+            this.setDeviceRole('client'); // Lock device as client
             this.saveConnectionConfig();  // Save config after successful connection
         } else {
             this.updateConnectionStatus({
@@ -566,6 +573,54 @@ class LanSyncService {
      */
     getTimeOffset(): number {
         return this.hostTimeOffset;
+    }
+
+    /**
+     * Get the locked device role from localStorage
+     * Returns 'host', 'client', or null (not yet set)
+     */
+    getDeviceRole(): 'host' | 'client' | null {
+        const role = localStorage.getItem(DEVICE_ROLE_KEY);
+        if (role === 'host' || role === 'client') {
+            return role;
+        }
+        return null;
+    }
+
+    /**
+     * Set the device role (locked permanently until cleared)
+     * Once set to 'client', the device cannot become a host
+     */
+    setDeviceRole(role: 'host' | 'client'): void {
+        localStorage.setItem(DEVICE_ROLE_KEY, role);
+        console.log(`[LanSync] Device role locked to: ${role}`);
+    }
+
+    /**
+     * Check if this device can be a host
+     * Returns false if device role is locked to 'client'
+     */
+    isHostCapable(): boolean {
+        const role = this.getDeviceRole();
+        return role === null || role === 'host';
+    }
+
+    /**
+     * Check if scanning is allowed
+     * Scanning is only allowed when connected as Host or Client
+     */
+    canScan(): boolean {
+        return this.connectionStatus.connected &&
+            (this.connectionStatus.mode === 'host' || this.connectionStatus.mode === 'client');
+    }
+
+    /**
+     * Clear the device role (for testing/reset purposes)
+     * This allows changing the device role again
+     */
+    clearDeviceRole(): void {
+        localStorage.removeItem(DEVICE_ROLE_KEY);
+        console.log('[LanSync] Device role cleared');
     }
 }
 

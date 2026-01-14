@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Wifi, WifiOff, Server, Users, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Wifi, WifiOff, Server, Users, AlertCircle, RefreshCw } from 'lucide-react';
 import { lanSyncService, type SyncMode, type ConnectionStatus } from '../services/LanSyncService';
 import { routeStackService } from '../services/RouteStackService';
 import type { SyncServerInfo, SyncServerStatus } from '../types';
@@ -16,8 +16,10 @@ const NetworkSettingsView: React.FC = () => {
         connected: false,
         mode: 'standalone',
     });
-    const [loading, setLoading] = useState(false);
+    const [hostLoading, setHostLoading] = useState(false);
+    const [clientLoading, setClientLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isHostCapable, setIsHostCapable] = useState(true); // Can this device become a host?
     const { t } = useI18n();
 
     useEffect(() => {
@@ -40,6 +42,9 @@ const NetworkSettingsView: React.FC = () => {
             if (savedConfig.hostPort) setHostPort(savedConfig.hostPort.toString());
             if (savedConfig.clientName) setClientName(savedConfig.clientName);
         }
+
+        // Check if this device can become a host
+        setIsHostCapable(lanSyncService.isHostCapable());
 
         // Poll server status if in host mode
         let statusInterval: NodeJS.Timeout | null = null;
@@ -120,7 +125,7 @@ const NetworkSettingsView: React.FC = () => {
     };
 
     const handleStartHost = async () => {
-        setLoading(true);
+        setHostLoading(true);
         setError(null);
 
         try {
@@ -153,7 +158,7 @@ const NetworkSettingsView: React.FC = () => {
             setError(err.message || 'Failed to start host server');
             console.error('Failed to start host:', err);
         } finally {
-            setLoading(false);
+            setHostLoading(false);
         }
     };
 
@@ -163,7 +168,7 @@ const NetworkSettingsView: React.FC = () => {
             return;
         }
 
-        setLoading(true);
+        setClientLoading(true);
         setError(null);
 
         try {
@@ -190,18 +195,21 @@ const NetworkSettingsView: React.FC = () => {
             setError(err.message || 'Failed to connect to host');
             console.error('Failed to connect:', err);
         } finally {
-            setLoading(false);
+            setClientLoading(false);
         }
     };
 
     const handleDisconnect = async () => {
-        setLoading(true);
+        setHostLoading(true);
+        setClientLoading(true);
         setError(null);
 
         try {
             await lanSyncService.disconnect();
-            routeStackService.setSyncMode('standalone');
-            setSyncMode('standalone');
+            // After disconnect, user must choose Host or Client again
+            // 'standalone' is only used internally to represent disconnected state
+            routeStackService.setSyncMode('host'); // Default to host for next connection
+            setSyncMode('host');
             setServerInfo(null);
             setServerStatus(null);
             setError(null);
@@ -209,7 +217,8 @@ const NetworkSettingsView: React.FC = () => {
             setError(err.message || 'Failed to disconnect');
             console.error('Failed to disconnect:', err);
         } finally {
-            setLoading(false);
+            setHostLoading(false);
+            setClientLoading(false);
         }
     };
 
@@ -242,11 +251,11 @@ const NetworkSettingsView: React.FC = () => {
                     </div>
                 );
             } else {
-                // Standalone Mode (Normal)
+                // Disconnected - waiting for user to select Host or Client
                 return (
-                    <div className="flex items-center gap-2 text-green-500">
-                        <CheckCircle2 className="w-5 h-5" />
-                        <span className="font-bold">{t('network.disconnected')}</span>
+                    <div className="flex items-center gap-2 text-amber-500">
+                        <AlertCircle className="w-5 h-5" />
+                        <span className="font-bold">Not Connected - Please Select Mode Below</span>
                     </div>
                 );
             }
@@ -257,9 +266,31 @@ const NetworkSettingsView: React.FC = () => {
         <div className="max-w-4xl mx-auto space-y-8">
             <div>
                 <h1 className="text-4xl font-bold text-white mb-2">{t('network.title')}</h1>
-                <p className="text-slate-400">
-                    {t('network.standaloneDesc')}
+                <p className="text-slate-400 mb-4">
+                    Configure Host or Client mode for multi-device synchronization.
                 </p>
+
+                {/* Important Warnings */}
+                <div className="space-y-3">
+                    <div className="flex items-start gap-3 p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                        <AlertCircle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                            <p className="text-amber-400 font-semibold">⚠️ {t('network.hostWarning')}</p>
+                            <p className="text-amber-300/80 text-sm mt-1">
+                                {t('network.clientModeSubtitle')}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-start gap-3 p-4 bg-sky-500/10 border border-sky-500/30 rounded-lg">
+                        <Wifi className="w-5 h-5 text-sky-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                            <p className="text-sky-400 font-semibold">📡 {t('network.networkWarning')}</p>
+                            <p className="text-sky-300/80 text-sm mt-1">
+                                Host / Client must be on same WiFi or network
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* Connection Status */}
@@ -291,129 +322,155 @@ const NetworkSettingsView: React.FC = () => {
 
             {/* Mode Selection */}
             {!connectionStatus.connected && (
-                <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-xl p-6 space-y-6">
-                    <h2 className="text-xl font-semibold text-white">{t('network.hostMode')}</h2>
+                <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-xl p-6">
+                    <h2 className="text-xl font-semibold text-white mb-6">{t('network.selectMode')}</h2>
 
-                    {/* Host Mode */}
-                    <div className="border border-slate-700 rounded-lg p-6">
-                        <div className="flex items-start gap-4 mb-4">
-                            <Server className="w-6 h-6 text-sky-400 mt-1" />
-                            <div className="flex-1">
-                                <h3 className="text-lg font-semibold text-white mb-2">{t('network.hostMode')}</h3>
-                                <p className="text-slate-400 text-sm mb-4">
-                                    {t('network.hostDesc')}
-                                </p>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-300 mb-2">
-                                            {t('network.port')}
-                                        </label>
-                                        <input
-                                            type="number"
-                                            value={hostPort}
-                                            onChange={(e) => setHostPort(e.target.value)}
-                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-sky-500"
-                                            placeholder="3000"
-                                            disabled={loading}
-                                        />
+                        {/* Host Mode - Only visible if device is host-capable */}
+                        {isHostCapable ? (
+                            <div className="border-2 border-sky-500/50 rounded-lg p-6 bg-sky-500/5">
+                                <div className="flex items-start gap-4 mb-4">
+                                    <Server className="w-8 h-8 text-sky-400 mt-1" />
+                                    <div className="flex-1">
+                                        <h3 className="text-xl font-bold text-sky-400 mb-2">🖥️ {t('network.hostModeTitle')}</h3>
+                                        <p className="text-slate-300 text-sm mb-2">
+                                            <strong className="text-white">{t('network.hostModeSubtitle')}</strong>
+                                        </p>
+                                        <p className="text-slate-400 text-sm mb-4">
+                                            {t('network.hostModeDesc')}
+                                        </p>
+
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-slate-300 mb-2">
+                                                    {t('network.port')}
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    value={hostPort}
+                                                    onChange={(e) => setHostPort(e.target.value)}
+                                                    className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-sky-500"
+                                                    placeholder="3000"
+                                                    disabled={hostLoading}
+                                                />
+                                            </div>
+
+                                            <button
+                                                onClick={handleStartHost}
+                                                disabled={hostLoading}
+                                                className="w-full px-4 py-3 bg-sky-500 hover:bg-sky-600 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                                            >
+                                                {hostLoading ? (
+                                                    <>
+                                                        <RefreshCw className="w-4 h-4 animate-spin" />
+                                                        Starting...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Server className="w-4 h-4" />
+                                                        Start Host Server
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
                                     </div>
-
-                                    <button
-                                        onClick={handleStartHost}
-                                        disabled={loading}
-                                        className="w-full px-4 py-3 bg-sky-500 hover:bg-sky-600 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                                    >
-                                        {loading ? (
-                                            <>
-                                                <RefreshCw className="w-4 h-4 animate-spin" />
-                                                Starting...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Server className="w-4 h-4" />
-                                                Start Host Server
-                                            </>
-                                        )}
-                                    </button>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-
-                    {/* Client Mode */}
-                    <div className="border border-slate-700 rounded-lg p-6">
-                        <div className="flex items-start gap-4 mb-4">
-                            <Wifi className="w-6 h-6 text-green-400 mt-1" />
-                            <div className="flex-1">
-                                <h3 className="text-lg font-semibold text-white mb-2">{t('network.clientMode')}</h3>
-                                <p className="text-slate-400 text-sm mb-4">
-                                    {t('network.clientDesc')}
-                                </p>
-
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-300 mb-2">
-                                            Host IP Address
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={hostIp}
-                                            onChange={(e) => setHostIp(e.target.value)}
-                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-sky-500 relative z-10"
-                                            placeholder="192.168.1.100"
-                                            disabled={loading}
-                                            autoComplete="off"
-                                        />
+                        ) : (
+                            <div className="border-2 border-slate-600/50 rounded-lg p-6 bg-slate-800/50">
+                                <div className="flex items-start gap-4">
+                                    <Server className="w-8 h-8 text-slate-500 mt-1" />
+                                    <div className="flex-1">
+                                        <h3 className="text-xl font-bold text-slate-500 mb-2">🔒 {t('network.hostModeTitle')}</h3>
+                                        <p className="text-slate-500 text-sm mb-2">
+                                            <strong>{t('network.deviceLocked')}</strong>
+                                        </p>
+                                        <p className="text-slate-600 text-sm">
+                                            {t('network.deviceLockedDesc')}
+                                        </p>
                                     </div>
+                                </div>
+                            </div>
+                        )}
 
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-300 mb-2">
-                                            Host Port
-                                        </label>
-                                        <input
-                                            type="number"
-                                            value={hostPort}
-                                            onChange={(e) => setHostPort(e.target.value)}
-                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-sky-500 relative z-10"
-                                            placeholder="3000"
-                                            disabled={loading}
-                                            autoComplete="off"
-                                        />
+                        {/* Client Mode */}
+                        <div className="border-2 border-green-500/50 rounded-lg p-6 bg-green-500/5">
+                            <div className="flex items-start gap-4 mb-4">
+                                <Wifi className="w-8 h-8 text-green-400 mt-1" />
+                                <div className="flex-1">
+                                    <h3 className="text-xl font-bold text-green-400 mb-2">📱 {t('network.clientModeTitle')}</h3>
+                                    <p className="text-slate-300 text-sm mb-2">
+                                        <strong className="text-white">{t('network.clientModeSubtitle')}</strong>
+                                    </p>
+                                    <p className="text-slate-400 text-sm mb-4">
+                                        {t('network.clientModeDesc')}
+                                    </p>
+
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-300 mb-2">
+                                                Host IP Address
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={hostIp}
+                                                onChange={(e) => setHostIp(e.target.value)}
+                                                className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-sky-500 relative z-10"
+                                                placeholder="192.168.1.100"
+                                                disabled={clientLoading}
+                                                autoComplete="off"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-300 mb-2">
+                                                Host Port
+                                            </label>
+                                            <input
+                                                type="number"
+                                                value={hostPort}
+                                                onChange={(e) => setHostPort(e.target.value)}
+                                                className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-sky-500 relative z-10"
+                                                placeholder="3000"
+                                                disabled={clientLoading}
+                                                autoComplete="off"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-slate-300 mb-2">
+                                                Client Name (Optional)
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={clientName}
+                                                onChange={(e) => setClientName(e.target.value)}
+                                                className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-sky-500 relative z-10"
+                                                placeholder="e.g. Scanner-1, Table-A"
+                                                disabled={clientLoading}
+                                                autoComplete="off"
+                                            />
+                                        </div>
+
+                                        <button
+                                            onClick={handleConnectClient}
+                                            disabled={clientLoading || !hostIp.trim()}
+                                            className="w-full px-4 py-3 bg-green-500 hover:bg-green-600 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                                        >
+                                            {clientLoading ? (
+                                                <>
+                                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                                    Connecting...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Wifi className="w-4 h-4" />
+                                                    Connect to Host
+                                                </>
+                                            )}
+                                        </button>
                                     </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-slate-300 mb-2">
-                                            Client Name (Optional)
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={clientName}
-                                            onChange={(e) => setClientName(e.target.value)}
-                                            className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-sky-500 relative z-10"
-                                            placeholder="e.g. Scanner-1, Table-A"
-                                            disabled={loading}
-                                            autoComplete="off"
-                                        />
-                                    </div>
-
-                                    <button
-                                        onClick={handleConnectClient}
-                                        disabled={loading || !hostIp.trim()}
-                                        className="w-full px-4 py-3 bg-green-500 hover:bg-green-600 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                                    >
-                                        {loading ? (
-                                            <>
-                                                <RefreshCw className="w-4 h-4 animate-spin" />
-                                                Connecting...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Wifi className="w-4 h-4" />
-                                                Connect to Host
-                                            </>
-                                        )}
-                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -468,7 +525,7 @@ const NetworkSettingsView: React.FC = () => {
                                     <p className="text-slate-500 text-sm">No clients connected</p>
                                 ) : (
                                     <div className="space-y-2">
-                                        {serverStatus.clients?.map((client, index) => (
+                                        {serverStatus.clients?.map((client) => (
                                             <div
                                                 key={client.id}
                                                 className="flex items-center gap-2 text-sm text-slate-400"
@@ -488,7 +545,7 @@ const NetworkSettingsView: React.FC = () => {
 
                     <button
                         onClick={handleDisconnect}
-                        disabled={loading}
+                        disabled={hostLoading || clientLoading}
                         className="w-full px-4 py-3 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/20 rounded-lg font-medium transition-colors"
                     >
                         Disconnect

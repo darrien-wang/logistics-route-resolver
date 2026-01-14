@@ -115,7 +115,22 @@
         "noClientsConnected": "Sin clientes conectados",
         "standaloneDesc": "Ejecutar independientemente sin sincronizar con otros dispositivos",
         "hostDesc": "Ejecutar como servidor host, procesar todos los escaneos y sincronizar con clientes",
-        "clientDesc": "Conectar a un host, enviar solicitudes de escaneo y recibir actualizaciones de estado"
+        "clientDesc": "Conectar a un host, enviar solicitudes de escaneo y recibir actualizaciones de estado",
+        "selectMode": "Seleccionar Modo",
+        "hostModeTitle": "Modo HOST",
+        "clientModeTitle": "Modo CLIENTE",
+        "hostModeSubtitle": "Solo una computadora por almacén debe ser el host",
+        "clientModeSubtitle": "Todos los demás dispositivos de escaneo deben seleccionar este modo",
+        "hostModeDesc": "El host almacena todos los datos de escaneo, otros dispositivos se conectan a esta computadora",
+        "clientModeDesc": "Conectar al host, los datos de escaneo se sincronizan automáticamente con el almacenamiento del host",
+        "hostWarning": "Solo se permite UN HOST (principal) por almacén",
+        "networkWarning": "Todos los dispositivos deben estar en la misma red local",
+        "deviceLocked": "Este dispositivo está bloqueado en modo Cliente",
+        "deviceLockedDesc": "Una vez que un dispositivo se conecta como CLIENTE, queda bloqueado permanentemente y no puede convertirse en host. Esto asegura que no haya múltiples hosts accidentales en el almacén.",
+        "notConnected": "No Conectado - Seleccione un Modo Abajo",
+        "pleaseConnect": "Por favor conéctese a través de Configuración de Red",
+        "offlineReconnecting": "SIN CONEXIÓN - RECONECTANDO AL HOST...",
+        "offlinePaused": "🚫 SIN CONEXIÓN - PAUSADO"
     },
     "settings": {
         "title": "Configuración",

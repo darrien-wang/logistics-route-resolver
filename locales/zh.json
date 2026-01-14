@@ -115,7 +115,22 @@
         "noClientsConnected": "无客户端连接",
         "standaloneDesc": "独立运行，不与其他设备同步",
         "hostDesc": "作为主机运行，处理所有扫描并同步到客户端",
-        "clientDesc": "连接到主机，发送扫描请求并接收状态更新"
+        "clientDesc": "连接到主机，发送扫描请求并接收状态更新",
+        "selectMode": "选择模式",
+        "hostModeTitle": "HOST 主机模式",
+        "clientModeTitle": "CLIENT 分机模式",
+        "hostModeSubtitle": "仓库内只选择一台电脑作为主机",
+        "clientModeSubtitle": "其他所有扫描设备都选择此模式",
+        "hostModeDesc": "主机存储所有扫描数据，其他设备连接到这台电脑",
+        "clientModeDesc": "连接到主机，扫描数据自动同步到主机存储",
+        "hostWarning": "一个仓库只能有一个 HOST（主机）",
+        "networkWarning": "所有设备必须在同一局域网内",
+        "deviceLocked": "此设备已锁定为分机模式",
+        "deviceLockedDesc": "一旦设备首次以 CLIENT 模式连接，该设备将永久锁定为分机，无法成为主机。这确保仓库内不会意外出现多个主机。",
+        "notConnected": "未连接 - 请在下方选择模式",
+        "pleaseConnect": "请先连接网络",
+        "offlineReconnecting": "离线 - 正在重新连接主机...",
+        "offlinePaused": "🚫 离线 - 已暂停"
     },
     "settings": {
         "title": "设置",

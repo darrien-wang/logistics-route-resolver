@@ -46,7 +46,13 @@ const OperatorView: React.FC<OperatorViewProps> = ({
     connectionStatus
 }) => {
 
-    const isOffline = connectionStatus?.mode === 'client' && !connectionStatus.connected;
+    // Block scanning if:
+    // 1. Device is a client but disconnected from host
+    // 2. Device is not connected at all (no mode selected)
+    // Scanning is ONLY allowed when connected as Host or Client
+    const isNotConnected = !connectionStatus?.connected;
+    const isClientDisconnected = connectionStatus?.mode === 'client' && !connectionStatus.connected;
+    const isOffline = isNotConnected || isClientDisconnected;
     const [isEventMenuOpen, setIsEventMenuOpen] = useState(false);
     const eventMenuRef = useRef<HTMLDivElement>(null);
     const { t } = useI18n();
@@ -129,7 +135,11 @@ const OperatorView: React.FC<OperatorViewProps> = ({
             {isOffline && (
                 <div className="bg-red-600 px-6 py-2 flex items-center justify-center gap-3 animate-pulse shadow-lg z-30">
                     <WifiOff className="w-5 h-5 text-white" />
-                    <span className="font-bold text-white tracking-wider">OFFLINE - RECONNECTING TO HOST...</span>
+                    <span className="font-bold text-white tracking-wider">
+                        {isClientDisconnected
+                            ? t('network.offlineReconnecting')
+                            : t('network.pleaseConnect')}
+                    </span>
                 </div>
             )}
 
@@ -147,10 +157,10 @@ const OperatorView: React.FC<OperatorViewProps> = ({
                             onChange={(e) => onOrderIdChange(e.target.value)}
                             onKeyDown={handleKeyDown}
                             className={`block w-full pl-20 pr-48 py-6 bg-slate-950 border-2 rounded-2xl text-4xl font-bold transition-all shadow-inner tracking-wide uppercase ${isOffline
-                                    ? 'border-red-900/50 text-red-500 placeholder-red-800/50 cursor-not-allowed'
-                                    : 'border-slate-800 text-white placeholder-slate-600 focus:outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-500/20'
+                                ? 'border-red-900/50 text-red-500 placeholder-red-800/50 cursor-not-allowed'
+                                : 'border-slate-800 text-white placeholder-slate-600 focus:outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-500/20'
                                 }`}
-                            placeholder={isOffline ? "🚫 OFFLINE - PAUSED" : t('operator.scanPlaceholder')}
+                            placeholder={isOffline ? t('network.offlinePaused') : t('operator.scanPlaceholder')}
                             autoComplete="off"
                             autoFocus
                             disabled={isOffline}

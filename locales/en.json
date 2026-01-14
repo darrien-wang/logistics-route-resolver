@@ -115,7 +115,22 @@
         "noClientsConnected": "No clients connected",
         "standaloneDesc": "Run independently without syncing to other devices",
         "hostDesc": "Run as host server, process all scans and sync to clients",
-        "clientDesc": "Connect to a host, send scan requests and receive state updates"
+        "clientDesc": "Connect to a host, send scan requests and receive state updates",
+        "selectMode": "Select Mode",
+        "hostModeTitle": "HOST Mode",
+        "clientModeTitle": "CLIENT Mode",
+        "hostModeSubtitle": "Only one computer per warehouse should be the host",
+        "clientModeSubtitle": "All other scanning devices should select this mode",
+        "hostModeDesc": "Host stores all scan data, other devices connect to this computer",
+        "clientModeDesc": "Connect to host, scan data automatically syncs to host storage",
+        "hostWarning": "Only ONE HOST (main) is allowed per warehouse",
+        "networkWarning": "All devices must be on the same local network",
+        "deviceLocked": "This device is locked to Client mode",
+        "deviceLockedDesc": "Once a device connects as CLIENT, it is permanently locked and cannot become a host. This ensures no accidental multiple hosts in the warehouse.",
+        "notConnected": "Not Connected - Please Select Mode Below",
+        "pleaseConnect": "Please connect via Network Settings",
+        "offlineReconnecting": "OFFLINE - RECONNECTING TO HOST...",
+        "offlinePaused": "🚫 OFFLINE - PAUSED"
     },
     "settings": {
         "title": "Settings",
