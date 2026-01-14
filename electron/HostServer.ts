@@ -139,6 +139,9 @@ export class HostServer {
             this.connectedClients.set(clientId, socket);
             this.clientNames.set(clientId, clientName);
 
+            // Send server time to client for time synchronization
+            socket.emit('sync:serverTime', { serverTime: Date.now() });
+
             // Notify main window about new client with name
             if (this.messageHandler) {
                 this.messageHandler('client:connected', { clientId, clientName }, clientId);

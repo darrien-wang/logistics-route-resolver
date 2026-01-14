@@ -80,6 +80,10 @@ class LanSyncService {
     // Track pending prints for CLIENT mode - orders that need to be printed when result comes back
     private pendingPrints: Set<string> = new Set();
 
+    // Time synchronization: offset = hostTime - localTime (in milliseconds)
+    // When client connects, we calculate this offset to use host's time for labels
+    private hostTimeOffset: number = 0;
+
     /**
      * Initialize the sync service with configuration
      */
@@ -319,6 +323,13 @@ class LanSyncService {
             console.log('[LanSync] Received state update from Host');
             this.emit(SYNC_EVENTS.STATE_UPDATE, state);
         });
+
+        // Receive server time for synchronization
+        this.socket.on('sync:serverTime', (data: { serverTime: number }) => {
+            const localTime = Date.now();
+            this.hostTimeOffset = data.serverTime - localTime;
+            console.log(`[LanSync] Time sync: hostTime=${data.serverTime}, localTime=${localTime}, offset=${this.hostTimeOffset}ms`);
+        });
     }
 
     /**
@@ -523,6 +534,38 @@ class LanSyncService {
      */
     clearPendingPrint(orderId: string): void {
         this.pendingPrints.delete(orderId.toUpperCase());
+    }
+
+    /**
+     * Get synchronized time (adjusted for host time offset in client mode)
+     * In host/standalone mode, returns local time
+     * In client mode, returns local time + offset to match host time
+     */
+    getSyncedTime(): Date {
+        return new Date(Date.now() + this.hostTimeOffset);
+    }
+
+    /**
+     * Get synchronized timestamp in milliseconds
+     */
+    getSyncedTimestamp(): number {
+        return Date.now() + this.hostTimeOffset;
+    }
+
+    /**
+     * Get formatted date string synchronized with host time
+     * Format: YYYY-MM-DD HH:MM
+     */
+    getSyncedDateString(): string {
+        const date = this.getSyncedTime();
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    }
+
+    /**
+     * Get the current time offset (for debugging)
+     */
+    getTimeOffset(): number {
+        return this.hostTimeOffset;
     }
 }
 

@@ -5,6 +5,8 @@
  * to prevent blocking the scanning workflow.
  */
 
+import { lanSyncService } from './LanSyncService';
+
 export interface PrintJobPerf {
     tEnqueue: number;
     tDequeue?: number;
@@ -54,8 +56,8 @@ class LabelPrintService {
      */
     generateLabelImage(baseRouteName: string, stackNumber: number): string {
         const cacheKey = `${baseRouteName}-${stackNumber}`;
-        const today = new Date();
-        const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')} ${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
+        // Use synchronized time (matches host time in client mode)
+        const dateStr = lanSyncService.getSyncedDateString();
         const fullCacheKey = `${cacheKey}-${dateStr}`;
 
         if (this.imageCache.has(fullCacheKey)) {
@@ -159,8 +161,8 @@ class LabelPrintService {
      */
     generateExceptionLabelImage(orderId: string, customTitle: string = 'EXCEPTION', customFooter: string = 'NO ROUTE'): string {
         // Cache exception labels by date + orderId + title
-        const today = new Date();
-        const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')} ${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
+        // Use synchronized time (matches host time in client mode)
+        const dateStr = lanSyncService.getSyncedDateString();
         const cacheKey = `exception-${orderId}-${customTitle}-${dateStr}`;
 
         if (this.exceptionCache.has(cacheKey)) {
@@ -342,18 +344,22 @@ class LabelPrintService {
         if (electronAPI?.printGDI) {
             job.perf.path = 'GDI';
             const tStart = performance.now();
+            // Get synchronized date string for label
+            const dateStr = lanSyncService.getSyncedDateString();
             try {
                 if (job.type === 'exception' && job.orderId) {
                     await electronAPI.printGDI({
                         type: 'exception',
-                        orderId: job.orderId
+                        orderId: job.orderId,
+                        dateStr, // Pass synchronized time to Electron
                     });
                 } else if (job.type === 'standard' && job.baseRouteName && job.stackNumber) {
                     await electronAPI.printGDI({
                         type: 'standard',
                         routeName: job.baseRouteName,
                         stackNumber: job.stackNumber,
-                        trackingNumber: job.trackingNumber || ''
+                        trackingNumber: job.trackingNumber || '',
+                        dateStr, // Pass synchronized time to Electron
                     });
                 }
                 console.log(`[PrintPerf] ${job.id} gdiCall=${(performance.now() - tStart).toFixed(0)}ms`);

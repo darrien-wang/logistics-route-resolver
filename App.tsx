@@ -7,7 +7,8 @@ import {
   ClipboardList,
   Layers,
   Wifi,
-  Filter
+  Filter,
+  ShieldCheck
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { ResolvedRouteInfo, ZipRouteRecord, EventType } from './types';
@@ -39,6 +40,7 @@ const App: React.FC = () => {
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [appVersion, setAppVersion] = useState<string>('');
   const [rulesLoaded, setRulesLoaded] = useState(false);
+  const [isSingleInstance, setIsSingleInstance] = useState<boolean | null>(null);
 
   // Persistence Hook - now uses IndexedDB for large data storage
   const {
@@ -142,6 +144,13 @@ const App: React.FC = () => {
       }).catch(() => setAppVersion('dev'));
     } else {
       setAppVersion('dev');
+    }
+
+    // Check single instance lock status
+    if (electronAPI?.isSingleInstance) {
+      electronAPI.isSingleInstance().then((result: boolean) => {
+        setIsSingleInstance(result);
+      }).catch(() => setIsSingleInstance(null));
     }
   }, []);
 
@@ -358,18 +367,28 @@ const App: React.FC = () => {
             </button>
           </div>
 
-          {/* Version Number - Click for What's New, Right-click for updates */}
+          {/* Single Instance Indicator */}
+          {isSingleInstance && (
+            <div
+              className="mt-auto mb-1 flex items-center justify-center"
+              title="Single Instance Lock Active - Only one copy of this app can run"
+            >
+              <ShieldCheck className="w-4 h-4 text-emerald-500" />
+            </div>
+          )}
+
+          {/* Version Number - Click for What's New AND check updates */}
           <button
-            onClick={() => setShowWhatsNew(true)}
-            onContextMenu={(e) => {
-              e.preventDefault();
+            onClick={() => {
+              setShowWhatsNew(true);
+              // Also trigger update check when clicking version
               const electronAPI = (window as any).electronAPI;
               if (electronAPI?.updater?.checkForUpdates) {
                 electronAPI.updater.checkForUpdates();
               }
             }}
-            className="mt-auto mb-2 text-slate-600 hover:text-sky-400 transition-colors text-xs font-mono"
-            title="Click for What's New • Right-click to check updates"
+            className={`${isSingleInstance ? '' : 'mt-auto'} mb-2 text-slate-600 hover:text-sky-400 transition-colors text-xs font-mono`}
+            title="Click to see What's New and check for updates"
           >
             v{appVersion}
           </button>

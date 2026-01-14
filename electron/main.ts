@@ -25,6 +25,23 @@ process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.
 let win: BrowserWindow | null
 let hostServer: HostServer | null = null
 
+// Single instance lock - prevent running multiple copies of the app
+const gotTheLock = app.requestSingleInstanceLock()
+
+if (!gotTheLock) {
+    // Another instance is already running, quit this one
+    app.quit()
+} else {
+    // This is the first instance
+    app.on('second-instance', (_event, _commandLine, _workingDirectory) => {
+        // Someone tried to run a second instance, focus the existing window
+        if (win) {
+            if (win.isMinimized()) win.restore()
+            win.focus()
+        }
+    })
+}
+
 function createWindow() {
     win = new BrowserWindow({
         icon: path.join(process.env.VITE_PUBLIC, 'app_logo_fixed.png'),
@@ -154,6 +171,7 @@ interface GDIPrintData {
     stackNumber?: number;
     trackingNumber?: string;
     orderId?: string;
+    dateStr?: string; // Synchronized time from renderer (for client mode)
 }
 
 /**
@@ -162,8 +180,12 @@ interface GDIPrintData {
  */
 ipcMain.handle('print-gdi', async (_event, data: GDIPrintData) => {
     return new Promise((resolve, reject) => {
-        const today = new Date();
-        const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')} ${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
+        // Use provided dateStr (synchronized with host) or fallback to local time
+        let dateStr = data.dateStr;
+        if (!dateStr) {
+            const today = new Date();
+            dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')} ${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
+        }
 
         let psScript: string;
 
@@ -383,6 +405,10 @@ app.whenReady().then(() => {
         ipcMain.handle('download-update', () => false)
         ipcMain.handle('install-update', () => { /* no-op */ })
     }
+
+    // Single instance check - always returns true since we have the lock
+    // (if we didn't have the lock, the app would have quit already)
+    ipcMain.handle('is-single-instance', () => gotTheLock)
 
     // LAN Sync Server IPC Handlers
     setupLanSyncHandlers()
