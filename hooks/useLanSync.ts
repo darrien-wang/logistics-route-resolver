@@ -97,6 +97,13 @@ export const useLanSync = ({
 
         routeStackService.onStateChange(handleStateChange);
 
+        // Subscription to connection status changes (Single Source of Truth)
+        const handleStatusChange = (status: ConnectionStatus) => {
+            console.log('[useLanSync] Connection status updated:', status);
+            setConnectionStatus(status);
+        };
+        lanSyncService.on('status', handleStatusChange);
+
         // Setup Host mode: listen for scan actions from clients
         const cleanup = window.electron?.onSyncServerMessage?.((message: any) => {
             if (message.event === SYNC_EVENTS.ACTION_SCAN) {
@@ -330,19 +337,12 @@ export const useLanSync = ({
         lanSyncService.on(SYNC_EVENTS.STATE_UPDATE, handleStateUpdate);
         lanSyncService.on(SYNC_EVENTS.CONNECTION, handleConnection);
 
-        const updateConnectionStatus = () => {
-            setConnectionStatus(lanSyncService.getConnectionStatus());
-        };
-        lanSyncService.on(SYNC_EVENTS.CONNECTION, updateConnectionStatus);
-        lanSyncService.on(SYNC_EVENTS.DISCONNECT, updateConnectionStatus);
-
         return () => {
             routeStackService.offStateChange(handleStateChange);
             lanSyncService.off(SYNC_EVENTS.SYNC_STATE, handleSyncState);
             lanSyncService.off(SYNC_EVENTS.STATE_UPDATE, handleStateUpdate);
             lanSyncService.off(SYNC_EVENTS.CONNECTION, handleConnection);
-            lanSyncService.off(SYNC_EVENTS.CONNECTION, updateConnectionStatus);
-            lanSyncService.off(SYNC_EVENTS.DISCONNECT, updateConnectionStatus);
+            lanSyncService.off('status', handleStatusChange);
             if (cleanup) cleanup();
         };
     }, [createFullStateSnapshot, handleSearch, setHistory, setOperationLog, setStackDefs, apiSettings.autoPrintLabelEnabled]);

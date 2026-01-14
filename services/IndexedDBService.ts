@@ -12,7 +12,7 @@ import { ResolvedRouteInfo, OrderEventStatus } from '../types';
 import { SerializedStackServiceState } from './RouteStackService';
 
 const DB_NAME = 'LogisticsRouteResolver';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Incremented for Backups
 
 // Store names
 const STORES = {
@@ -20,7 +20,8 @@ const STORES = {
     ROUTE_STACK_STATE: 'routeStackState',
     STACK_DEFS: 'stackDefs',
     OPERATION_LOG: 'operationLog',
-    SETTINGS: 'settings'  // For small key-value pairs
+    SETTINGS: 'settings',
+    BACKUPS: 'backups' // New store for safe reset
 } as const;
 
 class IndexedDBService {
@@ -50,7 +51,7 @@ class IndexedDBService {
 
             request.onupgradeneeded = (event) => {
                 const db = (event.target as IDBOpenDBRequest).result;
-                console.log('[IndexedDB] Upgrading database...');
+                console.log(`[IndexedDB] Upgrading database to v${DB_VERSION}...`);
 
                 // Create object stores
                 if (!db.objectStoreNames.contains(STORES.HISTORY)) {
@@ -73,6 +74,11 @@ class IndexedDBService {
 
                 if (!db.objectStoreNames.contains(STORES.SETTINGS)) {
                     db.createObjectStore(STORES.SETTINGS, { keyPath: 'key' });
+                }
+
+                if (!db.objectStoreNames.contains(STORES.BACKUPS)) {
+                    // Backups store - indexed by timestamp
+                    db.createObjectStore(STORES.BACKUPS, { keyPath: 'timestamp' });
                 }
 
                 console.log('[IndexedDB] Database upgrade complete');
@@ -341,10 +347,170 @@ class IndexedDBService {
         });
     }
 
+    // ============ Backup Operations ============
+
+    /**
+     * Create a safe backup of all current data
+     * Keeps backups for 48 hours (prunes older)
+     * @param snapshot Optional in-memory state to save (prevents stale DB reads due to debouncing)
+     */
+    async createBackup(snapshot?: {
+        history: ResolvedRouteInfo[];
+        stackDefs: any[];
+        operationLog: Record<string, OrderEventStatus[]>;
+        routeStackState: SerializedStackServiceState | null;
+    }): Promise<void> {
+        try {
+            console.log('[IndexedDB] Creating safety backup...');
+
+            let data;
+            if (snapshot) {
+                // Use provided snapshot (fresh from memory)
+                data = snapshot;
+            } else {
+                // Fallback: Load from DB (might be slightly stale due to debouncers)
+                const [history, routeStackState, stackDefs, operationLog] = await Promise.all([
+                    this.loadHistory(),
+                    this.loadRouteStackState(),
+                    this.loadStackDefs(),
+                    this.loadOperationLog()
+                ]);
+                data = { history, routeStackState, stackDefs, operationLog };
+            }
+
+            const backupData = {
+                timestamp: Date.now(),
+                date: new Date().toISOString(),
+                data
+            };
+
+            const db = await this.ensureDB();
+            await new Promise<void>((resolve, reject) => {
+                const transaction = db.transaction(STORES.BACKUPS, 'readwrite');
+                const store = transaction.objectStore(STORES.BACKUPS);
+                store.add(backupData);
+
+                transaction.oncomplete = () => resolve();
+                transaction.onerror = () => reject(transaction.error);
+            });
+
+            console.log('[IndexedDB] Backup created successfully');
+            await this.pruneBackups();
+        } catch (error) {
+            console.error('[IndexedDB] Failed to create backup:', error);
+            // Don't fail the reset if backup fails, just log it
+        }
+    }
+
+    /**
+     * Remove backups older than 2 days (48 hours)
+     */
+    private async pruneBackups(): Promise<void> {
+        const db = await this.ensureDB();
+        const TWO_DAYS_MS = 48 * 60 * 60 * 1000;
+        const cutoff = Date.now() - TWO_DAYS_MS;
+
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(STORES.BACKUPS, 'readwrite');
+            const store = transaction.objectStore(STORES.BACKUPS);
+            const request = store.openCursor(); // Iterate all
+
+            request.onsuccess = (event) => {
+                const cursor = (event.target as IDBRequest).result as IDBCursorWithValue;
+                if (cursor) {
+                    if (cursor.value.timestamp < cutoff) {
+                        console.log(`[IndexedDB] Pruning old backup from ${cursor.value.date}`);
+                        cursor.delete();
+                    }
+                    cursor.continue();
+                } else {
+                    resolve();
+                }
+            };
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    /**
+     * Get list of available backups (timestamps only)
+     */
+    async getBackups(): Promise<{ timestamp: number; date: string; itemCount: number }[]> {
+        const db = await this.ensureDB();
+
+        return new Promise((resolve, reject) => {
+            const transaction = db.transaction(STORES.BACKUPS, 'readonly');
+            const store = transaction.objectStore(STORES.BACKUPS);
+            const request = store.getAll();
+
+            request.onsuccess = () => {
+                const backups = request.result || [];
+                const summaries = backups.map((b: any) => ({
+                    timestamp: b.timestamp,
+                    date: b.date,
+                    itemCount: b.data?.history?.length || 0
+                })).sort((a: any, b: any) => b.timestamp - a.timestamp);
+                resolve(summaries);
+            };
+            request.onerror = () => reject(request.error);
+        });
+    }
+
+    /**
+     * Restore data from a specific backup
+     * Overwrites all current active data
+     */
+    async restoreBackup(timestamp: number): Promise<boolean> {
+        const db = await this.ensureDB();
+
+        try {
+            // 1. Get the backup
+            const backup: any = await new Promise((resolve, reject) => {
+                const transaction = db.transaction(STORES.BACKUPS, 'readonly');
+                const store = transaction.objectStore(STORES.BACKUPS);
+                const request = store.get(timestamp);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+
+            if (!backup || !backup.data) {
+                console.error('[IndexedDB] Backup not found or invalid');
+                return false;
+            }
+
+            console.log(`[IndexedDB] Restoring backup from ${backup.date}...`);
+            const { history, stackDefs, routeStackState, operationLog } = backup.data;
+
+            // 2. Clear current data and Restore (in a single flow for consistency usually, 
+            // but separate transactions are safer for large bulk imports in IDB to avoid timeouts)
+
+            // We'll trust our clearAll implementation
+            await this.clearAll();
+
+            // 3. Restore History
+            if (history && history.length > 0) await this.saveHistory(history);
+
+            // 4. Restore Stack Defs
+            if (stackDefs && stackDefs.length > 0) await this.saveStackDefs(stackDefs);
+
+            // 5. Restore Operation Log
+            if (operationLog) await this.saveOperationLog(operationLog);
+
+            // 6. Restore Route Stack State
+            if (routeStackState) await this.saveRouteStackState(routeStackState);
+
+            console.log('[IndexedDB] Restoration complete');
+            return true;
+
+        } catch (error) {
+            console.error('[IndexedDB] Restoration failed:', error);
+            return false;
+        }
+    }
+
     // ============ Utility Methods ============
 
     /**
-     * Clear all data from all stores
+     * Clear all data from all stores (EXCEPT BACKUPS)
      */
     async clearAll(): Promise<void> {
         await Promise.all([
@@ -353,7 +519,7 @@ class IndexedDBService {
             this.clearStackDefs(),
             this.clearOperationLog()
         ]);
-        console.log('[IndexedDB] All data cleared');
+        console.log('[IndexedDB] All active data cleared');
     }
 
     /**

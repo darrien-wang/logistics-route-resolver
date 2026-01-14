@@ -223,10 +223,18 @@ class LanSyncService {
         const hostPort = this.config.hostPort || 14059;
         const url = `http://${hostIp}:${hostPort}`;
 
-        // Store client name for display
+        // Store clie   nt name for display
         this.clientName = this.config.clientName || `Client-${Date.now().toString(36).slice(-4)}`;
 
         console.log(`[LanSync] Connecting to Host at ${url} as "${this.clientName}"...`);
+
+        // CRITICAL: Ensure any existing socket is cleaned up before creating a new one
+        if (this.socket) {
+            console.warn('[LanSync] Cleaning up existing socket before new connection...');
+            this.socket.removeAllListeners();
+            this.socket.disconnect();
+            this.socket = null;
+        }
 
         this.socket = io(url, {
             reconnection: true,

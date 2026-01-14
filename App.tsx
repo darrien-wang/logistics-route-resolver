@@ -53,6 +53,7 @@ const App: React.FC = () => {
     history,
     setHistory,
     clearAllData,
+    restoreFromBackup, // Expose restore function
     isLoading
   } = useAppPersistence();
 
@@ -74,8 +75,6 @@ const App: React.FC = () => {
     const hoursElapsed = (now - lastUpdated) / (1000 * 60 * 60);
     return hoursElapsed >= 24;
   }, [apiSettings.tokenUpdatedAt, apiSettings.wpglbAuth, apiSettings.authorization]);
-
-
 
   // Load default rules from bundled Excel file
   const loadDefaultRulesFromExcel = useCallback(async () => {
@@ -413,57 +412,60 @@ const App: React.FC = () => {
         </div>
 
         <main className={`flex-1 ml-24 relative ${view === 'operator' ? 'h-screen overflow-hidden p-6' : 'p-10 lg:p-14 overflow-y-auto'}`}>
-          {view === 'dashboard' ? (
-            <DashboardView
-              apiSettings={apiSettings}
-              history={history}
-              operationLog={operationLog}
-              selectedEventTypes={selectedEventTypes}
-              dataSource={dataSource}
-              exportService={exportService}
-              fileInputRef={fileInputRef}
-              onShowApiConfig={() => setShowApiConfig(true)}
-              onFileUpload={handleFileUpload}
-              onClearHistory={clearHistory}
-              isSyncing={isSyncing}
-              onRequestSync={requestSync}
-              onPushData={pushLocalData}
-            />
-          ) : view === 'operator' ? (
-            <OperatorView
-              apiSettings={apiSettings}
-              operationLog={operationLog}
-              history={history}
-              selectedEventTypes={selectedEventTypes}
-              orderId={orderId}
-              loading={loading}
-              error={error}
-              batchMode={batchMode}
-              isBatchComplete={isBatchComplete}
-              currentResult={currentResult}
-              printStatus={printStatus}
-              exportService={exportService}
-              scannerInputRef={scannerInputRef}
-              onToggleEventType={toggleEventType}
-              onOrderIdChange={setOrderId}
-              onSearch={handleSafeSearch}
-              connectionStatus={connectionStatus}
-            />
-          ) : view === 'stacks' ? (
-            <RouteStackManager
-              history={history}
-              apiSettings={apiSettings}
-              onSettingsChange={setApiSettings}
-              onAddTestData={handleAddTestData}
-              onImportOrders={handleImportOrders}
-              stackDefs={stackDefs}
-              setStackDefs={setStackDefs}
-            />
-          ) : view === 'network' ? (
-            <NetworkSettingsView />
-          ) : (
-            <RulesManagementView dataSource={dataSource} onFileUpload={handleFileUpload} />
-          )}
+          {
+            view === 'dashboard' ? (
+              <DashboardView
+                apiSettings={apiSettings}
+                history={history}
+                operationLog={operationLog}
+                selectedEventTypes={selectedEventTypes}
+                dataSource={dataSource}
+                exportService={exportService}
+                fileInputRef={fileInputRef}
+                onShowApiConfig={() => setShowApiConfig(true)}
+                onFileUpload={handleFileUpload}
+                onClearHistory={clearHistory}
+                isSyncing={isSyncing}
+                onRequestSync={requestSync}
+                onPushData={pushLocalData}
+                onRestore={restoreFromBackup}
+              />
+            ) : view === 'operator' ? (
+              <OperatorView
+                apiSettings={apiSettings}
+                operationLog={operationLog}
+                history={history}
+                selectedEventTypes={selectedEventTypes}
+                orderId={orderId}
+                loading={loading}
+                error={error}
+                batchMode={batchMode}
+                isBatchComplete={isBatchComplete}
+                currentResult={currentResult}
+                printStatus={printStatus}
+                exportService={exportService}
+                scannerInputRef={scannerInputRef}
+                onToggleEventType={toggleEventType}
+                onOrderIdChange={setOrderId}
+                onSearch={handleSafeSearch}
+                connectionStatus={connectionStatus}
+              />
+            ) : view === 'stacks' ? (
+              <RouteStackManager
+                history={history}
+                apiSettings={apiSettings}
+                onSettingsChange={setApiSettings}
+                onAddTestData={handleAddTestData}
+                onImportOrders={handleImportOrders}
+                stackDefs={stackDefs}
+                setStackDefs={setStackDefs}
+              />
+            ) : view === 'network' ? (
+              <NetworkSettingsView />
+            ) : (
+              <RulesManagementView dataSource={dataSource} onFileUpload={handleFileUpload} />
+            )
+          }
 
           <ApiConfigModal
             isOpen={showApiConfig}
@@ -497,9 +499,9 @@ const App: React.FC = () => {
 
           {/* Update Notification */}
           <UpdateNotification />
-        </main>
-      </div>
-    </I18nProvider>
+        </main >
+      </div >
+    </I18nProvider >
   );
 };
 

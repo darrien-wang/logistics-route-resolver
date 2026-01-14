@@ -41,154 +41,77 @@ export const useAppPersistence = () => {
     const initialLoadComplete = useRef(false);
 
     // Initialize IndexedDB and load data
-    useEffect(() => {
-        const loadData = async () => {
-            try {
-                await indexedDBService.init();
+    const reloadData = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            await indexedDBService.init();
 
-                // Load all data from IndexedDB
-                const [loadedHistory, loadedStackDefs, loadedState, loadedLog] = await Promise.all([
-                    indexedDBService.loadHistory(),
-                    indexedDBService.loadStackDefs(),
-                    indexedDBService.loadRouteStackState(),
-                    indexedDBService.loadOperationLog()
-                ]);
+            // Load all data from IndexedDB
+            const [loadedHistory, loadedStackDefs, loadedState, loadedLog] = await Promise.all([
+                indexedDBService.loadHistory(),
+                indexedDBService.loadStackDefs(),
+                indexedDBService.loadRouteStackState(),
+                indexedDBService.loadOperationLog()
+            ]);
 
-                setHistory(loadedHistory);
-                setStackDefs(loadedStackDefs);
-                setOperationLog(loadedLog);
+            setHistory(loadedHistory);
+            setStackDefs(loadedStackDefs);
+            setOperationLog(loadedLog);
 
-                // Restore RouteStackService state
-                if (loadedState) {
-                    routeStackService.restoreState(loadedState);
-                    console.log('[Persistence] RouteStackService state restored from IndexedDB');
-                }
-
-                console.log(`[Persistence] Loaded ${loadedHistory.length} history items, ${loadedStackDefs.length} stack defs`);
-                initialLoadComplete.current = true;
-            } catch (error) {
-                console.error('[Persistence] Failed to load from IndexedDB:', error);
-                initialLoadComplete.current = true;
-            } finally {
-                setIsLoading(false);
+            // Restore RouteStackService state
+            if (loadedState) {
+                routeStackService.restoreState(loadedState);
+                console.log('[Persistence] RouteStackService state restored from IndexedDB');
             }
-        };
 
-        loadData();
-    }, []);
-
-    // Persist API settings to localStorage
-    useEffect(() => {
-        localStorage.setItem(API_CONFIG_KEY, JSON.stringify(apiSettings));
-        voiceService.setEnabled(apiSettings.voiceEnabled ?? true);
-        labelPrintService.setEnabled(apiSettings.autoPrintLabelEnabled ?? true);
-        if (apiSettings.stackCapacityConfig) {
-            routeStackService.setCapacityConfig(apiSettings.stackCapacityConfig);
-        } else {
-            routeStackService.setCapacity(apiSettings.stackCapacity ?? 40);
-        }
-    }, [apiSettings]);
-
-    // Initialize services on mount
-    useEffect(() => {
-        voiceService.setEnabled(apiSettings.voiceEnabled ?? true);
-        labelPrintService.setEnabled(apiSettings.autoPrintLabelEnabled ?? true);
-        if (apiSettings.stackCapacityConfig) {
-            routeStackService.setCapacityConfig(apiSettings.stackCapacityConfig);
-        } else {
-            routeStackService.setCapacity(apiSettings.stackCapacity ?? 40);
+            console.log(`[Persistence] Loaded ${loadedHistory.length} history items, ${loadedStackDefs.length} stack defs`);
+            initialLoadComplete.current = true;
+        } catch (error) {
+            console.error('[Persistence] Failed to load from IndexedDB:', error);
+            initialLoadComplete.current = true;
+        } finally {
+            setIsLoading(false);
         }
     }, []);
 
-    // Debounced save for history (avoid too many writes)
-    const historyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     useEffect(() => {
-        if (!initialLoadComplete.current) return;
+        reloadData();
+    }, [reloadData]);
 
-        // Debounce history saves - wait 1 second after last change
-        if (historyTimeoutRef.current) {
-            clearTimeout(historyTimeoutRef.current);
-        }
-
-        historyTimeoutRef.current = setTimeout(() => {
-            indexedDBService.saveHistory(history).catch(err => {
-                console.error('[Persistence] Failed to save history:', err);
-            });
-        }, 1000);
-
-        return () => {
-            if (historyTimeoutRef.current) {
-                clearTimeout(historyTimeoutRef.current);
-            }
-        };
-    }, [history]);
-
-    // Debounced save for stackDefs
-    const stackDefsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    useEffect(() => {
-        if (!initialLoadComplete.current) return;
-
-        if (stackDefsTimeoutRef.current) {
-            clearTimeout(stackDefsTimeoutRef.current);
-        }
-
-        stackDefsTimeoutRef.current = setTimeout(() => {
-            indexedDBService.saveStackDefs(stackDefs).catch(err => {
-                console.error('[Persistence] Failed to save stackDefs:', err);
-            });
-        }, 500);
-
-        return () => {
-            if (stackDefsTimeoutRef.current) {
-                clearTimeout(stackDefsTimeoutRef.current);
-            }
-        };
-    }, [stackDefs]);
-
-    // Debounced save for operation log
-    const operationLogTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    useEffect(() => {
-        if (!initialLoadComplete.current) return;
-
-        if (operationLogTimeoutRef.current) {
-            clearTimeout(operationLogTimeoutRef.current);
-        }
-
-        operationLogTimeoutRef.current = setTimeout(() => {
-            indexedDBService.saveOperationLog(operationLog).catch(err => {
-                console.error('[Persistence] Failed to save operationLog:', err);
-            });
-        }, 1000);
-
-        return () => {
-            if (operationLogTimeoutRef.current) {
-                clearTimeout(operationLogTimeoutRef.current);
-            }
-        };
-    }, [operationLog]);
-
-    // Subscribe to RouteStackService state changes and persist
-    useEffect(() => {
-        const handleStateChange = () => {
-            const state = routeStackService.serializeState();
-            indexedDBService.saveRouteStackState(state).catch(err => {
-                console.error('[Persistence] Failed to save RouteStackService state:', err);
-            });
-        };
-
-        routeStackService.onStateChange(handleStateChange);
-
-        return () => {
-            routeStackService.offStateChange(handleStateChange);
-        };
-    }, []);
+    // ... (keep existing persistence effects) ...
 
     // Clear all persisted data (called on Reset)
     const clearAllData = useCallback(async () => {
+        // Create a safety backup before clearing (Silent persistence protection)
+        // CRITICAL: Pass current in-memory state to backup, as DB might be stale due to debounce
+        await indexedDBService.createBackup({
+            history,
+            stackDefs,
+            operationLog,
+            routeStackState: routeStackService.serializeState()
+        });
+
         await indexedDBService.clearAll();
         routeStackService.reset();
-        console.log('[Persistence] All data cleared');
-    }, []);
+        await reloadData(); // Reload (empty) state to UI
+        console.log('[Persistence] All data cleared (Backup created)');
+    }, [history, stackDefs, operationLog, reloadData]);
+
+    // Restore from backup
+    const restoreFromBackup = useCallback(async (timestamp: number) => {
+        // Clear any pending debounced saves to prevent overwriting restored data
+        if (historyTimeoutRef.current) clearTimeout(historyTimeoutRef.current);
+        if (stackDefsTimeoutRef.current) clearTimeout(stackDefsTimeoutRef.current);
+        if (operationLogTimeoutRef.current) clearTimeout(operationLogTimeoutRef.current);
+
+        const success = await indexedDBService.restoreBackup(timestamp);
+        if (success) {
+            await reloadData();
+            console.log('[Persistence] Backup restored and state reloaded');
+            return true;
+        }
+        return false;
+    }, [reloadData]);
 
     return {
         operationLog,
@@ -200,6 +123,7 @@ export const useAppPersistence = () => {
         history,
         setHistory,
         clearAllData,
+        restoreFromBackup,
         isLoading
     };
 };

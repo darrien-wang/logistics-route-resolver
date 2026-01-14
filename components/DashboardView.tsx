@@ -35,7 +35,10 @@ interface DashboardViewProps {
     isSyncing?: boolean;
     onRequestSync?: (amount: 'full' | number) => void;
     onPushData?: () => void;
+    onRestore: (timestamp: number) => Promise<boolean>;
 }
+
+import DataRecoveryModal from './DataRecoveryModal';
 
 const DashboardView: React.FC<DashboardViewProps> = ({
     apiSettings,
@@ -50,12 +53,14 @@ const DashboardView: React.FC<DashboardViewProps> = ({
     onClearHistory,
     isSyncing = false,
     onRequestSync = (_: 'full' | number) => { },
-    onPushData = () => { }
+    onPushData = () => { },
+    onRestore
 }) => {
     const [syncStatus, setSyncStatus] = useState<ConnectionStatus>({
         connected: false,
         mode: 'standalone',
     });
+    const [showRecovery, setShowRecovery] = useState(false);
 
     useEffect(() => {
         // Get initial status
@@ -129,6 +134,16 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                 <div className="flex items-center gap-3">
                     <button onClick={onShowApiConfig} className="bg-slate-800 p-3 px-5 rounded-xl border border-white/5 flex items-center gap-2 hover:bg-slate-700 transition-colors"><Key className="w-4 h-4" /> {t('dashboard.apiConfig')}</button>
                     <button onClick={() => exportService.exportActivityLog(operationLog)} disabled={Object.keys(operationLog).length === 0} className="bg-sky-500 p-3 px-5 rounded-xl border border-sky-400/50 flex items-center gap-2 hover:bg-sky-400 transition-colors shadow-lg shadow-sky-500/20"><Download className="w-4 h-4" /> {t('dashboard.exportLog')}</button>
+
+                    {/* Recovery Button */}
+                    <button
+                        onClick={() => setShowRecovery(true)}
+                        className="bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 p-3 px-5 rounded-xl flex items-center gap-2 hover:bg-indigo-500/20 transition-colors"
+                        title="Recover previous session data"
+                    >
+                        <RefreshCcw className="w-4 h-4" /> Recovery
+                    </button>
+
                     <button
                         onClick={onClearHistory}
                         disabled={syncStatus.mode === 'client'}
@@ -149,8 +164,8 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                                 onClick={onPushData}
                                 disabled={isSyncing}
                                 className={`p-3 px-5 rounded-xl border flex items-center gap-2 transition-colors ${isSyncing
-                                        ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300 cursor-not-allowed'
-                                        : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20'
+                                    ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300 cursor-not-allowed'
+                                    : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20'
                                     }`}
                                 title="Push local data to Host"
                             >
@@ -199,6 +214,12 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                     )}
                 </div>
             </header>
+
+            <DataRecoveryModal
+                isOpen={showRecovery}
+                onClose={() => setShowRecovery(false)}
+                onRestore={onRestore}
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <StatCard label={t('dashboard.liveSync')} value={apiSettings.enabled ? t('common.active') : t('common.disabled')} colorClass={apiSettings.enabled ? "text-emerald-400" : "text-slate-500"} icon={<RefreshCcw className={`w-4 h-4 ${apiSettings.enabled ? 'animate-spin-slow' : ''}`} />} />
