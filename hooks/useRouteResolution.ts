@@ -148,6 +148,9 @@ export const useRouteResolution = ({
                             // User request: "If matched blacklist, print this string out"
 
                             if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
+                                // STRICT REQUIREMENT: If condition fails (blacklist or not whitelisted), PRINT NOTHING.
+                                console.log('[PrintCondition] Item filtered/blocked. Enforcing SILENCE (No Print).');
+                                /* 
                                 if (checkResult.reason?.includes('Blocked by Blacklist')) {
                                     // It's a Blacklisted item (Special Exception) -> Print with custom labels
                                     console.log('[PrintCondition] Printing SPECIAL EXCEPTION for blocked item');
@@ -158,6 +161,7 @@ export const useRouteResolution = ({
                                     // We explicitly enforce NO PRINT here.
                                     console.log('[PrintCondition] Item filtered (not in whitelist). Skipping print.');
                                 }
+                                */
                             }
 
                             // Record to history as filtered exception
@@ -326,7 +330,9 @@ export const useRouteResolution = ({
                         console.log(`[PrintCondition] Order ${targetId} filtered: ${checkResult.reason}`);
                         // Print exception label (skip for remote scans)
                         if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
-                            labelPrintService.queueExceptionPrint(targetId);
+                            // STRICT REQUIREMENT: Fail condition -> No Print.
+                            console.log('[PrintCondition] Filtered order. Skipping print.');
+                            // labelPrintService.queueExceptionPrint(targetId);
                         }
                         // Show as filtered exception
                         const exceptionResult: ResolvedRouteInfo = {

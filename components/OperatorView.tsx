@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { Package, RotateCcw, Box, Scan, Printer, ChevronDown, Check, Wifi, WifiOff } from 'lucide-react';
 import { ResolvedRouteInfo, ApiSettings, OrderEventStatus, EventType } from '../types';
 import { ConnectionStatus } from '../services/LanSyncService';
@@ -110,6 +110,18 @@ const OperatorView: React.FC<OperatorViewProps> = ({
         };
     });
 
+    // Filter history entries to only show "my" scans
+    const filteredHistoryEntries = useMemo(() => {
+        return historyEntries.filter(entry => {
+            // Client mode: Show scans where scannedBy matches my clientName
+            if (connectionStatus?.mode === 'client') {
+                return entry.scannedBy === connectionStatus.clientName;
+            }
+            // Host/Standalone mode: Show scans where scannedBy is empty/undefined (local) OR explicitly 'Host'
+            return !entry.scannedBy || entry.scannedBy === 'Host';
+        });
+    }, [historyEntries, connectionStatus]);
+
     // Progressive loading for activity stream
     const INITIAL_VISIBLE = 30;
     const LOAD_MORE_COUNT = 20;
@@ -119,13 +131,13 @@ const OperatorView: React.FC<OperatorViewProps> = ({
         const container = e.currentTarget;
         const scrollBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
         if (scrollBottom < 100) {
-            if (visibleCount < historyEntries.length) {
-                setVisibleCount(prev => Math.min(prev + LOAD_MORE_COUNT, historyEntries.length));
+            if (visibleCount < filteredHistoryEntries.length) {
+                setVisibleCount(prev => Math.min(prev + LOAD_MORE_COUNT, filteredHistoryEntries.length));
             }
         }
-    }, [historyEntries.length, visibleCount]);
+    }, [filteredHistoryEntries.length, visibleCount]);
 
-    const visibleHistoryEntries = historyEntries.slice(0, visibleCount);
+    const visibleHistoryEntries = filteredHistoryEntries.slice(0, visibleCount);
 
     const currentHasFailed = currentResult?.operationStatus === 'fail' || currentResult?.operationStatus === 'error' || error !== null;
 
@@ -227,7 +239,7 @@ const OperatorView: React.FC<OperatorViewProps> = ({
                             {t('operator.activityStream')}
                         </h2>
                         <div className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs font-mono text-slate-400">
-                            {Object.keys(operationLog).length} {t('operator.events')}
+                            {filteredHistoryEntries.length} {t('operator.events')}
                         </div>
                     </div>
                     <div

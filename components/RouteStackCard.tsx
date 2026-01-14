@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Package, Printer, CheckCircle, Database, Trash2 } from 'lucide-react';
+import { Package, Printer, CheckCircle, Database, Trash2, X } from 'lucide-react';
 import { RouteStack } from '../types';
 import LabelPrintDialog from './LabelPrintDialog';
 import { labelPrintService } from '../services/LabelPrintService';
@@ -113,6 +113,7 @@ const generateLabelImage = (route: string | undefined | null, stackNumber: numbe
 
 const RouteStackCard: React.FC<RouteStackCardProps> = ({ stack, onClick, onContextMenu, onDelete, selected }) => {
     const [showDialog, setShowDialog] = useState(false);
+    const [showBreakdown, setShowBreakdown] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const fillPercentage = Math.min(((stack.activeValue ?? stack.orders.length) / (stack.activeCapacity ?? stack.capacity)) * 100, 100);
 
@@ -301,7 +302,7 @@ const RouteStackCard: React.FC<RouteStackCardProps> = ({ stack, onClick, onConte
                 </div>
 
                 {/* Progress Circle (Center) */}
-                <div className="flex-1 flex items-center justify-center py-2">
+                <div className="flex-1 flex items-center justify-center py-2 relative">
                     <div className="relative w-32 h-32 flex items-center justify-center">
                         {/* Background Circle */}
                         <svg className="absolute w-full h-full transform -rotate-90">
@@ -328,14 +329,67 @@ const RouteStackCard: React.FC<RouteStackCardProps> = ({ stack, onClick, onConte
                             />
                         </svg>
 
-                        {/* Center Text */}
-                        <div className="flex flex-col items-center">
-                            <span className="text-3xl font-black text-white">{stack.activeValue ?? stack.orders.length}</span>
-                            <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
+                        {/* Center Text - Clickable for Breakdown */}
+                        <div
+                            className="flex flex-col items-center cursor-pointer z-10 group/center"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setShowBreakdown(!showBreakdown);
+                            }}
+                            title="Click to see per-device breakdown"
+                        >
+                            <span className="text-3xl font-black text-white group-hover/center:text-sky-400 transition-colors">
+                                {stack.activeValue ?? stack.orders.length}
+                            </span>
+                            <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider group-hover/center:text-sky-500/70 transition-colors">
                                 / {stack.activeCapacity ?? stack.capacity} {stack.activeUnit || 'pcs'}
                             </span>
                         </div>
                     </div>
+
+                    {/* Contribution Breakdown Popover */}
+                    {showBreakdown && (
+                        <div
+                            className="absolute top-full mt-2 w-48 bg-slate-900 border border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden transform -translate-y-2 animate-in fade-in zoom-in-95 duration-200"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="bg-slate-800/50 px-3 py-2 border-b border-slate-700 flex justify-between items-center">
+                                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Contributions</span>
+                                <button onClick={() => setShowBreakdown(false)} className="text-slate-500 hover:text-white">
+                                    <X className="w-3 h-3" />
+                                </button>
+                            </div>
+                            <div className="p-2 max-h-40 overflow-y-auto">
+                                {(() => {
+                                    const contributions = new Map<string, number>();
+                                    stack.orders.forEach(o => {
+                                        // Normalize scannedBy: undefined/empty -> 'Host'
+                                        const source = o.scannedBy || 'Host';
+                                        contributions.set(source, (contributions.get(source) || 0) + 1);
+                                    });
+
+                                    const sorted = Array.from(contributions.entries()).sort((a, b) => b[1] - a[1]);
+
+                                    if (sorted.length === 0) return <div className="text-xs text-slate-500 text-center py-1">No data</div>;
+
+                                    return (
+                                        <div className="space-y-1">
+                                            {sorted.map(([source, count], idx) => (
+                                                <div key={idx} className="flex justify-between items-center text-xs px-1">
+                                                    <span className={`font-medium ${source === 'Host' ? 'text-sky-400' : 'text-slate-300'}`}>
+                                                        {source}
+                                                    </span>
+                                                    <span className="font-mono text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">
+                                                        {count}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Footer Status */}
