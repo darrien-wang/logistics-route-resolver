@@ -102,6 +102,13 @@ export interface ResolvedRouteInfo extends OrderData {
     activeUnit?: string;      // Display unit (e.g., 'pcs', 'lb', 'ft³')
     activeMeasure?: 'count' | 'weight' | 'volume'; // The measure type determines the rule logic
   };
+  // 打印时锁定的 Stack 信息 (一旦设置不可更改)
+  // This is the AUTHORITATIVE stack assignment - once printed, this is final
+  printedStack?: {
+    routeName: string;      // 打印时的路线名
+    stackNumber: number;    // 打印时的栈编号
+    printedAt: string;      // 打印时间 (ISO string)
+  };
   // Overflow source tracking - set when order is moved to overflow pool
   overflowSource?: {
     route: string;

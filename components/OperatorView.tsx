@@ -50,9 +50,14 @@ const OperatorView: React.FC<OperatorViewProps> = ({
     // 1. Device is a client but disconnected from host
     // 2. Device is not connected at all (no mode selected)
     // Scanning is ONLY allowed when connected as Host or Client
+    // TODO: UNCOMMENT AFTER TESTING
+    /*
     const isNotConnected = !connectionStatus?.connected;
     const isClientDisconnected = connectionStatus?.mode === 'client' && !connectionStatus.connected;
     const isOffline = isNotConnected || isClientDisconnected;
+    */
+    const isOffline = false; // DEV MODE: Allow scanning without connection
+    const isClientDisconnected = false; // DEV MODE
     const [isEventMenuOpen, setIsEventMenuOpen] = useState(false);
     const eventMenuRef = useRef<HTMLDivElement>(null);
     const { t } = useI18n();

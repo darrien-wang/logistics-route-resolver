@@ -102,10 +102,18 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
             processedOrderIds.add(order.orderId);
             allOrdersMap.set(order.orderId, order);
 
-            const route = order.route?.routeConfiguration;
+            // Use printedStack as the AUTHORITATIVE stack assignment if available
+            // This ensures orders are grouped by the stack number they were printed with
+            const route = order.printedStack?.routeName || order.route?.routeConfiguration;
             if (route) {
-                if (!routeOrdersMap.has(route)) routeOrdersMap.set(route, []);
-                routeOrdersMap.get(route)!.push(order);
+                // Create a unique key combining route + stack number for proper grouping
+                // Orders with printedStack go to their locked stack
+                // Orders without printedStack are grouped by route only (will be assigned to implicit stacks)
+                const stackKey = order.printedStack
+                    ? `${route}|${order.printedStack.stackNumber}`
+                    : route;
+                if (!routeOrdersMap.has(stackKey)) routeOrdersMap.set(stackKey, []);
+                routeOrdersMap.get(stackKey)!.push(order);
             } else {
                 let reason = 'Unknown';
                 if (!order.zipCode) reason = 'No zip code';
@@ -264,15 +272,26 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
             });
         };
 
-        routeOrdersMap.forEach((orders, route) => {
+        routeOrdersMap.forEach((orders, stackKey) => {
+            // Parse the stackKey - could be "route" or "route|stackNumber"
+            const [routeName, lockedStackNumStr] = stackKey.split('|');
+            const lockedStackNum = lockedStackNumStr ? parseInt(lockedStackNumStr, 10) : null;
+
             // Filter out orders that are already in explicit stacks
             const unclaimedOrders = orders.filter(o => !claimedOrderIds.has(o.orderId));
 
             if (unclaimedOrders.length > 0) {
-                // VISUAL ACCUMULATION LOGIC:
+                // If orders have a locked stack number from printedStack, use it directly
+                if (lockedStackNum !== null) {
+                    // These orders already have a locked stack assignment from printedStack
+                    createImplicitStack(routeName, lockedStackNum, unclaimedOrders);
+                    return;
+                }
+
+                // VISUAL ACCUMULATION LOGIC (for orders without printedStack):
                 // Check if there is an existing ACTIVE explicit stack we can append to
                 const explicitStacks = tempStacks
-                    .filter(s => s.route === route)
+                    .filter(s => s.route === routeName)
                     .sort((a, b) => a.stackNumber - b.stackNumber);
 
                 let currentStackNum = 1;
@@ -281,7 +300,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                     const lastExplicitStack = explicitStacks[explicitStacks.length - 1];
                     currentStackNum = lastExplicitStack.stackNumber + 1; // Default next stack number
 
-                    console.log(`[StackMerge] Unclaimed orders for ${route}: ${unclaimedOrders.length}`, {
+                    console.log(`[StackMerge] Unclaimed orders for ${routeName}: ${unclaimedOrders.length}`, {
                         explicitStackId: lastExplicitStack.id,
                         status: lastExplicitStack.status,
                         isFull: lastExplicitStack.isFull,
@@ -358,7 +377,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
 
                         // Check if adding this order would exceed capacity
                         if (currentStackOrders.length > 0 && (currentStackValue + orderValue > splitRule.value)) {
-                            createImplicitStack(route, currentStackNum, currentStackOrders);
+                            createImplicitStack(routeName, currentStackNum, currentStackOrders);
                             currentStackNum++;
                             currentStackOrders = [];
                             currentStackValue = 0;
@@ -369,7 +388,7 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                     });
 
                     if (currentStackOrders.length > 0) {
-                        createImplicitStack(route, currentStackNum, currentStackOrders);
+                        createImplicitStack(routeName, currentStackNum, currentStackOrders);
                     }
                 }
             }
@@ -951,9 +970,12 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
             for (const stack of renderableStacks) {
                 const found = stack.orders.find(o => o.orderId.toUpperCase() === searchId);
                 if (found) {
+                    // Use order's printedStack as AUTHORITATIVE source (if available)
+                    const routeName = found.printedStack?.routeName || stack.route;
+                    const stackNum = found.printedStack?.stackNumber || stack.stackNumber;
                     return {
                         orderId: searchId,
-                        stackName: `${stack.route} #${stack.stackNumber}`,
+                        stackName: `${routeName} #${stackNum}`,
                         stackType: stack.type === 'merged' ? 'Merged' : stack.type === 'overflow' ? 'Overflow' : 'Normal',
                         found: true
                     };

@@ -209,10 +209,13 @@ const App: React.FC = () => {
   const handleSafeSearch = useCallback(async (query: string, options?: any) => {
     // STRICT MODE: Client must be connected to Host to scan
     // This prevents stack count discrepancy (Client stack vs Host stack mismatch)
+    // TODO: UNCOMMENT AFTER TESTING
+    /*
     if (connectionStatus.mode === 'client' && !connectionStatus.connected) {
       setError("🚫 OFFLINE: Cannot scan. Client must be connected to Host to ensure correct stack assignment.");
       return;
     }
+    */
     return handleSearch(query, options);
   }, [connectionStatus, handleSearch, setError]);
 

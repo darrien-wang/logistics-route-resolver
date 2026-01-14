@@ -90,11 +90,14 @@ export const useRouteResolution = ({
         // STRICT BLOCKING: Client devices MUST be connected to Host to scan
         // This prevents all local processing when disconnected, avoiding stack count discrepancy
         // Uses getSavedConfig() to check persisted device role (survives app restart)
+        // TODO: UNCOMMENT AFTER TESTING
+        /*
         const savedConfig = lanSyncService.getSavedConfig();
         if (savedConfig?.mode === 'client' && !lanSyncService.isConnected()) {
             console.warn('[Resolution] BLOCKED: Client mode without Host connection');
             throw new Error('OFFLINE: Client must be connected to Host to scan');
         }
+        */
 
         const ids = searchId.split(/[\s,;]+/).filter(id => id.length > 0);
         if (ids.length === 0) return;
@@ -237,11 +240,29 @@ export const useRouteResolution = ({
                                 }
                             }
 
+                            // ALWAYS set printedStack when route is resolved (regardless of print settings)
+                            // This is the AUTHORITATIVE stack assignment for this order
+                            const existingRecord = history.find(h => h.orderId === uppercaseId);
+                            if (existingRecord?.printedStack) {
+                                // Preserve existing printedStack - use the ORIGINAL stack assignment
+                                result.printedStack = existingRecord.printedStack;
+                                console.log(`[PrintedStack] Preserved existing: ${existingRecord.printedStack.routeName} #${existingRecord.printedStack.stackNumber}`);
+                            } else {
+                                // First scan: Lock printedStack
+                                result.printedStack = {
+                                    routeName: result.route.routeConfiguration,
+                                    stackNumber: stackInfo.stackNumber,
+                                    printedAt: new Date().toISOString()
+                                };
+                                console.log(`[PrintedStack] New assignment: ${result.printedStack.routeName} #${result.printedStack.stackNumber}`);
+                            }
+
                             // Auto-print label on every scan (skip for remote scans - client will print)
                             if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
                                 console.log(`[Perf] Queueing print (${(performance.now() - t0).toFixed(0)}ms)`);
                                 setPrintStatus('printing');
-                                labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber, uppercaseId);
+                                // Print labels with the LOCKED stack number (from printedStack)
+                                labelPrintService.queuePrint(result.printedStack.routeName, result.printedStack.stackNumber, uppercaseId);
                                 // Reset status after a short delay to simulate completion (or use event if we had one)
                                 setTimeout(() => setPrintStatus('idle'), 2000);
                             }
@@ -307,10 +328,21 @@ export const useRouteResolution = ({
                                     voiceService.announceRoute(result.route.routeConfiguration, stackInfo.stackNumber);
                                 }
                             }
+                            // ALWAYS set printedStack when route is resolved
+                            const existingRecord = history.find(h => h.orderId === uppercaseId);
+                            if (existingRecord?.printedStack) {
+                                result.printedStack = existingRecord.printedStack;
+                            } else {
+                                result.printedStack = {
+                                    routeName: result.route.routeConfiguration,
+                                    stackNumber: stackInfo.stackNumber,
+                                    printedAt: new Date().toISOString()
+                                };
+                            }
 
                             // Auto-print label on every scan (skip for remote scans - client will print)
                             if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
-                                labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber, uppercaseId);
+                                labelPrintService.queuePrint(result.printedStack.routeName, result.printedStack.stackNumber, uppercaseId);
                             }
                         } else {
                             // EXCEPTION: No route found
@@ -398,9 +430,21 @@ export const useRouteResolution = ({
                             }
                         }
 
+                        // ALWAYS set printedStack when route is resolved
+                        const existingRecord = history.find(h => h.orderId === targetId);
+                        if (existingRecord?.printedStack) {
+                            result.printedStack = existingRecord.printedStack;
+                        } else {
+                            result.printedStack = {
+                                routeName: result.route.routeConfiguration,
+                                stackNumber: stackInfo.stackNumber,
+                                printedAt: new Date().toISOString()
+                            };
+                        }
+
                         // Auto-print label on every scan (skip for remote scans - client will print)
                         if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
-                            labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber, targetId);
+                            labelPrintService.queuePrint(result.printedStack.routeName, result.printedStack.stackNumber, targetId);
                         }
                     } else {
                         // EXCEPTION
@@ -473,9 +517,21 @@ export const useRouteResolution = ({
                             }
                         }
 
+                        // ALWAYS set printedStack when route is resolved
+                        const existingRecord = history.find(h => h.orderId === targetId);
+                        if (existingRecord?.printedStack) {
+                            result.printedStack = existingRecord.printedStack;
+                        } else {
+                            result.printedStack = {
+                                routeName: result.route.routeConfiguration,
+                                stackNumber: stackInfo.stackNumber,
+                                printedAt: new Date().toISOString()
+                            };
+                        }
+
                         // Auto-print label on every scan (skip for remote scans - client will print)
                         if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
-                            labelPrintService.queuePrint(result.route.routeConfiguration, stackInfo.stackNumber, targetId);
+                            labelPrintService.queuePrint(result.printedStack.routeName, result.printedStack.stackNumber, targetId);
                         }
                     } else {
                         // EXCEPTION

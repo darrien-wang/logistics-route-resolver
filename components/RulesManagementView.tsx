@@ -24,11 +24,68 @@ const RulesManagementView: React.FC<RulesManagementViewProps> = ({ dataSource, o
     const [searchTerm, setSearchTerm] = useState('');
     const [editingZip, setEditingZip] = useState<string | null>(null);
     const [editValue, setEditValue] = useState('');
+    const [isDragOver, setIsDragOver] = useState(false);
     const { t } = useI18n();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Refresh records when dataSource changes (handles async Excel loading)
     const refreshRecords = () => setRecords([...dataSource.getAllRecords()]);
+
+    // Process dropped or selected file
+    const processFile = useCallback((file: File) => {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            const bstr = evt.target?.result;
+            const wb = XLSX.read(bstr, { type: 'binary' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const data: any[] = XLSX.utils.sheet_to_json(ws);
+            const newRecords: ZipRouteRecord[] = data.map(row => ({
+                zip: (row['Ship-to Zipcodes'] || row['Zipcode'] || row['邮编'] || "").toString(),
+                metroArea: row['Metro Area'] || row['城市'] || "",
+                state: row['State'] || row['州'] || "",
+                destinationZone: (row['Destination Zone'] || row['目的地区'] || "").toString(),
+                routeConfiguration: row['Route Configuration'] || row['线路'] || "",
+                route2Configuration: row['ROUTE2 Configuration'] || row['线路2'] || ""
+            })).filter(r => r.zip);
+            if (newRecords.length > 0) {
+                dataSource.updateData(newRecords, file.name);
+                refreshRecords();
+                alert(`✅ Imported ${newRecords.length} rules from ${file.name}`);
+            } else {
+                alert('⚠️ No valid records found in file');
+            }
+        };
+        reader.readAsBinaryString(file);
+    }, [dataSource]);
+
+    // Drag and Drop handlers
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragOver(true);
+    }, []);
+
+    const handleDragLeave = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragOver(false);
+    }, []);
+
+    const handleDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragOver(false);
+
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            const file = files[0];
+            if (file.name.match(/\.(xlsx|xls|csv)$/i)) {
+                processFile(file);
+            } else {
+                alert('⚠️ Please drop an Excel file (.xlsx, .xls, .csv)');
+            }
+        }
+    }, [processFile]);
 
     // Poll for data source updates on mount (Excel loads async)
     useEffect(() => {
@@ -98,7 +155,21 @@ const RulesManagementView: React.FC<RulesManagementViewProps> = ({ dataSource, o
     };
 
     return (
-        <div className="flex flex-col space-y-8 animate-in fade-in duration-500">
+        <div
+            className={`flex flex-col space-y-8 animate-in fade-in duration-500 relative ${isDragOver ? 'ring-4 ring-sky-500 ring-opacity-50' : ''}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+        >
+            {/* Drag Overlay */}
+            {isDragOver && (
+                <div className="absolute inset-0 bg-sky-500/20 backdrop-blur-sm z-50 rounded-3xl flex flex-col items-center justify-center border-4 border-dashed border-sky-400 pointer-events-none">
+                    <Upload className="w-16 h-16 text-sky-400 mb-4 animate-bounce" />
+                    <p className="text-sky-400 font-bold text-xl">Drop Excel file to import rules</p>
+                    <p className="text-sky-400/70 text-sm mt-2">.xlsx, .xls, .csv</p>
+                </div>
+            )}
+
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">{t('rules.title')}</h1>
