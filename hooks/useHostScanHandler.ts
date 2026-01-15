@@ -2,15 +2,13 @@
  * useHostScanHandler - Handles REST API scan requests when in Host mode
  * 
  * Listens for scan requests from the REST API server (via IPC) and
- * processes them using the local route resolution logic.
- * 
- * NOTE: This hook does NOT use RestApiContext to avoid circular dependency.
- * It monitors window.restApi directly.
+ * processes them using the provided scan handler, which should use
+ * the same route resolution logic as local scans.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { routeStackService } from '../services/RouteStackService';
-import { FlexibleDataSource } from '../services/RouteService';
+import { ResolvedRouteInfo } from '../types';
 
 interface ScanRequest {
     orderId: string;
@@ -47,7 +45,12 @@ interface ScanResult {
     isException?: boolean;
 }
 
-export function useHostScanHandler(dataSource: FlexibleDataSource) {
+export interface HostScanHandlerProps {
+    // Function to process a scan and return result - should use same logic as local scan
+    onScan: (orderId: string, clientName?: string) => Promise<ResolvedRouteInfo>;
+}
+
+export function useHostScanHandler({ onScan }: HostScanHandlerProps) {
     const cleanupRef = useRef<(() => void) | null>(null);
     const isSetupRef = useRef(false);
 
@@ -68,39 +71,33 @@ export function useHostScanHandler(dataSource: FlexibleDataSource) {
             const orderId = request.orderId.toUpperCase();
 
             try {
-                // Resolve route using local dataSource
-                const routeInfo = await dataSource.getRouteByZip(orderId);
+                // Use the provided onScan handler to process - this uses the same
+                // route resolution logic as local scans (middleware chain, API lookup, etc.)
+                const resolvedInfo = await onScan(orderId, request.clientName);
 
-                if (routeInfo && routeInfo.routeConfiguration) {
-                    // Add to stack
-                    const stackInfo = routeStackService.addToStack(
-                        routeInfo.routeConfiguration,
-                        orderId,
-                        {
-                            weight: request.dimensions?.weight || 0,
-                            volume: request.dimensions?.volume || 0
-                        }
-                    );
+                if (resolvedInfo.route && resolvedInfo.route.routeConfiguration) {
+                    // Success - route found
+                    const stackInfo = resolvedInfo.stackInfo;
 
                     const result: ScanResult = {
                         success: true,
                         orderId: orderId,
                         route: {
-                            routeName: routeInfo.routeConfiguration,
-                            metroArea: routeInfo.metroArea || '',
-                            state: routeInfo.state || '',
-                            destinationZone: routeInfo.destinationZone || '',
+                            routeName: resolvedInfo.route.routeConfiguration,
+                            metroArea: resolvedInfo.route.metroArea || '',
+                            state: resolvedInfo.route.state || '',
+                            destinationZone: resolvedInfo.route.destinationZone || '',
                         },
-                        stack: {
+                        stack: stackInfo ? {
                             stackNumber: stackInfo.stackNumber,
                             currentCount: stackInfo.currentCount,
                             capacity: stackInfo.capacity,
                             isStackFull: stackInfo.isStackFull,
                             isNewStack: stackInfo.isNewStack,
-                        },
+                        } : undefined,
                         printData: {
-                            routeName: routeInfo.routeConfiguration,
-                            stackNumber: stackInfo.stackNumber,
+                            routeName: resolvedInfo.route.routeConfiguration,
+                            stackNumber: stackInfo?.stackNumber || 1,
                             trackingNumber: orderId,
                             dateStr: new Date().toLocaleDateString('en-US', {
                                 month: '2-digit',
@@ -115,10 +112,10 @@ export function useHostScanHandler(dataSource: FlexibleDataSource) {
                 } else {
                     // No route found - exception
                     const result: ScanResult = {
-                        success: true, // Still successful, just no route
+                        success: true,
                         orderId: orderId,
                         isException: true,
-                        error: 'No route found for order ID',
+                        error: resolvedInfo.exceptionReason || 'No route found for order ID',
                     };
 
                     console.log('[HostScanHandler] Exception result:', result);
@@ -144,7 +141,7 @@ export function useHostScanHandler(dataSource: FlexibleDataSource) {
                 isSetupRef.current = false;
             }
         };
-    }, [dataSource]);
+    }, [onScan]);
 }
 
 export default useHostScanHandler;

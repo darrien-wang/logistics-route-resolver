@@ -194,7 +194,41 @@ const App: React.FC = () => {
   });
 
   // REST API Host mode: Handle scan requests from client devices
-  useHostScanHandler(dataSource);
+  // Creates a callback that processes scan using normal flow and returns result
+  const handleHostScan = useCallback(async (orderId: string, clientName?: string): Promise<ResolvedRouteInfo> => {
+    return new Promise((resolve) => {
+      // Trigger normal scan flow with remote scan flag
+      handleSearch(orderId, { isRemoteScan: true, clientId: clientName || 'Client' });
+
+      // Wait for result to appear in history (set by handleSearch)
+      // Poll for result since handleSearch updates state asynchronously
+      const checkResult = () => {
+        const result = history.find(h => h.orderId === orderId.toUpperCase());
+        if (result) {
+          resolve(result);
+        } else {
+          // Retry after short delay
+          setTimeout(checkResult, 100);
+        }
+      };
+
+      // Start checking after 200ms (give handleSearch time to process)
+      setTimeout(checkResult, 200);
+
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        resolve({
+          orderId: orderId.toUpperCase(),
+          address: '',
+          date: new Date().toLocaleDateString(),
+          resolvedAt: new Date().toISOString(),
+          exceptionReason: 'Scan processing timeout',
+        });
+      }, 10000);
+    });
+  }, [handleSearch, history]);
+
+  useHostScanHandler({ onScan: handleHostScan });
 
   // Simplified handleSearch - no longer needs connection check
   // REST API architecture ensures server is authoritative
