@@ -147,14 +147,19 @@ export class HostServer {
                 this.messageHandler('client:connected', { clientId, clientName }, clientId);
             }
 
-            // Handle scan actions from client
-            socket.on(SYNC_EVENTS.ACTION_SCAN, (data) => {
+            // Handle scan actions from client (with acknowledgement)
+            socket.on(SYNC_EVENTS.ACTION_SCAN, (data, ackCallback) => {
                 console.log(`[HostServer] Received scan action from ${clientName} (${clientId}):`, data);
 
                 // Forward to main window (Host UI) for processing
                 // Include clientName so it can be displayed in Activity Stream
                 if (this.messageHandler) {
                     this.messageHandler(SYNC_EVENTS.ACTION_SCAN, { ...data, clientName }, clientId);
+                }
+
+                // Send acknowledgement back to client
+                if (typeof ackCallback === 'function') {
+                    ackCallback({ received: true });
                 }
             });
 

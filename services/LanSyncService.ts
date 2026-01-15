@@ -341,16 +341,62 @@ class LanSyncService {
 
     /**
      * Send scan action to Host (Client mode only)
+     * Uses acknowledgement callback to confirm Host received the message
+     * Returns Promise that resolves true if acknowledged, false if failed/timeout
      */
-    sendScanAction(action: ScanAction): void {
+    async sendScanAction(action: ScanAction): Promise<boolean> {
+        // Double-check: verify actual socket state, not just cached connectionStatus
+        // This catches edge cases where socket disconnected but React state hasn't updated yet
         if (this.mode !== 'client' || !this.socket?.connected) {
-            console.warn('[LanSync] Cannot send scan action - not in client mode or not connected');
-            return;
+            console.warn('[LanSync] Cannot send scan action - not in client mode or socket not connected');
+
+            // CRITICAL: If we thought we were connected but socket says otherwise,
+            // force update connectionStatus to sync UI immediately
+            if (this.connectionStatus.connected && this.mode === 'client') {
+                console.warn('[LanSync] Detected stale connection state - forcing disconnect status');
+                this.updateConnectionStatus({
+                    connected: false,
+                    mode: 'client',
+                    hostIp: this.config.hostIp,
+                    clientName: this.clientName,
+                });
+                this.emit(SYNC_EVENTS.DISCONNECT, { reason: 'socket_state_mismatch' });
+            }
+            return false;
         }
 
         const actionWithIdentity = { ...action, clientName: this.clientName };
         console.log('[LanSync] Sending scan action to Host:', actionWithIdentity);
-        this.socket.emit(SYNC_EVENTS.ACTION_SCAN, actionWithIdentity);
+
+        // Use acknowledgement callback with timeout for reliable delivery confirmation
+        return new Promise((resolve) => {
+            const TIMEOUT_MS = 3000; // 3 seconds timeout
+
+            const timeout = setTimeout(() => {
+                console.error('[LanSync] Scan action timeout - Host not responding');
+                // Force disconnect status since Host didn't respond
+                this.updateConnectionStatus({
+                    connected: false,
+                    mode: 'client',
+                    hostIp: this.config.hostIp,
+                    clientName: this.clientName,
+                });
+                this.emit(SYNC_EVENTS.DISCONNECT, { reason: 'scan_timeout' });
+                resolve(false);
+            }, TIMEOUT_MS);
+
+            // Emit with acknowledgement callback
+            this.socket!.emit(SYNC_EVENTS.ACTION_SCAN, actionWithIdentity, (ack: { received: boolean }) => {
+                clearTimeout(timeout);
+                if (ack?.received) {
+                    console.log('[LanSync] Scan action acknowledged by Host');
+                    resolve(true);
+                } else {
+                    console.warn('[LanSync] Host did not acknowledge scan action');
+                    resolve(false);
+                }
+            });
+        });
     }
 
     /**

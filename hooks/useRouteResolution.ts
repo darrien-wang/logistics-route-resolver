@@ -102,19 +102,41 @@ export const useRouteResolution = ({
         // REMOVED HARCODED ZX/WP CHECK - Handled by Print Mapping Conditions
 
         // CLIENT MODE: Send scan action to Host instead of processing locally
+        // Fire all scans in parallel (non-blocking), handle failures asynchronously
         if (lanSyncService.isClient() && lanSyncService.isConnected()) {
-            console.log(`[LanSync] CLIENT mode: Sending scan to Host: ${ids.join(', ')}`);
+            console.log(`[LanSync] CLIENT mode: Sending ${ids.length} scan(s) to Host in parallel`);
+
             for (const id of ids) {
                 const upperId = id.toUpperCase();
                 // Register pending so we can update currentResult (and print) when result comes back from Host
                 lanSyncService.registerPendingPrint(upperId);
+
+                // Fire-and-forget: send scan action without blocking
+                // Handle failure asynchronously - print exception if Host doesn't respond
                 lanSyncService.sendScanAction({
                     orderId: upperId,
                     routeName: '', // Will be resolved by Host
                     timestamp: Date.now(),
+                }).then(acknowledged => {
+                    if (!acknowledged) {
+                        // Host didn't respond - clear pending and print exception
+                        console.error(`[LanSync] Scan failed for ${upperId} - printing exception`);
+                        lanSyncService.clearPendingPrint(upperId);
+
+                        // Print exception label for this failed scan
+                        if (apiSettings.autoPrintLabelEnabled) {
+                            labelPrintService.queueExceptionPrint(upperId, true, 'OFFLINE', 'HOST NOT RESPONDING');
+                        }
+
+                        // Voice feedback for failure
+                        if (apiSettings.voiceEnabled) {
+                            voiceService.playError();
+                        }
+                    }
                 });
             }
-            // Clear input and wait for Host to broadcast result
+
+            // Clear input immediately (don't wait for acknowledgements)
             setOrderId('');
             return;
         }
