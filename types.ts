@@ -248,7 +248,19 @@ declare global {
         stackNumber?: number;
         trackingNumber?: string;
         orderId?: string;
+        dateStr?: string;
       }) => Promise<any>;
+    };
+    restApi?: {
+      startServer: (port?: number) => Promise<SyncServerInfo>;
+      stopServer: () => Promise<void>;
+      getServerStatus: () => Promise<{ running: boolean; serverInfo: SyncServerInfo | null }>;
+      onScanRequest: (callback: (data: { requestId: string; request: any }) => void) => () => void;
+      sendScanResponse: (requestId: string, result: any) => void;
+      onStacksRequest: (callback: (data: { requestId: string }) => void) => () => void;
+      sendStacksResponse: (requestId: string, stacks: any[]) => void;
+      onHistoryRequest: (callback: (data: { requestId: string; limit?: number }) => void) => () => void;
+      sendHistoryResponse: (requestId: string, history: any[]) => void;
     };
   }
 }// --- Stack Definition (for persistence) ---

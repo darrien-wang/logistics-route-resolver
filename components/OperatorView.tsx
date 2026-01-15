@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { Package, RotateCcw, Box, Scan, Printer, ChevronDown, Check, Wifi, WifiOff } from 'lucide-react';
+import { Package, RotateCcw, Box, Scan, Printer, ChevronDown, Check } from 'lucide-react';
 import { ResolvedRouteInfo, ApiSettings, OrderEventStatus, EventType } from '../types';
-import { ConnectionStatus } from '../services/LanSyncService';
 import { ExcelExportService } from '../services/ExportService';
 import { voiceService } from '../services/VoiceService';
 import { useI18n } from '../contexts/I18nContext';
@@ -23,7 +22,6 @@ interface OperatorViewProps {
     onToggleEventType: (type: EventType) => void;
     onOrderIdChange: (id: string) => void;
     onSearch: (id: string) => void;
-    connectionStatus?: ConnectionStatus;
 }
 
 const OperatorView: React.FC<OperatorViewProps> = ({
@@ -43,16 +41,7 @@ const OperatorView: React.FC<OperatorViewProps> = ({
     onToggleEventType,
     onOrderIdChange,
     onSearch,
-    connectionStatus
 }) => {
-
-    // Block scanning if:
-    // 1. Device is a client but disconnected from host
-    // 2. Device is not connected at all (no mode selected)
-    // Scanning is ONLY allowed when connected as Host or Client
-    const isNotConnected = !connectionStatus?.connected;
-    const isClientDisconnected = connectionStatus?.mode === 'client' && !connectionStatus.connected;
-    const isOffline = isNotConnected || isClientDisconnected;
     const [isEventMenuOpen, setIsEventMenuOpen] = useState(false);
     const eventMenuRef = useRef<HTMLDivElement>(null);
     const { t } = useI18n();
@@ -109,18 +98,10 @@ const OperatorView: React.FC<OperatorViewProps> = ({
             scannedBy: historyEntry?.scannedBy
         };
     });
-
-    // Filter history entries to only show "my" scans
+    // Filter history entries - show all in REST API architecture
     const filteredHistoryEntries = useMemo(() => {
-        return historyEntries.filter(entry => {
-            // Client mode: Show scans where scannedBy matches my clientName
-            if (connectionStatus?.mode === 'client') {
-                return entry.scannedBy === connectionStatus.clientName;
-            }
-            // Host/Standalone mode: Show scans where scannedBy is empty/undefined (local) OR explicitly 'Host'
-            return !entry.scannedBy || entry.scannedBy === 'Host';
-        });
-    }, [historyEntries, connectionStatus]);
+        return historyEntries;
+    }, [historyEntries]);
 
     // Progressive loading for activity stream
     const INITIAL_VISIBLE = 30;
@@ -143,24 +124,12 @@ const OperatorView: React.FC<OperatorViewProps> = ({
 
     return (
         <div className="flex flex-col h-full bg-slate-950 text-slate-100 overflow-hidden font-sans selection:bg-sky-500/30">
-            {/* Offline Banner */}
-            {isOffline && (
-                <div className="bg-red-600 px-6 py-2 flex items-center justify-center gap-3 animate-pulse shadow-lg z-30">
-                    <WifiOff className="w-5 h-5 text-white" />
-                    <span className="font-bold text-white tracking-wider">
-                        {isClientDisconnected
-                            ? t('network.offlineReconnecting')
-                            : t('network.pleaseConnect')}
-                    </span>
-                </div>
-            )}
-
             {/* Top Bar: Input Area */}
             <div className="flex-none p-6 bg-slate-900 border-b border-slate-800 shadow-xl z-20">
                 <div className="max-w-7xl mx-auto w-full flex gap-6 items-center">
                     <div className="relative flex-1 group">
-                        <div className={`absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none transition-colors duration-300 ${loading ? 'text-sky-400' : isOffline ? 'text-red-500' : 'text-slate-500 group-focus-within:text-sky-400'}`}>
-                            {isOffline ? <WifiOff className="w-8 h-8" /> : <Scan className={`w-8 h-8 ${loading ? 'animate-pulse' : ''}`} />}
+                        <div className={`absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none transition-colors duration-300 ${loading ? 'text-sky-400' : 'text-slate-500 group-focus-within:text-sky-400'}`}>
+                            <Scan className={`w-8 h-8 ${loading ? 'animate-pulse' : ''}`} />
                         </div>
                         <input
                             ref={scannerInputRef}
@@ -168,14 +137,10 @@ const OperatorView: React.FC<OperatorViewProps> = ({
                             value={orderId}
                             onChange={(e) => onOrderIdChange(e.target.value)}
                             onKeyDown={handleKeyDown}
-                            className={`block w-full pl-20 pr-48 py-6 bg-slate-950 border-2 rounded-2xl text-4xl font-bold transition-all shadow-inner tracking-wide uppercase ${isOffline
-                                ? 'border-red-900/50 text-red-500 placeholder-red-800/50 cursor-not-allowed'
-                                : 'border-slate-800 text-white placeholder-slate-600 focus:outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-500/20'
-                                }`}
-                            placeholder={isOffline ? t('network.offlinePaused') : t('operator.scanPlaceholder')}
+                            className="block w-full pl-20 pr-48 py-6 bg-slate-950 border-2 rounded-2xl text-4xl font-bold transition-all shadow-inner tracking-wide uppercase border-slate-800 text-white placeholder-slate-600 focus:outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-500/20"
+                            placeholder={t('operator.scanPlaceholder')}
                             autoComplete="off"
                             autoFocus
-                            disabled={isOffline}
                         />
                         {loading && (
                             <div className="absolute inset-y-0 right-40 pr-6 flex items-center">

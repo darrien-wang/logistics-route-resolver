@@ -5,7 +5,10 @@
  * to prevent blocking the scanning workflow.
  */
 
-import { lanSyncService } from './LanSyncService';
+// Helper function to get formatted date string
+function getDateString(): string {
+    return new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+}
 
 export interface PrintJobPerf {
     tEnqueue: number;
@@ -57,7 +60,7 @@ class LabelPrintService {
     generateLabelImage(baseRouteName: string, stackNumber: number): string {
         const cacheKey = `${baseRouteName}-${stackNumber}`;
         // Use synchronized time (matches host time in client mode)
-        const dateStr = lanSyncService.getSyncedDateString();
+        const dateStr = getDateString();
         const fullCacheKey = `${cacheKey}-${dateStr}`;
 
         if (this.imageCache.has(fullCacheKey)) {
@@ -162,7 +165,7 @@ class LabelPrintService {
     generateExceptionLabelImage(orderId: string, customTitle: string = 'EXCEPTION', customFooter: string = 'NO ROUTE'): string {
         // Cache exception labels by date + orderId + title
         // Use synchronized time (matches host time in client mode)
-        const dateStr = lanSyncService.getSyncedDateString();
+        const dateStr = getDateString();
         const cacheKey = `exception-${orderId}-${customTitle}-${dateStr}`;
 
         if (this.exceptionCache.has(cacheKey)) {
@@ -345,7 +348,7 @@ class LabelPrintService {
             job.perf.path = 'GDI';
             const tStart = performance.now();
             // Get synchronized date string for label
-            const dateStr = lanSyncService.getSyncedDateString();
+            const dateStr = getDateString();
             try {
                 if (job.type === 'exception' && job.orderId) {
                     await electronAPI.printGDI({

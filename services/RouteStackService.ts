@@ -11,7 +11,9 @@
  */
 
 import { StackCapacityConfig, StackCapacityRule, DEFAULT_CAPACITY_CONFIG } from '../types';
-import type { SyncMode } from './LanSyncService';
+
+// SyncMode type (previously from LanSyncService - now defined locally)
+export type SyncMode = 'host' | 'client' | 'standalone';
 
 export interface RouteStackInfo {
     stackNumber: number;

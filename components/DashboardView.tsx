@@ -1,20 +1,14 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
     Database,
     Download,
-    Upload,
     Key,
     Trash2,
     RefreshCcw,
     Activity,
     Package,
     Save,
-    Wifi,
-    WifiOff,
-    Server,
-    RotateCw
 } from 'lucide-react';
-import { lanSyncService, type ConnectionStatus } from '../services/LanSyncService';
 import { ResolvedRouteInfo, OrderEventStatus, EventType, ApiSettings } from '../types';
 import { FlexibleDataSource } from '../services/RouteService';
 import { ExcelExportService } from '../services/ExportService';
@@ -32,9 +26,6 @@ interface DashboardViewProps {
     onShowApiConfig: () => void;
     onFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
     onClearHistory: () => void;
-    isSyncing?: boolean;
-    onRequestSync?: (amount: 'full' | number) => void;
-    onPushData?: () => void;
 }
 
 const DashboardView: React.FC<DashboardViewProps> = ({
@@ -48,32 +39,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({
     onShowApiConfig,
     onFileUpload,
     onClearHistory,
-    isSyncing = false,
-    onRequestSync = (_: 'full' | number) => { },
-    onPushData = () => { }
 }) => {
-    const [syncStatus, setSyncStatus] = useState<ConnectionStatus>({
-        connected: false,
-        mode: 'standalone',
-    });
-
-    useEffect(() => {
-        // Get initial status
-        const initialStatus = lanSyncService.getStatus();
-        setSyncStatus(initialStatus);
-
-        // Subscribe to status updates
-        const handleStatusChange = (status: ConnectionStatus) => {
-            setSyncStatus(status);
-        };
-
-        lanSyncService.on('status', handleStatusChange);
-
-        return () => {
-            lanSyncService.off('status', handleStatusChange);
-        };
-    }, []);
-
     const { t } = useI18n();
 
     // Progressive loading for activity stream - only render visible items
@@ -109,94 +75,16 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                     <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest ${apiSettings.enabled ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-slate-800 border-white/5 text-slate-500'}`}>
                         <Database className="w-3 h-3" /> {apiSettings.enabled ? t('dashboard.remoteEngineOn') : t('dashboard.localOnly')}
                     </div>
-                    {syncStatus.connected && (
-                        <div className={`flex items-center gap-2 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest ${syncStatus.mode === 'host'
-                            ? 'bg-blue-500/10 border-blue-500/20 text-blue-400'
-                            : 'bg-green-500/10 border-green-500/20 text-green-400'
-                            }`}>
-                            {syncStatus.mode === 'host' ? (
-                                <>
-                                    <Server className="w-3 h-3" /> Host ({syncStatus.clientCount || 0})
-                                </>
-                            ) : (
-                                <>
-                                    <Wifi className="w-3 h-3" /> Client
-                                </>
-                            )}
-                        </div>
-                    )}
                 </div>
                 <div className="flex items-center gap-3">
                     <button onClick={onShowApiConfig} className="bg-slate-800 p-3 px-5 rounded-xl border border-white/5 flex items-center gap-2 hover:bg-slate-700 transition-colors"><Key className="w-4 h-4" /> {t('dashboard.apiConfig')}</button>
                     <button onClick={() => exportService.exportActivityLog(operationLog)} disabled={Object.keys(operationLog).length === 0} className="bg-sky-500 p-3 px-5 rounded-xl border border-sky-400/50 flex items-center gap-2 hover:bg-sky-400 transition-colors shadow-lg shadow-sky-500/20"><Download className="w-4 h-4" /> {t('dashboard.exportLog')}</button>
                     <button
                         onClick={onClearHistory}
-                        disabled={syncStatus.mode === 'client'}
-                        title={syncStatus.mode === 'client' ? 'Reset is disabled in Client mode' : ''}
-                        className={`p-3 px-5 rounded-xl border flex items-center gap-2 transition-colors ${syncStatus.mode === 'client'
-                            ? 'bg-slate-800 border-slate-700 text-slate-600 cursor-not-allowed'
-                            : 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20'
-                            }`}
+                        className="p-3 px-5 rounded-xl border flex items-center gap-2 transition-colors bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20"
                     >
                         <Trash2 className="w-4 h-4" /> {t('common.reset')}
                     </button>
-                    {/* Sync Request Button - Only visible in Client mode */}
-                    {/* Sync Request Button - Only visible in Client mode */}
-                    {syncStatus.mode === 'client' && (
-                        <div className="flex gap-2 items-center">
-                            {/* Push Data Button */}
-                            <button
-                                onClick={onPushData}
-                                disabled={isSyncing}
-                                className={`p-3 px-5 rounded-xl border flex items-center gap-2 transition-colors ${isSyncing
-                                        ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300 cursor-not-allowed'
-                                        : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20'
-                                    }`}
-                                title="Push local data to Host"
-                            >
-                                <Upload className={`w-4 h-4 ${isSyncing ? 'animate-bounce' : ''}`} />
-                                {t('common.push')}
-                            </button>
-
-                            <div className="relative group">
-                                <button
-                                    onClick={() => onRequestSync('full')}
-                                    disabled={isSyncing}
-                                    className={`p-3 px-5 rounded-xl border flex items-center gap-2 transition-colors ${isSyncing
-                                        ? 'bg-blue-500/20 border-blue-500/30 text-blue-300 cursor-not-allowed'
-                                        : 'bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20'
-                                        }`}
-                                    title="Request full sync from Host"
-                                >
-                                    <RotateCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                                    {isSyncing ? t('common.loading') : t('common.sync')}
-                                </button>
-                                {/* Dropdown for sync options - Hide when syncing */}
-                                {!isSyncing && (
-                                    <div className="absolute top-full right-0 mt-2 bg-slate-800 border border-white/10 rounded-xl py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 min-w-[150px]">
-                                        <button
-                                            onClick={() => onRequestSync('full')}
-                                            className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 transition-colors"
-                                        >
-                                            🔄 Full Sync
-                                        </button>
-                                        <button
-                                            onClick={() => onRequestSync(500)}
-                                            className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 transition-colors"
-                                        >
-                                            📦 Last 500
-                                        </button>
-                                        <button
-                                            onClick={() => onRequestSync(200)}
-                                            className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 transition-colors"
-                                        >
-                                            📋 Last 200
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
                 </div>
             </header>
 

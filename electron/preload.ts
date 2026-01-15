@@ -43,27 +43,51 @@ contextBridge.exposeInMainWorld('electronAPI', {
     isSingleInstance: () => ipcRenderer.invoke('is-single-instance'),
 })
 
-// --------- Expose LAN Sync API ---------
-contextBridge.exposeInMainWorld('electron', {
-    // Start sync server (Host mode)
-    startSyncServer: (port?: number) => ipcRenderer.invoke('start-sync-server', port),
 
-    // Stop sync server
-    stopSyncServer: () => ipcRenderer.invoke('stop-sync-server'),
+// --------- Expose REST API Server Control ---------
+contextBridge.exposeInMainWorld('restApi', {
+    // Start REST API server (Host mode)
+    startServer: (port?: number) => ipcRenderer.invoke('start-rest-api-server', port),
 
-    // Broadcast state to all clients
-    broadcastSyncState: (state: any) => ipcRenderer.invoke('broadcast-sync-state', state),
-
-    // Sync state to specific client
-    syncStateToClient: (clientId: string, state: any) => ipcRenderer.invoke('sync-state-to-client', clientId, state),
+    // Stop REST API server
+    stopServer: () => ipcRenderer.invoke('stop-rest-api-server'),
 
     // Get server status
-    getSyncServerStatus: () => ipcRenderer.invoke('get-sync-server-status'),
+    getServerStatus: () => ipcRenderer.invoke('get-rest-api-server-status'),
 
-    // Listen for messages from server (client actions)
-    onSyncServerMessage: (callback: (data: any) => void) => {
+    // Handle scan requests from REST API (called by main process)
+    onScanRequest: (callback: (data: { requestId: string; request: any }) => void) => {
         const handler = (_event: any, data: any) => callback(data);
-        ipcRenderer.on('sync-server-message', handler);
-        return () => ipcRenderer.removeListener('sync-server-message', handler);
-    }
+        ipcRenderer.on('rest-api-scan-request', handler);
+        return () => ipcRenderer.removeListener('rest-api-scan-request', handler);
+    },
+
+    // Send scan response back to main process
+    sendScanResponse: (requestId: string, result: any) => {
+        ipcRenderer.send('rest-api-scan-response', { requestId, result });
+    },
+
+    // Handle stacks requests
+    onStacksRequest: (callback: (data: { requestId: string }) => void) => {
+        const handler = (_event: any, data: any) => callback(data);
+        ipcRenderer.on('rest-api-stacks-request', handler);
+        return () => ipcRenderer.removeListener('rest-api-stacks-request', handler);
+    },
+
+    // Send stacks response
+    sendStacksResponse: (requestId: string, stacks: any[]) => {
+        ipcRenderer.send('rest-api-stacks-response', { requestId, stacks });
+    },
+
+    // Handle history requests
+    onHistoryRequest: (callback: (data: { requestId: string; limit?: number }) => void) => {
+        const handler = (_event: any, data: any) => callback(data);
+        ipcRenderer.on('rest-api-history-request', handler);
+        return () => ipcRenderer.removeListener('rest-api-history-request', handler);
+    },
+
+    // Send history response
+    sendHistoryResponse: (requestId: string, history: any[]) => {
+        ipcRenderer.send('rest-api-history-response', { requestId, history });
+    },
 })

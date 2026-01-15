@@ -21,7 +21,7 @@ import ApiConfigModal from './components/ApiConfigModal';
 import RulesManagementView from './components/RulesManagementView';
 import DashboardView from './components/DashboardView';
 import OperatorView from './components/OperatorView';
-import NetworkSettingsView from './components/NetworkSettingsView';
+import NetworkSettingsViewNew from './components/NetworkSettingsViewNew';
 import UpdateNotification from './components/UpdateNotification';
 import TokenExpiredModal from './components/TokenExpiredModal';
 import PrintConditionManager from './components/PrintConditionManager';
@@ -29,7 +29,6 @@ import WhatsNewModal from './components/WhatsNewModal';
 import LanguageSwitcher from './components/LanguageSwitcher';
 import { I18nProvider } from './contexts/I18nContext';
 import { useAppPersistence } from './hooks/useAppPersistence';
-import { useLanSync } from './hooks/useLanSync';
 import { useRouteResolution } from './hooks/useRouteResolution';
 
 const App: React.FC = () => {
@@ -192,29 +191,14 @@ const App: React.FC = () => {
     scannerInputRef
   });
 
-  // LAN Sync Hook
-  const { broadcastState, isSyncing, requestSync, pushLocalData, connectionStatus } = useLanSync({
-    history,
-    operationLog,
-    stackDefs,
-    apiSettings,
-    setHistory,
-    setOperationLog,
-    setStackDefs,
-    setCurrentResult,
-    handleSearch
-  });
+  // Note: useLanSync removed - now using REST API architecture
+  // Connection status is managed by NetworkSettingsViewNew component
 
-  // Wrapper for handleSearch to enforce online Requirement for Clients
+  // Simplified handleSearch - no longer needs connection check
+  // REST API architecture ensures server is authoritative
   const handleSafeSearch = useCallback(async (query: string, options?: any) => {
-    // STRICT MODE: Client must be connected to Host to scan
-    // This prevents stack count discrepancy (Client stack vs Host stack mismatch)
-    if (connectionStatus.mode === 'client' && !connectionStatus.connected) {
-      setError("🚫 OFFLINE: Cannot scan. Client must be connected to Host to ensure correct stack assignment.");
-      return;
-    }
     return handleSearch(query, options);
-  }, [connectionStatus, handleSearch, setError]);
+  }, [handleSearch]);
 
 
 
@@ -425,9 +409,6 @@ const App: React.FC = () => {
               onShowApiConfig={() => setShowApiConfig(true)}
               onFileUpload={handleFileUpload}
               onClearHistory={clearHistory}
-              isSyncing={isSyncing}
-              onRequestSync={requestSync}
-              onPushData={pushLocalData}
             />
           ) : view === 'operator' ? (
             <OperatorView
@@ -447,7 +428,6 @@ const App: React.FC = () => {
               onToggleEventType={toggleEventType}
               onOrderIdChange={setOrderId}
               onSearch={handleSafeSearch}
-              connectionStatus={connectionStatus}
             />
           ) : view === 'stacks' ? (
             <RouteStackManager
@@ -460,7 +440,7 @@ const App: React.FC = () => {
               setStackDefs={setStackDefs}
             />
           ) : view === 'network' ? (
-            <NetworkSettingsView />
+            <NetworkSettingsViewNew />
           ) : (
             <RulesManagementView dataSource={dataSource} onFileUpload={handleFileUpload} />
           )}

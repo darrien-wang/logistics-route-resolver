@@ -5,7 +5,7 @@ import { exec } from 'node:child_process'
 import { writeFileSync, unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { setupAutoUpdater } from './updater'
-import { HostServer } from './HostServer'
+import { RestApiServer, ScanRequest, ScanResult, StackInfo } from './RestApiServer'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -23,7 +23,7 @@ process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.
 
 
 let win: BrowserWindow | null
-let hostServer: HostServer | null = null
+let restApiServer: RestApiServer | null = null
 
 // Single instance lock - prevent running multiple copies of the app
 const gotTheLock = app.requestSingleInstanceLock()
@@ -78,10 +78,10 @@ function createWindow() {
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', async () => {
-    // Cleanup sync server
-    if (hostServer?.isRunning()) {
-        await hostServer.stop()
-        hostServer = null
+    // Cleanup REST API server
+    if (restApiServer?.isRunning()) {
+        await restApiServer.stop()
+        restApiServer = null
     }
 
     if (process.platform !== 'darwin') {
@@ -410,99 +410,157 @@ app.whenReady().then(() => {
     // (if we didn't have the lock, the app would have quit already)
     ipcMain.handle('is-single-instance', () => gotTheLock)
 
-    // LAN Sync Server IPC Handlers
-    setupLanSyncHandlers()
+    // REST API Server IPC Handlers
+    setupRestApiHandlers()
 })
 
-// Setup LAN Sync IPC handlers
-function setupLanSyncHandlers() {
-    // Start sync server (Host mode)
-    ipcMain.handle('start-sync-server', async (_event, port: number = 14059) => {
+// Setup REST API IPC handlers
+function setupRestApiHandlers() {
+    // Start REST API server
+    ipcMain.handle('start-rest-api-server', async (_event, port: number = 14059) => {
         try {
-            // If server is already running, stop it first
-            if (hostServer?.isRunning()) {
-                console.log('[Main] Server already running, restarting...')
-                await hostServer.stop()
-                hostServer = null
+            // If REST API server is already running, stop it first
+            if (restApiServer?.isRunning()) {
+                console.log('[Main] REST API server already running, restarting...')
+                await restApiServer.stop()
+                restApiServer = null
             }
 
-            hostServer = new HostServer({ port })
+            restApiServer = new RestApiServer({ port })
 
-            // Setup message handler to relay client actions to renderer
-            hostServer.onMessage((event, data, clientId) => {
-                if (win && !win.isDestroyed()) {
-                    win.webContents.send('sync-server-message', {
-                        event,
-                        data,
-                        clientId
+            // Setup scan handler - relay to renderer for processing
+            restApiServer.onScan(async (request: ScanRequest): Promise<ScanResult> => {
+                return new Promise((resolve) => {
+                    if (!win || win.isDestroyed()) {
+                        resolve({
+                            success: false,
+                            orderId: request.orderId,
+                            error: 'Application window not available'
+                        })
+                        return
+                    }
+
+                    // Generate unique request ID for this scan
+                    const requestId = `scan_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+
+                    // One-time listener for this specific request
+                    const responseHandler = (_event: any, response: { requestId: string; result: ScanResult }) => {
+                        if (response.requestId === requestId) {
+                            ipcMain.removeListener('rest-api-scan-response', responseHandler)
+                            resolve(response.result)
+                        }
+                    }
+
+                    ipcMain.on('rest-api-scan-response', responseHandler)
+
+                    // Timeout after 30 seconds
+                    setTimeout(() => {
+                        ipcMain.removeListener('rest-api-scan-response', responseHandler)
+                        resolve({
+                            success: false,
+                            orderId: request.orderId,
+                            error: 'Scan request timed out'
+                        })
+                    }, 30000)
+
+                    // Send scan request to renderer
+                    win.webContents.send('rest-api-scan-request', {
+                        requestId,
+                        request
                     })
-                }
+                })
             })
 
-            const serverInfo = await hostServer.start()
+            // Setup get stacks handler
+            restApiServer.onGetStacks(async (): Promise<StackInfo[]> => {
+                return new Promise((resolve) => {
+                    if (!win || win.isDestroyed()) {
+                        resolve([])
+                        return
+                    }
+
+                    const requestId = `stacks_${Date.now()}`
+
+                    const responseHandler = (_event: any, response: { requestId: string; stacks: StackInfo[] }) => {
+                        if (response.requestId === requestId) {
+                            ipcMain.removeListener('rest-api-stacks-response', responseHandler)
+                            resolve(response.stacks)
+                        }
+                    }
+
+                    ipcMain.on('rest-api-stacks-response', responseHandler)
+
+                    setTimeout(() => {
+                        ipcMain.removeListener('rest-api-stacks-response', responseHandler)
+                        resolve([])
+                    }, 10000)
+
+                    win.webContents.send('rest-api-stacks-request', { requestId })
+                })
+            })
+
+            // Setup get history handler
+            restApiServer.onGetHistory(async (limit?: number): Promise<any[]> => {
+                return new Promise((resolve) => {
+                    if (!win || win.isDestroyed()) {
+                        resolve([])
+                        return
+                    }
+
+                    const requestId = `history_${Date.now()}`
+
+                    const responseHandler = (_event: any, response: { requestId: string; history: any[] }) => {
+                        if (response.requestId === requestId) {
+                            ipcMain.removeListener('rest-api-history-response', responseHandler)
+                            resolve(response.history)
+                        }
+                    }
+
+                    ipcMain.on('rest-api-history-response', responseHandler)
+
+                    setTimeout(() => {
+                        ipcMain.removeListener('rest-api-history-response', responseHandler)
+                        resolve([])
+                    }, 10000)
+
+                    win.webContents.send('rest-api-history-request', { requestId, limit })
+                })
+            })
+
+            const serverInfo = await restApiServer.start()
+            console.log('[Main] REST API server started:', serverInfo)
             return serverInfo
         } catch (error: any) {
-            console.error('[Main] Failed to start sync server:', error)
+            console.error('[Main] Failed to start REST API server:', error)
             throw error
         }
     })
 
-    // Stop sync server
-    ipcMain.handle('stop-sync-server', async () => {
+    // Stop REST API server
+    ipcMain.handle('stop-rest-api-server', async () => {
         try {
-            if (!hostServer) {
+            if (!restApiServer) {
                 return
             }
 
-            await hostServer.stop()
-            hostServer = null
+            await restApiServer.stop()
+            restApiServer = null
+            console.log('[Main] REST API server stopped')
         } catch (error: any) {
-            console.error('[Main] Failed to stop sync server:', error)
+            console.error('[Main] Failed to stop REST API server:', error)
             throw error
         }
     })
 
-    // Broadcast state update to all clients
-    ipcMain.handle('broadcast-sync-state', (_event, state: any) => {
-        try {
-            if (!hostServer?.isRunning()) {
-                console.warn('[Main] Cannot broadcast - server not running')
-                return
-            }
-
-            hostServer.broadcastStateUpdate(state)
-        } catch (error: any) {
-            console.error('[Main] Failed to broadcast state:', error)
-            throw error
-        }
-    })
-
-    // Sync state to specific client
-    ipcMain.handle('sync-state-to-client', (_event, clientId: string, state: any) => {
-        try {
-            if (!hostServer?.isRunning()) {
-                console.warn('[Main] Cannot sync to client - server not running')
-                return
-            }
-
-            hostServer.syncStateToClient(clientId, state)
-        } catch (error: any) {
-            console.error('[Main] Failed to sync to client:', error)
-            throw error
-        }
-    })
-
-    // Get server status
-    ipcMain.handle('get-sync-server-status', () => {
-        if (!hostServer) {
-            return { running: false, clientCount: 0 }
+    // Get REST API server status
+    ipcMain.handle('get-rest-api-server-status', () => {
+        if (!restApiServer) {
+            return { running: false, serverInfo: null }
         }
 
         return {
-            running: hostServer.isRunning(),
-            clientCount: hostServer.getClientCount(),
-            clients: hostServer.getConnectedClients(),
-            serverInfo: hostServer.getServerInfo()
+            running: restApiServer.isRunning(),
+            serverInfo: restApiServer.getServerInfo()
         }
     })
 }
