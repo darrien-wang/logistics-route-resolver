@@ -90,14 +90,11 @@ export const useRouteResolution = ({
         // STRICT BLOCKING: Client devices MUST be connected to Host to scan
         // This prevents all local processing when disconnected, avoiding stack count discrepancy
         // Uses getSavedConfig() to check persisted device role (survives app restart)
-        // TODO: UNCOMMENT AFTER TESTING
-        /*
         const savedConfig = lanSyncService.getSavedConfig();
         if (savedConfig?.mode === 'client' && !lanSyncService.isConnected()) {
             console.warn('[Resolution] BLOCKED: Client mode without Host connection');
             throw new Error('OFFLINE: Client must be connected to Host to scan');
         }
-        */
 
         const ids = searchId.split(/[\s,;]+/).filter(id => id.length > 0);
         if (ids.length === 0) return;
