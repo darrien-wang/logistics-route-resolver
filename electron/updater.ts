@@ -6,9 +6,11 @@ autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
 
 export function setupAutoUpdater(mainWindow: BrowserWindow) {
-    // Send status to renderer
+    // Send status to renderer (with safety check for destroyed window)
     const sendStatus = (status: string, data?: any) => {
-        mainWindow.webContents.send('update-status', { status, ...data });
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('update-status', { status, ...data });
+        }
     };
 
     // Update events
