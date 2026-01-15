@@ -82,8 +82,17 @@ const App: React.FC = () => {
   const loadDefaultRulesFromExcel = useCallback(async () => {
     try {
       console.log('[App] Attempting to load default rules from Excel...');
-      // Use relative path for Electron compatibility (file:// protocol)
-      const response = await fetch('./default_routes.xlsx');
+
+      // Try both absolute (dev/web) and relative (electron/prod) paths
+      let response;
+      try {
+        response = await fetch('/default_routes.xlsx');
+        if (!response.ok) throw new Error('Not found at root');
+      } catch (e) {
+        console.warn('[App] Failed to load from root, trying relative path...');
+        response = await fetch('./default_routes.xlsx');
+      }
+
       console.log('[App] Fetch response status:', response.status, response.ok);
       if (!response.ok) {
         console.warn('[App] Default rules file not found, using fallback constants.');
