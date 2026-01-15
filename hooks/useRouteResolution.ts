@@ -24,6 +24,7 @@ import { routeStackService } from '../services/RouteStackService';
 import { voiceService } from '../services/VoiceService';
 import { labelPrintService } from '../services/LabelPrintService';
 import { printMappingConditionService } from '../services/PrintMappingConditionService';
+import { apiClient } from '../services/ApiClient';
 import { MOCK_ORDERS } from '../constants/mockData';
 
 export interface UseRouteResolutionProps {
@@ -86,16 +87,105 @@ export const useRouteResolution = ({
     }, [setOperationLog]);
 
     const handleSearchInternal = useCallback(async (searchId: string, options?: SearchOptions) => {
-        // NOTE: REST API architecture handles client-mode differently
-        // Client devices now use ApiClient to submit scans to the server
-        // This hook only handles local/host processing
-
         const ids = searchId.split(/[\s,;]+/).filter(id => id.length > 0);
         if (ids.length === 0) return;
 
+        // CLIENT MODE: Send scan request to REST API server
+        // Check if ApiClient is connected to a remote server
+        if (apiClient.getIsConnected()) {
+            console.log(`[REST API] CLIENT mode: Sending ${ids.length} scan(s) to server`);
+            setLoading(true);
+            setError(null);
+
+            try {
+                for (const id of ids) {
+                    const upperId = id.toUpperCase();
+
+                    // Submit scan to server (without dimensions for now)
+                    const result = await apiClient.submitScan(upperId);
+
+                    if (result.success && result.route) {
+                        // Convert server result to ResolvedRouteInfo format
+                        const resolvedResult: ResolvedRouteInfo = {
+                            orderId: result.orderId,
+                            address: '',
+                            date: new Date().toLocaleDateString(),
+                            resolvedAt: new Date().toISOString(),
+                            route: {
+                                zip: '',
+                                metroArea: result.route.metroArea || '',
+                                state: result.route.state || '',
+                                destinationZone: result.route.destinationZone || '',
+                                routeConfiguration: result.route.routeName,
+                                route2Configuration: '',
+                            },
+                            stackInfo: result.stack ? {
+                                stackNumber: result.stack.stackNumber,
+                                currentCount: result.stack.currentCount,
+                                capacity: result.stack.capacity,
+                                isStackFull: result.stack.isStackFull,
+                                isNewStack: result.stack.isNewStack,
+                            } : undefined,
+                            printedStack: result.stack ? {
+                                routeName: result.route.routeName,
+                                stackNumber: result.stack.stackNumber,
+                                printedAt: new Date().toISOString()
+                            } : undefined,
+                        };
+
+                        setCurrentResult(resolvedResult);
+                        setHistory(prev => [resolvedResult, ...prev.filter(h => h.orderId !== upperId)]);
+                        handleEventInitiated(upperId, [{ type: 'SCAN', status: 'SUCCESS', timestamp: new Date().toISOString() }]);
+
+                        // Local printing with server-provided data
+                        if (apiSettings.autoPrintLabelEnabled && result.printData) {
+                            labelPrintService.queuePrint(
+                                result.printData.routeName,
+                                result.printData.stackNumber,
+                                upperId
+                            );
+                            setPrintStatus('printing');
+                            setTimeout(() => setPrintStatus('idle'), 2000);
+                        }
+
+                        // Voice feedback
+                        if (apiSettings.voiceEnabled && result.route) {
+                            voiceService.announceRoute(
+                                result.route.routeName,
+                                result.stack?.stackNumber || 1
+                            );
+                        }
+                    } else {
+                        // Server returned error or no route (exception)
+                        console.log(`[REST API] Scan result for ${upperId}: exception=${result.isException}, error=${result.error}`);
+                        handleEventInitiated(upperId, [{ type: 'SCAN', status: result.isException ? 'SUCCESS' : 'FAILED', timestamp: new Date().toISOString(), message: result.error }]);
+
+                        if (apiSettings.autoPrintLabelEnabled && result.isException) {
+                            labelPrintService.queueExceptionPrint(upperId);
+                        } else if (apiSettings.autoPrintLabelEnabled && result.error) {
+                            labelPrintService.queueExceptionPrint(upperId, true, 'ERROR', result.error);
+                        }
+                        if (apiSettings.voiceEnabled) {
+                            voiceService.playError();
+                        }
+                    }
+                }
+            } catch (err: any) {
+                console.error('[REST API] Connection error:', err);
+                setError('SERVER CONNECTION ERROR');
+                if (apiSettings.voiceEnabled) {
+                    voiceService.playError();
+                }
+            } finally {
+                setLoading(false);
+                setOrderId('');
+            }
+            return;
+        }
+
+        // HOST/STANDALONE MODE: Process locally
         // Block operations if token is expired (and API is enabled)
         if (apiSettings.enabled && isTokenExpired()) {
-            // ... (token logic remains same)
             setError('TOKEN EXPIRED');
             setCurrentResult(null);
             setShowTokenExpired(true);
