@@ -31,6 +31,7 @@ import { I18nProvider } from './contexts/I18nContext';
 import { RestApiProvider } from './contexts/RestApiContext';
 import { useAppPersistence } from './hooks/useAppPersistence';
 import { useRouteResolution } from './hooks/useRouteResolution';
+import { useHostScanHandler } from './hooks/useHostScanHandler';
 
 const App: React.FC = () => {
   const [view, setView] = useState<'dashboard' | 'operator' | 'rules' | 'stacks' | 'network'>('dashboard');
@@ -192,8 +193,8 @@ const App: React.FC = () => {
     scannerInputRef
   });
 
-  // Note: useLanSync removed - now using REST API architecture
-  // Connection status is managed by NetworkSettingsViewNew component
+  // REST API Host mode: Handle scan requests from client devices
+  useHostScanHandler(dataSource);
 
   // Simplified handleSearch - no longer needs connection check
   // REST API architecture ensures server is authoritative
