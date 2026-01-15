@@ -68,7 +68,7 @@ export const useRouteResolution = ({
     const [batchMode, setBatchMode] = useState<{ active: boolean; ids: string[] }>({ active: false, ids: [] });
 
     // Queue item type with options
-    type QueueItem = { searchId: string; options?: SearchOptions };
+    type QueueItem = { searchId: string; options?: SearchOptions; resolve?: (result: ResolvedRouteInfo | null) => void };
     const processingQueueRef = useRef<QueueItem[]>([]);
     const isProcessingRef = useRef<boolean>(false);
 
@@ -86,7 +86,7 @@ export const useRouteResolution = ({
         });
     }, [setOperationLog]);
 
-    const handleSearchInternal = useCallback(async (searchId: string, options?: SearchOptions) => {
+    const handleSearchInternal = useCallback(async (searchId: string, options?: SearchOptions): Promise<ResolvedRouteInfo | null> => {
         const ids = searchId.split(/[\s,;]+/).filter(id => id.length > 0);
         if (ids.length === 0) return;
 
@@ -607,18 +607,22 @@ export const useRouteResolution = ({
                     if (options?.clientId) result.scannedBy = options.clientId;
                     setHistory(prev => [result, ...prev.filter(h => h.orderId !== result.orderId)]);
                     setOrderId('');
+
+                    return result; // Return result specifically for API/direct use
                 }
             }
         } catch (err: any) {
             setError(err.message || "RESOLUTION ERROR");
             setCurrentResult(null);
             setBatchMode({ active: false, ids: [] });
+            return null;
         } finally {
             setLoading(false);
             if (view === 'operator' && scannerInputRef?.current) {
                 setTimeout(() => scannerInputRef.current?.focus(), 50);
             }
         }
+        return null; // Fallback return
     }, [dataSource, view, selectedEventTypes, handleEventInitiated, handleEventFinished, apiSettings, isTokenExpired, history, setHistory, setOperationLog, setShowTokenExpired, scannerInputRef]);
 
 
@@ -632,7 +636,11 @@ export const useRouteResolution = ({
         const item = processingQueueRef.current.shift()!;
 
         try {
-            await handleSearchInternal(item.searchId, item.options);
+            const result = await handleSearchInternal(item.searchId, item.options);
+            if (item.resolve) item.resolve(result);
+        } catch (e) {
+            console.error('Queue processing error:', e);
+            if (item.resolve) item.resolve(null);
         } finally {
             isProcessingRef.current = false;
 
@@ -644,16 +652,21 @@ export const useRouteResolution = ({
     }, [handleSearchInternal]);
 
     // Main search handler - adds scans to queue for sequential processing
-    const handleSearch = useCallback(async (searchId: string, options?: SearchOptions) => {
-        if (!searchId.trim()) return;
+    const handleSearch = useCallback((searchId: string, options?: SearchOptions): Promise<ResolvedRouteInfo | null> => {
+        return new Promise((resolve) => {
+            if (!searchId.trim()) {
+                resolve(null);
+                return;
+            }
 
-        // Add to queue with options
-        processingQueueRef.current.push({ searchId: searchId.trim(), options });
+            // Add to queue with options and resolve callback
+            processingQueueRef.current.push({ searchId: searchId.trim(), options, resolve });
 
-        // Start processing if not already processing
-        if (!isProcessingRef.current) {
-            processNextInQueue();
-        }
+            // Start processing if not already processing
+            if (!isProcessingRef.current) {
+                processNextInQueue();
+            }
+        });
     }, [processNextInQueue]);
 
     return {
