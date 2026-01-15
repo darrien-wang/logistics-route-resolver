@@ -2,61 +2,28 @@
  * NetworkSettingsView - REST API Version
  * 
  * Replaces Socket.IO LAN sync with REST API architecture.
- * - Host mode: Starts REST API server locally
- * - Client mode: Connects to remote server via HTTP
+ * Uses RestApiContext for persistent connection state across view changes.
  */
 
 import React, { useState, useEffect } from 'react';
 import { Wifi, WifiOff, Server, AlertCircle, RefreshCw, CheckCircle } from 'lucide-react';
-import type { SyncServerInfo } from '../types';
 import { useI18n } from '../contexts/I18nContext';
-import { apiClient } from '../services/ApiClient';
-
-type ConnectionMode = 'host' | 'client' | 'disconnected';
-
-interface ConnectionStatus {
-    mode: ConnectionMode;
-    connected: boolean;
-    serverUrl: string | null;
-}
+import { useRestApiContext } from '../contexts/RestApiContext';
 
 const NetworkSettingsViewNew: React.FC = () => {
     const [hostPort, setHostPort] = useState('14059');
     const [hostIp, setHostIp] = useState('');
     const [clientName, setClientName] = useState('');
-    const [serverInfo, setServerInfo] = useState<SyncServerInfo | null>(null);
-    const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({
-        mode: 'disconnected',
-        connected: false,
-        serverUrl: null,
-    });
     const [hostLoading, setHostLoading] = useState(false);
     const [clientLoading, setClientLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { t } = useI18n();
 
-    // Check server status on mount (if already running)
-    useEffect(() => {
-        const checkExistingServer = async () => {
-            if (window.restApi) {
-                try {
-                    const status = await window.restApi.getServerStatus();
-                    if (status.running && status.serverInfo) {
-                        setServerInfo(status.serverInfo);
-                        setConnectionStatus({
-                            mode: 'host',
-                            connected: true,
-                            serverUrl: status.serverInfo.url,
-                        });
-                    }
-                } catch (e) {
-                    console.log('[NetworkSettings] No existing server');
-                }
-            }
-        };
-        checkExistingServer();
+    // Use global context for connection state
+    const { status: connectionStatus, startHost, connectClient, disconnect } = useRestApiContext();
 
-        // Load saved connection info from localStorage
+    // Load saved settings from localStorage on mount
+    useEffect(() => {
         const savedHostIp = localStorage.getItem('REST_API_HOST_IP');
         const savedClientName = localStorage.getItem('REST_API_CLIENT_NAME');
         const savedPort = localStorage.getItem('REST_API_PORT');
@@ -70,22 +37,11 @@ const NetworkSettingsViewNew: React.FC = () => {
         setError(null);
 
         try {
-            if (!window.restApi) {
-                throw new Error('REST API not available - requires Electron');
-            }
-
             const port = parseInt(hostPort) || 14059;
             localStorage.setItem('REST_API_PORT', port.toString());
 
-            const info = await window.restApi.startServer(port);
-            setServerInfo(info);
-            setConnectionStatus({
-                mode: 'host',
-                connected: true,
-                serverUrl: info.url,
-            });
-
-            console.log('[NetworkSettings] REST API server started:', info);
+            await startHost(port);
+            console.log('[NetworkSettings] REST API server started');
         } catch (err: any) {
             setError(err.message || 'Failed to start server');
             console.error('[NetworkSettings] Failed to start host:', err);
@@ -113,20 +69,8 @@ const NetworkSettingsViewNew: React.FC = () => {
             localStorage.setItem('REST_API_CLIENT_NAME', name);
             localStorage.setItem('REST_API_PORT', port.toString());
 
-            // Configure and test connection
-            apiClient.configure(serverUrl, name);
-            const status = await apiClient.checkConnection();
-
-            if (status.connected) {
-                setConnectionStatus({
-                    mode: 'client',
-                    connected: true,
-                    serverUrl: serverUrl,
-                });
-                console.log('[NetworkSettings] Connected to server:', serverUrl);
-            } else {
-                throw new Error(status.error || 'Connection failed');
-            }
+            await connectClient(serverUrl, name);
+            console.log('[NetworkSettings] Connected to server:', serverUrl);
         } catch (err: any) {
             setError(err.message || 'Failed to connect to server');
             console.error('[NetworkSettings] Failed to connect:', err);
@@ -141,19 +85,8 @@ const NetworkSettingsViewNew: React.FC = () => {
         setError(null);
 
         try {
-            if (connectionStatus.mode === 'host' && window.restApi) {
-                await window.restApi.stopServer();
-                console.log('[NetworkSettings] Server stopped');
-            }
-
-            apiClient.disconnect();
-
-            setServerInfo(null);
-            setConnectionStatus({
-                mode: 'disconnected',
-                connected: false,
-                serverUrl: null,
-            });
+            await disconnect();
+            console.log('[NetworkSettings] Disconnected');
         } catch (err: any) {
             setError(err.message || 'Failed to disconnect');
             console.error('[NetworkSettings] Disconnect error:', err);
@@ -226,11 +159,11 @@ const NetworkSettingsViewNew: React.FC = () => {
                     </div>
                 )}
 
-                {connectionStatus.connected && connectionStatus.mode === 'host' && serverInfo && (
+                {connectionStatus.connected && connectionStatus.mode === 'host' && connectionStatus.serverInfo && (
                     <div className="bg-slate-900/50 rounded-lg p-4 space-y-2 mb-4">
                         <p className="text-slate-300">
                             <span className="text-slate-500">Server URL:</span>{' '}
-                            <span className="font-mono text-sky-400 text-lg">{serverInfo.url}</span>
+                            <span className="font-mono text-sky-400 text-lg">{connectionStatus.serverInfo.url}</span>
                         </p>
                         <p className="text-slate-400 text-sm">
                             客户端使用此地址连接服务器
@@ -386,7 +319,7 @@ const NetworkSettingsViewNew: React.FC = () => {
                     <h2 className="text-xl font-semibold text-white mb-4">Controls</h2>
 
                     {/* Host Server Info */}
-                    {connectionStatus.mode === 'host' && serverInfo && (
+                    {connectionStatus.mode === 'host' && connectionStatus.serverInfo && (
                         <div className="mb-6">
                             <div className="flex items-center gap-2 text-slate-300 mb-2">
                                 <Server className="w-5 h-5 text-sky-400" />
@@ -395,13 +328,13 @@ const NetworkSettingsViewNew: React.FC = () => {
                             <div className="bg-gradient-to-r from-sky-500/10 to-emerald-500/10 border border-sky-500/20 rounded-lg p-4">
                                 <p className="text-slate-300 mb-2">
                                     <span className="text-slate-500">Server URL: </span>
-                                    <span className="font-mono text-lg text-sky-400 font-bold">{serverInfo.url}</span>
+                                    <span className="font-mono text-lg text-sky-400 font-bold">{connectionStatus.serverInfo.url}</span>
                                 </p>
                                 <p className="text-slate-300">
                                     <span className="text-slate-500">Host IP: </span>
-                                    <span className="font-mono text-emerald-400">{serverInfo.localIp}</span>
+                                    <span className="font-mono text-emerald-400">{connectionStatus.serverInfo.localIp}</span>
                                     <span className="text-slate-500 ml-2">Port: </span>
-                                    <span className="font-mono text-emerald-400">{serverInfo.port}</span>
+                                    <span className="font-mono text-emerald-400">{connectionStatus.serverInfo.port}</span>
                                 </p>
                             </div>
                         </div>
