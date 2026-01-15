@@ -89,6 +89,14 @@ class LanSyncService {
      * Initialize the sync service with configuration
      */
     async initialize(config: SyncConfig): Promise<void> {
+        // CRITICAL: Disconnect any existing socket before creating a new one
+        // This prevents duplicate connections when re-initializing
+        if (this.socket) {
+            console.log('[LanSync] Cleaning up existing socket before re-initializing');
+            this.socket.disconnect();
+            this.socket = null;
+        }
+
         this.config = config;
         this.mode = config.mode;
 
