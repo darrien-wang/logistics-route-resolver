@@ -656,6 +656,7 @@ export const useRouteResolution = ({
                         }
                     }
                     setOrderId('');
+                    return result; // Return result for remote scans
                 } else {
                     // Use middleware chain for non-UNLOAD events
                     const initialOrder = MOCK_ORDERS[targetId] || { orderId: targetId, address: "", date: new Date().toLocaleDateString() };
