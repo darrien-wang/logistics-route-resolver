@@ -294,11 +294,22 @@ const RouteStackManager: React.FC<RouteStackManagerProps> = ({
                     .filter(s => s.route === routeName)
                     .sort((a, b) => a.stackNumber - b.stackNumber);
 
-                let currentStackNum = 1;
+                // Check already created implicit stacks for this route (e.g. from printedStack groups)
+                const existingImplicit = newImplicitStacks
+                    .filter(s => s.route === routeName)
+                    .sort((a, b) => a.stackNumber - b.stackNumber);
+
+                // Determine the next available stack number
+                let maxStackNum = 0;
+                if (explicitStacks.length > 0) maxStackNum = Math.max(maxStackNum, explicitStacks[explicitStacks.length - 1].stackNumber);
+                if (existingImplicit.length > 0) maxStackNum = Math.max(maxStackNum, existingImplicit[existingImplicit.length - 1].stackNumber);
+
+                let currentStackNum = maxStackNum + 1;
 
                 if (explicitStacks.length > 0) {
                     const lastExplicitStack = explicitStacks[explicitStacks.length - 1];
-                    currentStackNum = lastExplicitStack.stackNumber + 1; // Default next stack number
+                    // If we initialized based on explicit, reset currentStackNum to follow it naturally
+                    // (But maxStackNum logic above covers this safely: max >= lastExplicit.stackNumber)
 
                     console.log(`[StackMerge] Unclaimed orders for ${routeName}: ${unclaimedOrders.length}`, {
                         explicitStackId: lastExplicitStack.id,
