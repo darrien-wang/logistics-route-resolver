@@ -279,6 +279,8 @@ export class RestApiServer {
         }
 
         this.httpServer = createServer(this.app);
+        // Set timeout to 45 seconds (slightly longer than logic timeout) to prevent socket hangup
+        this.httpServer.timeout = 45000;
 
         // Start listening on all network interfaces
         await new Promise<void>((resolve, reject) => {

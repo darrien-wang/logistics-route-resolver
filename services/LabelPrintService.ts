@@ -355,6 +355,8 @@ class LabelPrintService {
                         type: 'exception',
                         orderId: job.orderId,
                         dateStr, // Pass synchronized time to Electron
+                        customTitle: job.baseRouteName,
+                        customFooter: job.trackingNumber
                     });
                 } else if (job.type === 'standard' && job.baseRouteName && job.stackNumber) {
                     await electronAPI.printGDI({

@@ -250,6 +250,8 @@ declare global {
         trackingNumber?: string;
         orderId?: string;
         dateStr?: string;
+        customTitle?: string;
+        customFooter?: string;
       }) => Promise<any>;
     };
     restApi?: {

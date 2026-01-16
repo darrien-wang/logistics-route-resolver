@@ -171,7 +171,9 @@ interface GDIPrintData {
     stackNumber?: number;
     trackingNumber?: string;
     orderId?: string;
-    dateStr?: string; // Synchronized time from renderer (for client mode)
+    dateStr?: string;
+    customTitle?: string;
+    customFooter?: string;
 }
 
 /**
@@ -191,7 +193,12 @@ ipcMain.handle('print-gdi', async (_event, data: GDIPrintData) => {
 
         if (data.type === 'exception') {
             // Exception label layout
-            psScript = generateExceptionLabelScript(dateStr, data.orderId || 'UNKNOWN');
+            psScript = generateExceptionLabelScript(
+                dateStr,
+                data.orderId || 'UNKNOWN',
+                data.customTitle || 'EXCEPTION',
+                data.customFooter || 'NO ROUTE'
+            );
         } else {
             // Standard label layout
             psScript = generateStandardLabelScript(
@@ -325,7 +332,7 @@ Write-Host "PRINT_SUCCESS"
  * Generate PowerShell script for exception label
  * Layout: Date, "EXCEPTION" in red, OrderID, Divider, "NO ROUTE", Notes box
  */
-function generateExceptionLabelScript(dateStr: string, orderId: string): string {
+function generateExceptionLabelScript(dateStr: string, orderId: string, customTitle: string, customFooter: string): string {
     return `
 Add-Type -AssemblyName System.Drawing
 
@@ -355,9 +362,10 @@ $doc.add_PrintPage({
     $dateSize = $g.MeasureString("${dateStr}", $fontDate)
     $g.DrawString("${dateStr}", $fontDate, $brushGray, ($pageWidth - $dateSize.Width - 15), 8)
     
-    # "EXCEPTION" label
-    $excSize = $g.MeasureString("EXCEPTION", $fontException)
-    $g.DrawString("EXCEPTION", $fontException, $brushRed, (($leftSection - $excSize.Width) / 2), ($pageHeight * 0.12))
+    # TITLE label ("EXCEPTION" or custom)
+    $titleText = "${customTitle}"
+    $excSize = $g.MeasureString($titleText, $fontException)
+    $g.DrawString($titleText, $fontException, $brushRed, (($leftSection - $excSize.Width) / 2), ($pageHeight * 0.12))
     
     # Order ID
     $orderSize = $g.MeasureString("${orderId}", $fontOrderId)
@@ -369,9 +377,18 @@ $doc.add_PrintPage({
     $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::Black, 2)
     $g.DrawLine($pen, 8, ($pageHeight * 0.5), ($pageWidth - 8), ($pageHeight * 0.5))
     
-    # "NO ROUTE"
-    $noRouteSize = $g.MeasureString("NO ROUTE", $fontNoRoute)
-    $g.DrawString("NO ROUTE", $fontNoRoute, $brushGray, (($leftSection - $noRouteSize.Width) / 2), ($pageHeight * 0.68))
+    # FOOTER ("NO ROUTE" or custom)
+    $footerText = "${customFooter}"
+    # Auto-scale footer text if too long
+    $footerFont = $fontNoRoute
+    $footerSize = $g.MeasureString($footerText, $footerFont)
+    
+    if ($footerSize.Width -gt ($leftSection - 10)) {
+        $footerFont = New-Object System.Drawing.Font("Arial", 22, [System.Drawing.FontStyle]::Bold)
+        $footerSize = $g.MeasureString($footerText, $footerFont)
+    }
+    
+    $g.DrawString($footerText, $footerFont, $brushGray, (($leftSection - $footerSize.Width) / 2), ($pageHeight * 0.68))
     
     # Notes box
     $notesBoxTop = ($pageHeight * 0.5) + 15
@@ -453,7 +470,7 @@ function setupRestApiHandlers() {
 
                     ipcMain.on('rest-api-scan-response', responseHandler)
 
-                    // Timeout after 30 seconds
+                    // Timeout after 40 seconds
                     setTimeout(() => {
                         ipcMain.removeListener('rest-api-scan-response', responseHandler)
                         resolve({
@@ -461,7 +478,7 @@ function setupRestApiHandlers() {
                             orderId: request.orderId,
                             error: 'Scan request timed out'
                         })
-                    }, 30000)
+                    }, 40000)
 
                     // Send scan request to renderer
                     win.webContents.send('rest-api-scan-request', {

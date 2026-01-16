@@ -261,9 +261,16 @@ export const useRouteResolution = ({
         // Block operations if token is expired (and API is enabled)
         if (apiSettings.enabled && isTokenExpired()) {
             setError('TOKEN EXPIRED');
-            setCurrentResult(null);
             setShowTokenExpired(true);
-            return;
+            const errorResult: ResolvedRouteInfo = {
+                orderId: ids[0] || 'UNKNOWN',
+                date: new Date().toLocaleDateString(),
+                address: '',
+                resolvedAt: new Date().toISOString(),
+                exceptionReason: 'TOKEN EXPIRED'
+            };
+            setCurrentResult(null);
+            return errorResult;
         }
 
         setLoading(true);
@@ -557,7 +564,7 @@ export const useRouteResolution = ({
                         if (apiSettings.voiceEnabled) voiceService.playError();
                         setOrderId('');
                         setLoading(false);
-                        return; // Exit early
+                        return exceptionResult;
                     }
                 }
 
