@@ -87,8 +87,55 @@ export const useRouteResolution = ({
     }, [setOperationLog]);
 
     const handleSearchInternal = useCallback(async (searchId: string, options?: SearchOptions): Promise<ResolvedRouteInfo | null> => {
-        const ids = searchId.split(/[\s,;]+/).filter(id => id.length > 0);
-        if (ids.length === 0) return;
+        const rawIds = searchId.split(/[\s,;]+/).filter(id => id.length > 0);
+        if (rawIds.length === 0) return null;
+
+        // GLOBAL RE-SCAN SHORTCUT (Applies to Client & Host, Single & Batch)
+        // Filter out IDs that are already successfully resolved to prevent re-assignment/errors
+        const idsToProcess: string[] = [];
+        let lastCachedResult: ResolvedRouteInfo | null = null;
+
+        for (const id of rawIds) {
+            const upperId = id.toUpperCase();
+            const existingSuccess = history.find(h => h.orderId === upperId && h.route && h.printedStack);
+
+            if (existingSuccess) {
+                console.log(`[Resolution] Re-scan shortcut for ${upperId}: Returning existing result.`);
+
+                // Refresh timestamp but keep data identical (Stack # is LOCKED)
+                const refreshedResult = {
+                    ...existingSuccess,
+                    resolvedAt: new Date().toISOString(),
+                    scannedBy: options?.clientId || existingSuccess.scannedBy
+                };
+                lastCachedResult = refreshedResult;
+
+                // Move to top of history
+                setHistory(prev => [refreshedResult, ...prev.filter(h => h.orderId !== upperId)]);
+
+                // Re-trigger visual/audio feedback for confirmation
+                if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
+                    labelPrintService.queuePrint(refreshedResult.printedStack!.routeName, refreshedResult.printedStack!.stackNumber, upperId);
+                }
+                if (apiSettings.voiceEnabled) {
+                    // Slightly different tone or logic for re-scan? For now, standard announce is fine.
+                    voiceService.announceRoute(refreshedResult.route.routeConfiguration, refreshedResult.printedStack!.stackNumber);
+                }
+
+                // Also update operation log to show a fresh "SCAN" event
+                handleEventInitiated(upperId, [{ type: 'SCAN', status: 'SUCCESS', timestamp: new Date().toISOString(), message: 'Re-scan (Cached)' }]);
+
+            } else {
+                idsToProcess.push(id);
+            }
+        }
+
+        // If all IDs were cached, return the last one immediately
+        if (idsToProcess.length === 0) {
+            return lastCachedResult;
+        }
+
+        const ids = idsToProcess;
 
         // CLIENT MODE: Send scan request to REST API server
         // Check if ApiClient is connected to a remote server
