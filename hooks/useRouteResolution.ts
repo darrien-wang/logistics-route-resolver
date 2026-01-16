@@ -27,6 +27,8 @@ import { printMappingConditionService } from '../services/PrintMappingConditionS
 import { apiClient } from '../services/ApiClient';
 import { MOCK_ORDERS } from '../constants/mockData';
 
+import { useRestApiContext } from '../contexts/RestApiContext';
+
 export interface UseRouteResolutionProps {
     apiSettings: ApiSettings;
     operationLog: Record<string, OrderEventStatus[]>;
@@ -59,6 +61,8 @@ export const useRouteResolution = ({
     setShowTokenExpired,
     scannerInputRef
 }: UseRouteResolutionProps) => {
+    // Access RestAPI Context for connection status and config
+    const { status: restApiStatus, hasSavedClientConfig } = useRestApiContext();
 
     const [orderId, setOrderId] = useState('');
     const [loading, setLoading] = useState(false);
@@ -232,6 +236,24 @@ export const useRouteResolution = ({
                 setLoading(false);
                 setOrderId('');
             }
+            return;
+        }
+
+
+        // CLIENT MODE (Remote Scan)
+        if (restApiStatus.mode === 'client' && restApiStatus.connected) {
+            // ... existing client logic ...
+        }
+
+        // BLOCK OFFLINE CLIENT SCANS
+        // If user INTENDS to be a client (has config) but is NOT connected, DO NOT FALLBACK to local.
+        // This prevents creating "split brain" data on the client device.
+        if (hasSavedClientConfig && !restApiStatus.connected) {
+            console.warn('[Resolution] Blocked: Client configured but disconnected.');
+            setError('OFFLINE: CONNECT TO SERVER');
+            if (apiSettings.voiceEnabled) voiceService.playError();
+            setLoading(false);
+            setOrderId('');
             return;
         }
 

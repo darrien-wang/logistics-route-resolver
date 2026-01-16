@@ -38,6 +38,8 @@ export function RestApiProvider({ children }: { children: ReactNode }) {
     const [status, setStatus] = useState<ConnectionStatus>(defaultStatus);
     const [isLoading, setIsLoading] = useState(false);
 
+    const [hasSavedClientConfig, setHasSavedClientConfig] = useState(false);
+
     // Check for existing server on mount
     useEffect(() => {
         const checkExistingServer = async () => {
@@ -61,21 +63,26 @@ export function RestApiProvider({ children }: { children: ReactNode }) {
             // Check for saved client connection
             const savedServerUrl = localStorage.getItem('REST_API_SERVER_URL');
             const savedClientName = localStorage.getItem('REST_API_CLIENT_NAME');
-            if (savedServerUrl && !status.connected) {
-                // Auto-reconnect attempt
-                try {
-                    apiClient.configure(savedServerUrl, savedClientName || undefined);
-                    const connectionStatus = await apiClient.checkConnection();
-                    if (connectionStatus.connected) {
-                        setStatus({
-                            mode: 'client',
-                            connected: true,
-                            serverUrl: savedServerUrl,
-                        });
-                        console.log('[RestApiContext] Auto-reconnected to:', savedServerUrl);
+
+            if (savedServerUrl) {
+                setHasSavedClientConfig(true);
+
+                if (!status.connected) {
+                    // Auto-reconnect attempt
+                    try {
+                        apiClient.configure(savedServerUrl, savedClientName || undefined);
+                        const connectionStatus = await apiClient.checkConnection();
+                        if (connectionStatus.connected) {
+                            setStatus({
+                                mode: 'client',
+                                connected: true,
+                                serverUrl: savedServerUrl,
+                            });
+                            console.log('[RestApiContext] Auto-reconnected to:', savedServerUrl);
+                        }
+                    } catch (e) {
+                        console.log('[RestApiContext] Auto-reconnect failed');
                     }
-                } catch (e) {
-                    console.log('[RestApiContext] Auto-reconnect failed');
                 }
             }
         };
@@ -101,6 +108,7 @@ export function RestApiProvider({ children }: { children: ReactNode }) {
 
             // Clear any saved client connection
             localStorage.removeItem('REST_API_SERVER_URL');
+            setHasSavedClientConfig(false);
 
             console.log('[RestApiContext] Host started:', serverInfo);
             return serverInfo;
@@ -130,6 +138,7 @@ export function RestApiProvider({ children }: { children: ReactNode }) {
                 // Save for auto-reconnect
                 localStorage.setItem('REST_API_SERVER_URL', serverUrl);
                 localStorage.setItem('REST_API_CLIENT_NAME', name);
+                setHasSavedClientConfig(true);
 
                 console.log('[RestApiContext] Connected to:', serverUrl);
             } else {
@@ -152,7 +161,20 @@ export function RestApiProvider({ children }: { children: ReactNode }) {
             }
 
             apiClient.disconnect();
+
+            // NOTE: We do NOT remove localStorage config on simple disconnect,
+            // but for "Logout" semantics we might.
+            // Requirement says: "If configured but disconnected => NO SCAN".
+            // So we keep the config but clear the active connection.
+
+            // To truly "Unconfigure", user might need a separate action or we clarify current behavior.
+            // For now, explicit Disconnect button wipes session.
+            // If user wants to "Forget" server, they likely use Disconnect.
+            // BUT: Auto-reconnect tries to load it on refresh.
+            // So Disconnect SHOULD probably clear it to avoid stuck loop.
+
             localStorage.removeItem('REST_API_SERVER_URL');
+            setHasSavedClientConfig(false);
 
             setStatus(defaultStatus);
         } catch (error: any) {
@@ -163,7 +185,7 @@ export function RestApiProvider({ children }: { children: ReactNode }) {
     }, [status.mode]);
 
     return (
-        <RestApiContext.Provider value={{ status, isLoading, startHost, connectClient, disconnect }}>
+        <RestApiContext.Provider value={{ status, isLoading, startHost, connectClient, disconnect, hasSavedClientConfig }}>
             {children}
         </RestApiContext.Provider>
     );
