@@ -27,8 +27,7 @@ import TokenExpiredModal from './components/TokenExpiredModal';
 import PrintConditionManager from './components/PrintConditionManager';
 import WhatsNewModal from './components/WhatsNewModal';
 import LanguageSwitcher from './components/LanguageSwitcher';
-import { I18nProvider } from './contexts/I18nContext';
-import { RestApiProvider } from './contexts/RestApiContext';
+
 import { useAppPersistence } from './hooks/useAppPersistence';
 import { useRouteResolution } from './hooks/useRouteResolution';
 import { useHostScanHandler } from './hooks/useHostScanHandler';
@@ -353,166 +352,162 @@ const App: React.FC = () => {
   }
 
   return (
-    <I18nProvider>
-      <RestApiProvider>
-        <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-sky-500/30">
-          {/* Sidebar Navigation */}
-          <div className="fixed left-0 top-0 bottom-0 w-24 bg-slate-900 border-r border-white/5 flex flex-col items-center py-10 z-[200]">
-            <div className="w-14 h-14 bg-white/5 backdrop-blur-xl rounded-3xl flex items-center justify-center mb-14 shadow-2xl overflow-hidden border border-white/10 group">
-              <img
-                src="app_logo_fixed.png"
-                className="w-14 h-14 object-contain p-1 group-hover:scale-110 transition-transform"
-                alt="Logo"
-              />
-            </div>
-            <div className="flex flex-col gap-8">
-              <button onClick={() => setView('dashboard')} className={`p-4 rounded-2xl transition-all ${view === 'dashboard' ? 'bg-sky-500/20 text-sky-400 shadow-lg shadow-sky-500/10' : 'text-slate-600 hover:text-slate-400'}`}>
-                <LayoutDashboard className="w-7 h-7" />
-              </button>
-              <button onClick={() => setView('operator')} className={`p-4 rounded-2xl transition-all ${view === 'operator' ? 'bg-sky-500/20 text-sky-400 shadow-lg shadow-sky-500/10' : 'text-slate-600 hover:text-slate-400'}`}>
-                <Maximize2 className="w-7 h-7" />
-              </button>
-              <button onClick={() => setView('rules')} className={`p-4 rounded-2xl transition-all ${view === 'rules' ? 'bg-sky-500/20 text-sky-400 shadow-lg shadow-sky-500/10' : 'text-slate-600 hover:text-slate-400'}`}>
-                <ClipboardList className="w-7 h-7" />
-              </button>
-              <button onClick={() => setView('stacks')} className={`p-4 rounded-2xl transition-all ${view === 'stacks' ? 'bg-sky-500/20 text-sky-400 shadow-lg shadow-sky-500/10' : 'text-slate-600 hover:text-slate-400'}`}>
-                <Layers className="w-7 h-7" />
-              </button>
-              <button onClick={() => setView('network')} className={`p-4 rounded-2xl transition-all ${view === 'network' ? 'bg-sky-500/20 text-sky-400 shadow-lg shadow-sky-500/10' : 'text-slate-600 hover:text-slate-400'}`}>
-                <Wifi className="w-7 h-7" />
-              </button>
-            </div>
-
-            {/* Single Instance Indicator */}
-            {isSingleInstance && (
-              <div
-                className="mt-auto mb-1 flex items-center justify-center"
-                title="Single Instance Lock Active - Only one copy of this app can run"
-              >
-                <ShieldCheck className="w-4 h-4 text-emerald-500" />
-              </div>
-            )}
-
-            {/* Version Number - Click for What's New AND check updates */}
-            <button
-              onClick={() => {
-                setShowWhatsNew(true);
-                // Also trigger update check when clicking version
-                const electronAPI = (window as any).electronAPI;
-                if (electronAPI?.updater?.checkForUpdates) {
-                  electronAPI.updater.checkForUpdates();
-                }
-              }}
-              className={`${isSingleInstance ? '' : 'mt-auto'} mb-2 text-slate-600 hover:text-sky-400 transition-colors text-xs font-mono`}
-              title="Click to see What's New and check for updates"
-            >
-              v{appVersion}
-            </button>
-
-            <LanguageSwitcher compact className="mb-2" />
-
-            <button onClick={() => setShowApiConfig(true)} className="p-4 text-slate-600 hover:text-sky-400 transition-colors">
-              <Settings className="w-7 h-7" />
-            </button>
-
-            {/* Print Condition Filter Button */}
-            <button
-              onClick={() => setShowPrintConditions(true)}
-              className={`p-4 rounded-2xl transition-all ${printMappingConditionService.isEnabled()
-                ? 'bg-emerald-500/20 text-emerald-400'
-                : 'text-slate-600 hover:text-slate-400'
-                }`}
-              title="Print Mapping Conditions"
-            >
-              <Filter className="w-7 h-7" />
-            </button>
-          </div>
-
-          <main className={`flex-1 ml-24 relative ${view === 'operator' ? 'h-screen overflow-hidden p-6' : 'p-10 lg:p-14 overflow-y-auto'}`}>
-            {view === 'dashboard' ? (
-              <DashboardView
-                apiSettings={apiSettings}
-                history={history}
-                operationLog={operationLog}
-                selectedEventTypes={selectedEventTypes}
-                dataSource={dataSource}
-                exportService={exportService}
-                fileInputRef={fileInputRef}
-                onShowApiConfig={() => setShowApiConfig(true)}
-                onFileUpload={handleFileUpload}
-                onClearHistory={clearHistory}
-              />
-            ) : view === 'operator' ? (
-              <OperatorView
-                apiSettings={apiSettings}
-                operationLog={operationLog}
-                history={history}
-                selectedEventTypes={selectedEventTypes}
-                orderId={orderId}
-                loading={loading}
-                error={error}
-                batchMode={batchMode}
-                isBatchComplete={isBatchComplete}
-                currentResult={currentResult}
-                printStatus={printStatus}
-                exportService={exportService}
-                scannerInputRef={scannerInputRef}
-                onToggleEventType={toggleEventType}
-                onOrderIdChange={setOrderId}
-                onSearch={handleSafeSearch}
-              />
-            ) : view === 'stacks' ? (
-              <RouteStackManager
-                history={history}
-                apiSettings={apiSettings}
-                onSettingsChange={setApiSettings}
-                onAddTestData={handleAddTestData}
-                onImportOrders={handleImportOrders}
-                stackDefs={stackDefs}
-                setStackDefs={setStackDefs}
-              />
-            ) : view === 'network' ? (
-              <NetworkSettingsViewNew />
-            ) : (
-              <RulesManagementView dataSource={dataSource} onFileUpload={handleFileUpload} />
-            )}
-
-            <ApiConfigModal
-              isOpen={showApiConfig}
-              onClose={() => setShowApiConfig(false)}
-              apiSettings={apiSettings}
-              onSettingsChange={setApiSettings}
-            />
-
-            <TokenExpiredModal
-              isOpen={showTokenExpired}
-              onClose={() => setShowTokenExpired(false)}
-              onOpenSettings={() => setShowApiConfig(true)}
-            />
-
-            <PrintConditionManager
-              isOpen={showPrintConditions}
-              onClose={() => setShowPrintConditions(false)}
-            />
-
-            <WhatsNewModal
-              isOpen={showWhatsNew}
-              onClose={() => {
-                setShowWhatsNew(false);
-                // Save current version as seen
-                if (appVersion && appVersion !== 'dev') {
-                  localStorage.setItem('lastSeenVersion', appVersion);
-                }
-              }}
-              currentVersion={appVersion}
-            />
-
-            {/* Update Notification */}
-            <UpdateNotification />
-          </main>
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-sky-500/30">
+      {/* Sidebar Navigation */}
+      <div className="fixed left-0 top-0 bottom-0 w-24 bg-slate-900 border-r border-white/5 flex flex-col items-center py-10 z-[200]">
+        <div className="w-14 h-14 bg-white/5 backdrop-blur-xl rounded-3xl flex items-center justify-center mb-14 shadow-2xl overflow-hidden border border-white/10 group">
+          <img
+            src="app_logo_fixed.png"
+            className="w-14 h-14 object-contain p-1 group-hover:scale-110 transition-transform"
+            alt="Logo"
+          />
         </div>
-      </RestApiProvider>
-    </I18nProvider >
+        <div className="flex flex-col gap-8">
+          <button onClick={() => setView('dashboard')} className={`p-4 rounded-2xl transition-all ${view === 'dashboard' ? 'bg-sky-500/20 text-sky-400 shadow-lg shadow-sky-500/10' : 'text-slate-600 hover:text-slate-400'}`}>
+            <LayoutDashboard className="w-7 h-7" />
+          </button>
+          <button onClick={() => setView('operator')} className={`p-4 rounded-2xl transition-all ${view === 'operator' ? 'bg-sky-500/20 text-sky-400 shadow-lg shadow-sky-500/10' : 'text-slate-600 hover:text-slate-400'}`}>
+            <Maximize2 className="w-7 h-7" />
+          </button>
+          <button onClick={() => setView('rules')} className={`p-4 rounded-2xl transition-all ${view === 'rules' ? 'bg-sky-500/20 text-sky-400 shadow-lg shadow-sky-500/10' : 'text-slate-600 hover:text-slate-400'}`}>
+            <ClipboardList className="w-7 h-7" />
+          </button>
+          <button onClick={() => setView('stacks')} className={`p-4 rounded-2xl transition-all ${view === 'stacks' ? 'bg-sky-500/20 text-sky-400 shadow-lg shadow-sky-500/10' : 'text-slate-600 hover:text-slate-400'}`}>
+            <Layers className="w-7 h-7" />
+          </button>
+          <button onClick={() => setView('network')} className={`p-4 rounded-2xl transition-all ${view === 'network' ? 'bg-sky-500/20 text-sky-400 shadow-lg shadow-sky-500/10' : 'text-slate-600 hover:text-slate-400'}`}>
+            <Wifi className="w-7 h-7" />
+          </button>
+        </div>
+
+        {/* Single Instance Indicator */}
+        {isSingleInstance && (
+          <div
+            className="mt-auto mb-1 flex items-center justify-center"
+            title="Single Instance Lock Active - Only one copy of this app can run"
+          >
+            <ShieldCheck className="w-4 h-4 text-emerald-500" />
+          </div>
+        )}
+
+        {/* Version Number - Click for What's New AND check updates */}
+        <button
+          onClick={() => {
+            setShowWhatsNew(true);
+            // Also trigger update check when clicking version
+            const electronAPI = (window as any).electronAPI;
+            if (electronAPI?.updater?.checkForUpdates) {
+              electronAPI.updater.checkForUpdates();
+            }
+          }}
+          className={`${isSingleInstance ? '' : 'mt-auto'} mb-2 text-slate-600 hover:text-sky-400 transition-colors text-xs font-mono`}
+          title="Click to see What's New and check for updates"
+        >
+          v{appVersion}
+        </button>
+
+        <LanguageSwitcher compact className="mb-2" />
+
+        <button onClick={() => setShowApiConfig(true)} className="p-4 text-slate-600 hover:text-sky-400 transition-colors">
+          <Settings className="w-7 h-7" />
+        </button>
+
+        {/* Print Condition Filter Button */}
+        <button
+          onClick={() => setShowPrintConditions(true)}
+          className={`p-4 rounded-2xl transition-all ${printMappingConditionService.isEnabled()
+            ? 'bg-emerald-500/20 text-emerald-400'
+            : 'text-slate-600 hover:text-slate-400'
+            }`}
+          title="Print Mapping Conditions"
+        >
+          <Filter className="w-7 h-7" />
+        </button>
+      </div>
+
+      <main className={`flex-1 ml-24 relative ${view === 'operator' ? 'h-screen overflow-hidden p-6' : 'p-10 lg:p-14 overflow-y-auto'}`}>
+        {view === 'dashboard' ? (
+          <DashboardView
+            apiSettings={apiSettings}
+            history={history}
+            operationLog={operationLog}
+            selectedEventTypes={selectedEventTypes}
+            dataSource={dataSource}
+            exportService={exportService}
+            fileInputRef={fileInputRef}
+            onShowApiConfig={() => setShowApiConfig(true)}
+            onFileUpload={handleFileUpload}
+            onClearHistory={clearHistory}
+          />
+        ) : view === 'operator' ? (
+          <OperatorView
+            apiSettings={apiSettings}
+            operationLog={operationLog}
+            history={history}
+            selectedEventTypes={selectedEventTypes}
+            orderId={orderId}
+            loading={loading}
+            error={error}
+            batchMode={batchMode}
+            isBatchComplete={isBatchComplete}
+            currentResult={currentResult}
+            printStatus={printStatus}
+            exportService={exportService}
+            scannerInputRef={scannerInputRef}
+            onToggleEventType={toggleEventType}
+            onOrderIdChange={setOrderId}
+            onSearch={handleSafeSearch}
+          />
+        ) : view === 'stacks' ? (
+          <RouteStackManager
+            history={history}
+            apiSettings={apiSettings}
+            onSettingsChange={setApiSettings}
+            onAddTestData={handleAddTestData}
+            onImportOrders={handleImportOrders}
+            stackDefs={stackDefs}
+            setStackDefs={setStackDefs}
+          />
+        ) : view === 'network' ? (
+          <NetworkSettingsViewNew />
+        ) : (
+          <RulesManagementView dataSource={dataSource} onFileUpload={handleFileUpload} />
+        )}
+
+        <ApiConfigModal
+          isOpen={showApiConfig}
+          onClose={() => setShowApiConfig(false)}
+          apiSettings={apiSettings}
+          onSettingsChange={setApiSettings}
+        />
+
+        <TokenExpiredModal
+          isOpen={showTokenExpired}
+          onClose={() => setShowTokenExpired(false)}
+          onOpenSettings={() => setShowApiConfig(true)}
+        />
+
+        <PrintConditionManager
+          isOpen={showPrintConditions}
+          onClose={() => setShowPrintConditions(false)}
+        />
+
+        <WhatsNewModal
+          isOpen={showWhatsNew}
+          onClose={() => {
+            setShowWhatsNew(false);
+            // Save current version as seen
+            if (appVersion && appVersion !== 'dev') {
+              localStorage.setItem('lastSeenVersion', appVersion);
+            }
+          }}
+          currentVersion={appVersion}
+        />
+
+        {/* Update Notification */}
+        <UpdateNotification />
+      </main>
+    </div>
   );
 };
 
