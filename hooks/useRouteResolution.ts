@@ -206,6 +206,38 @@ export const useRouteResolution = ({
 
                 for (const id of ids) {
                     const uppercaseId = id.toUpperCase();
+
+                    // RE-SCAN SHORTCUT:
+                    // If this order was ALREADY successfully resolved, return the cached result immediately.
+                    // This prevents "Stack #2" reassignment issues and accidental "No route found" on retry.
+                    // It ensures the "Stack #" is absolutely immutable for a given session.
+                    const existingSuccess = history.find(h => h.orderId === uppercaseId && h.route && h.printedStack);
+                    if (existingSuccess) {
+                        console.log(`[Resolution] Re-scan shortcut for ${uppercaseId}: Returning existing result.`);
+
+                        // Refresh timestamp but keep data identical
+                        const refreshedResult = {
+                            ...existingSuccess,
+                            resolvedAt: new Date().toISOString(),
+                            scannedBy: options?.clientId || existingSuccess.scannedBy
+                        };
+
+                        // Move to top of history
+                        setHistory(prev => [refreshedResult, ...prev.filter(h => h.orderId !== uppercaseId)]);
+
+                        // Re-trigger visual/audio feedback for confirmation
+                        if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
+                            // Optional: debounce or skip print on re-scan if desired. 
+                            // For now, consistent with user request "I support duplicate printing"
+                            labelPrintService.queuePrint(refreshedResult.printedStack!.routeName, refreshedResult.printedStack!.stackNumber, uppercaseId);
+                        }
+                        if (apiSettings.voiceEnabled) {
+                            voiceService.announceRoute(refreshedResult.route.routeConfiguration, refreshedResult.printedStack!.stackNumber);
+                        }
+
+                        return refreshedResult; // Return immediately
+                    }
+
                     const cachedOrder = orderDataMap.get(uppercaseId);
 
                     // Print Condition Pool Check - before route resolution
