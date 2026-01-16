@@ -554,47 +554,67 @@ export const useRouteResolution = ({
 
                     const result = await chain.run(initialOrder);
 
+
                     // Add stack tracking if route was resolved
                     if (result.route?.routeConfiguration) {
-                        const stackInfo = routeStackService.addToStack(
-                            result.route.routeConfiguration,
-                            targetId,
-                            { weight: result.weight || 0, volume: result.volume || 0 }
-                        );
-                        result.stackInfo = stackInfo;
-
-                        // Voice announcement
-                        if (apiSettings.voiceEnabled) {
-                            if (stackInfo.isNewStack && stackInfo.stackNumber > 1) {
-                                // Stack full warning
-                                voiceService.announceStackFull(
-                                    result.route.routeConfiguration,
-                                    stackInfo.stackNumber - 1,
-                                    stackInfo.stackNumber
-                                );
-                            } else {
-                                // Normal route announcement
-                                voiceService.announceRoute(result.route.routeConfiguration, stackInfo.stackNumber);
-                            }
-                        }
-
-                        // ALWAYS set printedStack when route is resolved
                         const existingRecord = history.find(h => h.orderId === targetId);
+
+                        // AUTHORITATIVE STACK LOGIC:
+                        // If order already has a printedStack, we MUST reuse it.
+                        // We do not ask the routeStackService for a new assignment because that would
+                        // incorrectly treat it as a new "unit" taking up space, or assign a new stack number.
+
                         if (existingRecord?.printedStack) {
+                            console.log(`[Resolution] Re-scan of ${targetId}: Preserving authoritative stack #${existingRecord.printedStack.stackNumber}`);
                             result.printedStack = existingRecord.printedStack;
+
+                            // Mock stackInfo for consistency, but don't call addToStack logic that increments counters
+                            // (or we can call a specific method to 'refresh' without adding new capacity logic if needed, 
+                            // but for now we assume re-scan shouldn't change capacity state)
+                            result.stackInfo = {
+                                stackNumber: existingRecord.printedStack.stackNumber,
+                                isNewStack: false,
+                                currentCount: 0, // Placeholder
+                                capacity: 0, // Placeholder 
+                                isStackFull: false
+                            };
                         } else {
+                            // New scan: Assign to stack normally
+                            const stackInfo = routeStackService.addToStack(
+                                result.route.routeConfiguration,
+                                targetId,
+                                { weight: result.weight || 0, volume: result.volume || 0 }
+                            );
+                            result.stackInfo = stackInfo;
+
+                            // Create new printedStack assignment
                             result.printedStack = {
                                 routeName: result.route.routeConfiguration,
                                 stackNumber: stackInfo.stackNumber,
                                 printedAt: new Date().toISOString()
                             };
+
+                            // Voice announcement
+                            if (apiSettings.voiceEnabled) {
+                                if (stackInfo.isNewStack && stackInfo.stackNumber > 1) {
+                                    voiceService.announceStackFull(
+                                        result.route.routeConfiguration,
+                                        stackInfo.stackNumber - 1,
+                                        stackInfo.stackNumber
+                                    );
+                                } else {
+                                    voiceService.announceRoute(result.route.routeConfiguration, stackInfo.stackNumber);
+                                }
+                            }
                         }
 
-                        // Auto-print label on every scan (skip for remote scans - client will print)
-                        if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
+                        // Auto-print label logic (only for new scans or forced reprints - usually skipping duplicates unless configured otherwise)
+                        // Requirement: If it's a re-scan, we typically just show the info.
+                        if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan && !existingRecord?.printedStack) {
                             labelPrintService.queuePrint(result.printedStack.routeName, result.printedStack.stackNumber, targetId);
                         }
                     } else {
+
                         // EXCEPTION
                         if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
                             labelPrintService.queueExceptionPrint(targetId);
