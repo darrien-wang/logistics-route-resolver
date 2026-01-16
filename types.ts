@@ -118,6 +118,7 @@ export interface ResolvedRouteInfo extends OrderData {
   isPlaceholder?: boolean;
   // LAN Sync: Track which client scanned this order (undefined means local/Host)
   scannedBy?: string;
+  processId?: string; // Unique ID for activity stream process tracking (allows duplicates)
 }
 
 // Middleware interface for data processing

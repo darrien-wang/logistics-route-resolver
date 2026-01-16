@@ -53,15 +53,16 @@ const DashboardView: React.FC<DashboardViewProps> = ({
         const scrollBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
         // Load more when scrolled near bottom (within 100px)
         if (scrollBottom < 100) {
-            const totalItems = Object.keys(operationLog).length;
+            const totalItems = history.length;
             if (visibleCount < totalItems) {
                 setVisibleCount(prev => Math.min(prev + LOAD_MORE_COUNT, totalItems));
             }
         }
-    }, [operationLog, visibleCount]);
+    }, [history, visibleCount]);
 
     // Get visible entries only
-    const allEntries = Object.entries(operationLog).reverse();
+    // history is already sorted new -> old (index 0 is newest)
+    const allEntries = history;
     const visibleEntries = allEntries.slice(0, visibleCount);
 
     return (
@@ -109,36 +110,61 @@ const DashboardView: React.FC<DashboardViewProps> = ({
                         onScroll={handleScroll}
                         className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar max-h-[500px]"
                     >
-                        {Object.keys(operationLog).length === 0 ? (
+                        {history.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center opacity-30 text-slate-500 space-y-4">
                                 <Activity className="w-16 h-16" />
                                 <p className="uppercase tracking-[0.3em] text-sm">{t('dashboard.waitingForActivity')}</p>
                             </div>
                         ) : (
                             <>
-                                {visibleEntries.map(([id, events]) => (
-                                    <div key={id} className="flex items-center justify-between p-5 bg-slate-900/40 rounded-[24px] border border-white/5 hover:border-sky-500/20 transition-all">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center text-sky-400 border border-white/5">
-                                                <Package className="w-6 h-6" />
-                                            </div>
-                                            <div>
-                                                <div className="font-mono font-black text-white text-lg tracking-wider uppercase">{id}</div>
-                                                <div className="text-[10px] text-slate-500 uppercase tracking-widest">{(events as OrderEventStatus[]).every(e => e.status === 'SUCCESS') ? t('dashboard.processingComplete') : t('dashboard.inTransit')}</div>
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-3">
-                                            {(events as OrderEventStatus[]).map((e, idx) => (
-                                                <div key={idx} className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] border transition-all ${e.status === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : e.status === 'FAILED' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse'}`}>
-                                                    {e.type}: {e.status}
+                                {visibleEntries.map((entry) => {
+                                    /* Handle both array of tuples (old) and array of ResolvedRouteInfo (new) if needed, 
+                                       but we are switching to history array. 
+                                       entry is ResolvedRouteInfo. 
+                                    */
+                                    // Use processId as key if available (supported by types refactor), fallback to orderId+index if needed 
+                                    // (but strict React key rules prefer stable IDs. random ID in processId is best).
+                                    // Cast entry to any temporarily if TS doesn't pick up processId immediately, or assume updated types are valid.
+                                    const item = entry as any;
+                                    // Key logic: processId > orderId+random? No, use processId.
+                                    // If processId missing (old entries), use orderId + index (risky for reorder) or just random?
+                                    // Since we reset history often, relying on processId is safest path forward.
+                                    const key = item.processId || `${item.orderId}-${Math.random()}`;
+
+                                    // Lookup live events from log
+                                    const events = operationLog[item.orderId] || []; // Fallback to empty if not found
+
+                                    return (
+                                        <div key={key} className="flex items-center justify-between p-5 bg-slate-900/40 rounded-[24px] border border-white/5 hover:border-sky-500/20 transition-all">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center text-sky-400 border border-white/5">
+                                                    <Package className="w-6 h-6" />
                                                 </div>
-                                            ))}
+                                                <div>
+                                                    <div className="font-mono font-black text-white text-lg tracking-wider uppercase">{item.orderId}</div>
+                                                    <div className="text-[10px] text-slate-500 uppercase tracking-widest">{events.every(e => e.status === 'SUCCESS') ? t('dashboard.processingComplete') : t('dashboard.inTransit')}</div>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-3">
+                                                {events.length > 0 ? (
+                                                    events.map((e, idx) => (
+                                                        <div key={idx} className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] border transition-all ${e.status === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : e.status === 'FAILED' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20 animate-pulse'}`}>
+                                                            {e.type}: {e.status}
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    // Fallback pill if no events in log (e.g. historical re-load?) -> Assume COMPLETED based on history existence
+                                                    <div className="px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] border transition-all bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                                                        SCAN: SUCCESS
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
-                                {visibleCount < allEntries.length && (
+                                    );
+                                })}
+                                {visibleCount < history.length && (
                                     <div className="text-center py-4 text-slate-500 text-sm">
-                                        ↓ Scroll to load more ({visibleCount}/{allEntries.length})
+                                        ↓ Scroll to load more ({visibleCount}/{history.length})
                                     </div>
                                 )}
                             </>

@@ -51,8 +51,14 @@ export interface HostScanHandlerProps {
 }
 
 export function useHostScanHandler({ onScan }: HostScanHandlerProps) {
+    const onScanRef = useRef(onScan);
     const cleanupRef = useRef<(() => void) | null>(null);
     const isSetupRef = useRef(false);
+
+    // Keep ref updated with latest handler
+    useEffect(() => {
+        onScanRef.current = onScan;
+    }, [onScan]);
 
     useEffect(() => {
         // Prevent double setup
@@ -71,9 +77,8 @@ export function useHostScanHandler({ onScan }: HostScanHandlerProps) {
             const orderId = request.orderId.toUpperCase();
 
             try {
-                // Use the provided onScan handler to process - this uses the same
-                // route resolution logic as local scans (middleware chain, API lookup, etc.)
-                const resolvedInfo = await onScan(orderId, request.clientName);
+                // Use the latest onScan handler via ref
+                const resolvedInfo = await onScanRef.current(orderId, request.clientName);
 
                 if (resolvedInfo.route && resolvedInfo.route.routeConfiguration) {
                     // Success - route found
@@ -141,7 +146,7 @@ export function useHostScanHandler({ onScan }: HostScanHandlerProps) {
                 isSetupRef.current = false;
             }
         };
-    }, [onScan]);
+    }, []); // Empty dependency array - strict single setup
 }
 
 export default useHostScanHandler;

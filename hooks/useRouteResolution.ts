@@ -106,12 +106,17 @@ export const useRouteResolution = ({
                 const refreshedResult = {
                     ...existingSuccess,
                     resolvedAt: new Date().toISOString(),
-                    scannedBy: options?.clientId || existingSuccess.scannedBy
+                    scannedBy: options?.clientId || existingSuccess.scannedBy,
+                    // Add unique processId for duplicate display
+                    processId: `${existingSuccess.orderId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
                 };
                 lastCachedResult = refreshedResult;
 
-                // Move to top of history
-                setHistory(prev => [refreshedResult, ...prev.filter(h => h.orderId !== upperId)]);
+                // ALLOW DUPLICATES in UI: Prepend to history without filtering old one
+                setHistory(prev => [refreshedResult, ...prev]);
+
+                // Show in UI
+                setCurrentResult(refreshedResult);
 
                 // Re-trigger visual/audio feedback for confirmation
                 if (apiSettings.autoPrintLabelEnabled && !options?.isRemoteScan) {
@@ -560,12 +565,14 @@ export const useRouteResolution = ({
                         // Voice announcement
                         if (apiSettings.voiceEnabled) {
                             if (stackInfo.isNewStack && stackInfo.stackNumber > 1) {
+                                // Stack full warning
                                 voiceService.announceStackFull(
                                     result.route.routeConfiguration,
                                     stackInfo.stackNumber - 1,
                                     stackInfo.stackNumber
                                 );
                             } else {
+                                // Normal route announcement
                                 voiceService.announceRoute(result.route.routeConfiguration, stackInfo.stackNumber);
                             }
                         }
@@ -597,9 +604,17 @@ export const useRouteResolution = ({
                     setCurrentResult(result);
                     // Add scannedBy for remote scan tracking
                     if (options?.clientId) result.scannedBy = options.clientId;
-                    setHistory(prev => [result, ...prev.filter(h => h.orderId !== result.orderId)]);
+
+                    // Add a unique processId to allow duplicates in Activity Stream
+                    result.processId = `${result.orderId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+                    // ALLOW DUPLICATES in history (for Activity Stream)
+                    // We do NOT filter out old entries anymore. This allows the stream to show A -> B -> A sequence.
+                    // RouteStackManager handles deduplication internally for stack state.
+                    setHistory(prev => [result, ...prev]);
 
                     // Execute unload separately
+
                     handleEventInitiated(targetId, [{ type: 'UNLOAD', status: 'PENDING', timestamp: new Date().toISOString() }]);
                     try {
                         await executeUnload(targetId, apiSettings, handleEventFinished);
